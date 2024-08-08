@@ -215,10 +215,10 @@ class DirectionalStrategyBase(ScriptStrategyBase):
 
         if len(self.active_executors) > 0:
             lines.extend(["\n################################## Active Executors ##################################"])
-
         for executor in self.active_executors:
             lines.extend([f"|Signal id: {executor.config.timestamp}"])
             lines.extend(executor.to_format_status())
+
         if self.all_candles_ready:
             lines.extend(["\n################################## Market Data ##################################\n"])
             lines.extend([f"Value: {self.get_signal()}"])

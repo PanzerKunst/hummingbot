@@ -13,7 +13,7 @@ from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.strategy.script_strategy_base import ScriptStrategyBase
 
 
-class SimplePMM1(ScriptStrategyBase):
+class PMMTrendShift(ScriptStrategyBase):
     bid_spread = 0.001
     ask_spread = 0.001
     order_refresh_time = 20
