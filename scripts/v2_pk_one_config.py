@@ -72,8 +72,8 @@ class PkOneConfig(StrategyV2ConfigBase):
             time_limit=self.time_limit_min * 60,
             open_order_type=OrderType.LIMIT,
             take_profit_order_type=OrderType.LIMIT,
-            stop_loss_order_type=OrderType.MARKET,
-            time_limit_order_type=OrderType.LIMIT
+            stop_loss_order_type=OrderType.MARKET,  # Only market orders are supported for time_limit and stop_loss
+            time_limit_order_type=OrderType.MARKET  # Only market orders are supported for time_limit and stop_loss
         )
 
     @validator("position_mode", pre=True, allow_reuse=True)

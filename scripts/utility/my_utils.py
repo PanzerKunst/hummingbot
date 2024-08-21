@@ -10,5 +10,8 @@ def are_positions_equal(position_1: Position, position_2: Position) -> bool:
 
 
 def calculate_delta_bps(price_a: Decimal, price_b: Decimal) -> Decimal:
+    if price_b == 0:
+        return Decimal("Infinity")
+
     delta_bps = (price_a - price_b) / price_b * 10000
     return delta_bps

@@ -97,11 +97,9 @@ class PkOne(StrategyV2Base):
         return create_actions
 
     def create_position_config(self, connector_name: str, side: TradeType, price_delta_bps: Decimal) -> Optional[PositionExecutorConfig]:
-        # Only create a new position if none is active on that connector
         active_executors = self.get_active_executors(connector_name)
 
-        self.logger().info(f"active_executors: {active_executors}")
-
+        # Only create a new position if none is active on that connector
         if len(active_executors) > 0:
             return None
 
