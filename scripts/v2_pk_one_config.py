@@ -56,7 +56,7 @@ class PkOneConfig(StrategyV2ConfigBase):
     position_mode: PositionMode = PositionMode.ONEWAY
     candles_price_delta_threshold_bps: int = 15
     candles_base_volume_threshold: int = 40000
-    delta_to_become_best_bid_or_ask_bps: int = -2
+    delta_with_best_bid_or_ask_bps: int = 2
 
     # Triple Barrier Configuration
     time_limit_min: int = 1
@@ -73,7 +73,7 @@ class PkOneConfig(StrategyV2ConfigBase):
             open_order_type=OrderType.LIMIT,
             take_profit_order_type=OrderType.LIMIT,
             stop_loss_order_type=OrderType.MARKET,
-            time_limit_order_type=OrderType.MARKET  # Defaulting to MARKET as per requirement
+            time_limit_order_type=OrderType.LIMIT
         )
 
     @validator("position_mode", pre=True, allow_reuse=True)

@@ -78,16 +78,16 @@ class PkOne(StrategyV2Base):
         if signal is None:
             return []
 
-        if signal < 0:
-            # Place a limit buy order right above best bid price - opposite of original idea
+        if signal > 0:
+            # Place a limit buy order right above best bid price
             for connector_name, connector in self.connectors.items():
                 position_config = self.create_position_config(connector_name, TradeType.BUY, signal)
 
                 if position_config is not None:
                     create_actions.append(CreateExecutorAction(executor_config=position_config))
 
-        elif signal > 0:
-            # Place a limit sell order right below best ask price - opposite of original idea
+        elif signal < 0:
+            # Place a limit sell order right below best ask price
             for connector_name, connector in self.connectors.items():
                 position_config = self.create_position_config(connector_name, TradeType.SELL, signal)
 
@@ -109,10 +109,10 @@ class PkOne(StrategyV2Base):
         best_bid = self.get_best_bid(connector_name)
 
         ref_price: Decimal = (
-            # If side == BUY, place a limit buy order slightly below best bid
-            best_bid * Decimal(1 - self.config.delta_with_best_bid_or_ask_bps / 10000) if side == TradeType.BUY else
-            # If side == SELL, place a limit sell order slightly above best ask
-            best_ask * Decimal(1 + self.config.delta_with_best_bid_or_ask_bps / 10000)
+            # If side == BUY, place a limit buy order right above best bid
+            best_bid * Decimal(1 + self.config.delta_to_become_best_bid_or_ask_bps / 10000) if side == TradeType.BUY else
+            # If side == SELL, place a limit sell order right below best ask
+            best_ask * Decimal(1 - self.config.delta_to_become_best_bid_or_ask_bps / 10000)
         )
 
         quote_amount = self.get_position_quote_amount(connector_name)
@@ -122,8 +122,7 @@ class PkOne(StrategyV2Base):
 
         self.oracle_price_before_position_creation = self.latest_oracle_price * Decimal(1 - price_delta_bps / 10000)
 
-        self.logger().info(f"NEW POSITION. Side: {side}, latest_oracle_price: {self.latest_oracle_price}, before that: {self.oracle_price_before_position_creation}")
-        self.logger().info(f"best_ask: {best_ask}, best_bid: {best_bid}, ref_price: {ref_price}, delta_with_best_bid_or_ask_bps: {self.config.delta_with_best_bid_or_ask_bps}")
+        self.logger().info(f"NEW POSITION. Side: {side}, latest_oracle_price: {self.latest_oracle_price}, before that: {self.oracle_price_before_position_creation}, ref_price: {ref_price}, amount: {self.get_position_quote_amount(connector_name) / ref_price}, leverage: {self.get_connector_leverage(connector_name)}")
 
         return PositionExecutorConfig(
             timestamp=self.current_timestamp,
