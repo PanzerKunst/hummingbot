@@ -56,7 +56,7 @@ class PkOneConfig(StrategyV2ConfigBase):
     position_mode: PositionMode = PositionMode.ONEWAY
     candles_price_delta_threshold_bps: int = 15
     candles_base_volume_threshold: int = 40000
-    delta_with_best_bid_or_ask_bps: int = 2
+    delta_with_best_bid_or_ask_bps: int = 1
 
     # Triple Barrier Configuration
     time_limit_min: int = 1
