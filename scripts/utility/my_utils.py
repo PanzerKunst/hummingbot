@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from hummingbot.connector.derivative.position import Position
+from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
 
 
 def are_positions_equal(position_1: Position, position_2: Position) -> bool:
@@ -15,3 +16,8 @@ def calculate_delta_bps(price_a: Decimal, price_b: Decimal) -> Decimal:
 
     delta_bps = (price_a - price_b) / price_b * 10000
     return delta_bps
+
+
+def has_order_expired(executor: ExecutorInfo, time_limit: int, current_timestamp: int) -> bool:
+    delta = current_timestamp - executor.timestamp
+    return delta > time_limit

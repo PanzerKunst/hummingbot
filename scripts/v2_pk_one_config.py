@@ -57,6 +57,7 @@ class PkOneConfig(StrategyV2ConfigBase):
     candles_price_delta_threshold_bps: int = 15
     candles_base_volume_threshold: int = 40000
     delta_with_best_bid_or_ask_bps: int = 1
+    unfilled_order_time_limit: int = 2
 
     # Triple Barrier Configuration
     time_limit_min: int = 1

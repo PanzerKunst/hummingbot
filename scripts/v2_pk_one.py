@@ -12,7 +12,7 @@ from hummingbot.strategy.strategy_v2_base import StrategyV2Base
 from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
-from scripts.utility.my_utils import calculate_delta_bps
+from scripts.utility.my_utils import calculate_delta_bps, has_order_expired
 from scripts.v2_pk_one_config import PkOneConfig
 
 
@@ -169,17 +169,24 @@ class PkOne(StrategyV2Base):
 
         for connector_name, connector in self.connectors.items():
             for executor in self.get_active_executors(connector_name):
-                if not executor.is_trading and self.has_trend_reversed(executor):
-                    self.logger().info("Trend has reversed! Canceling the unopen position.")
+                if executor.is_trading:
+                    continue
+
+                if has_order_expired(executor, self.config.unfilled_order_time_limit, self.current_timestamp):
                     stop_actions.append(StopExecutorAction(executor_id=executor.id))
 
         return stop_actions
 
     def has_trend_reversed(self, executor: ExecutorInfo) -> bool:
-        return (
+        has_reversed = (
             (executor.side == TradeType.BUY and self.latest_oracle_price < self.oracle_price_before_position_creation) or
             (executor.side == TradeType.SELL and self.latest_oracle_price > self.oracle_price_before_position_creation)
         )
+
+        if has_reversed:
+            self.logger().info("Trend has reversed!")
+
+        return has_reversed
 
     def get_active_executors(self, connector_name: str) -> List[ExecutorInfo]:
         active_executors = self.filter_executors(
