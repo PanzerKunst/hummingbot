@@ -19,5 +19,9 @@ def calculate_delta_bps(price_a: Decimal, price_b: Decimal) -> Decimal:
 
 
 def has_order_expired(executor: ExecutorInfo, time_limit: int, current_timestamp: int) -> bool:
+    """
+    :param time_limit: In seconds
+    :param current_timestamp: In seconds
+    """
     delta = current_timestamp - executor.timestamp
     return delta > time_limit

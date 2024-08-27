@@ -1,6 +1,8 @@
+from datetime import datetime
 from decimal import Decimal
 from typing import Dict, List, Optional
 
+import pandas as pd
 import pandas_ta as ta  # noqa: F401
 
 from hummingbot.client.ui.interface_utils import format_df_for_printout
@@ -12,42 +14,31 @@ from hummingbot.strategy.strategy_v2_base import StrategyV2Base
 from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
-from scripts.utility.my_utils import calculate_delta_bps
-from scripts.v2_pk_one_config import PkOneConfig
+from scripts.utility.my_utils import calculate_delta_bps, has_order_expired
+from scripts.v2_pk_two_config import PkTwoConfig
 
 
-class PkOne(StrategyV2Base):
+class PkTwo(StrategyV2Base):
     """
     TODO: describe
     """
 
     account_config_set = False
     oracle_price_before_position_creation: Decimal = 0
-    latest_oracle_price: Decimal = 0
+    oracle_price_df = pd.DataFrame(columns=["timestamp", "price", "price_delta_bps"])
 
     @classmethod
-    def init_markets(cls, config: PkOneConfig):
+    def init_markets(cls, config: PkTwoConfig):
         cls.markets = {
-            # config.bitget_exchange: {config.bitget_pair},
-            # config.bybit_exchange: {config.bybit_pair},
-            # config.gate_io_exchange: {config.gate_io_pair},
-            # config.htx_exchange: {config.htx_pair},
-            # config.hyperliquid_exchange: {config.hyperliquid_pair},
-            config.kucoin_exchange: {config.kucoin_pair},
-            # config.okx_exchange: {config.okx_pair},
+            config.binance_exchange: {config.binance_pair},
+            config.kucoin_exchange: {config.kucoin_pair}
         }
 
-    def __init__(self, connectors: Dict[str, ConnectorBase], config: PkOneConfig):
+    def __init__(self, connectors: Dict[str, ConnectorBase], config: PkTwoConfig):
         super().__init__(connectors, config)
         self.config = config
-
-        # self.bitget_connector: ConnectorBase = self.connectors[config.bitget_exchange]
-        # self.bybit_connector: ConnectorBase = self.connectors[config.bybit_exchange]
-        # self.gate_io_connector: ConnectorBase = self.connectors[config.gate_io_exchange]
-        # self.htx_connector: ConnectorBase = self.connectors[config.htx_exchange]
-        # self.hyperliquid_connector: ConnectorBase = self.connectors[config.hyperliquid_exchange]
+        self.binance_connector: ConnectorBase = self.connectors[config.binance_exchange]
         self.kucoin_connector: ConnectorBase = self.connectors[config.kucoin_exchange]
-        # self.okx_connector: ConnectorBase = self.connectors[config.okx_exchange]
 
     def start(self, clock: Clock, timestamp: float) -> None:
         """
@@ -78,30 +69,26 @@ class PkOne(StrategyV2Base):
         if signal is None:
             return []
 
-        if signal > 0:
-            # Place a limit buy order right above best bid price
-            for connector_name, connector in self.connectors.items():
-                position_config = self.create_position_config(connector_name, TradeType.BUY, signal)
+        if signal < 0:
+            # Place a limit buy order right above best bid price - opposite of original idea
+            position_config = self.get_executor_config(self.config.kucoin_exchange, TradeType.BUY, signal)
 
-                if position_config is not None:
-                    create_actions.append(CreateExecutorAction(executor_config=position_config))
+            if position_config is not None:
+                create_actions.append(CreateExecutorAction(executor_config=position_config))
 
-        elif signal < 0:
-            # Place a limit sell order right below best ask price
-            for connector_name, connector in self.connectors.items():
-                position_config = self.create_position_config(connector_name, TradeType.SELL, signal)
+        elif signal > 0:
+            # Place a limit sell order right below best ask price - opposite of original idea
+            position_config = self.get_executor_config(self.config.kucoin_exchange, TradeType.SELL, signal)
 
-                if position_config is not None:
-                    create_actions.append(CreateExecutorAction(executor_config=position_config))
+            if position_config is not None:
+                create_actions.append(CreateExecutorAction(executor_config=position_config))
 
         return create_actions
 
-    def create_position_config(self, connector_name: str, side: TradeType, price_delta_bps: Decimal) -> Optional[PositionExecutorConfig]:
-        # Only create a new position if none is active on that connector
+    def get_executor_config(self, connector_name: str, side: TradeType, price_delta_bps: Decimal) -> Optional[PositionExecutorConfig]:
         active_executors = self.get_active_executors(connector_name)
 
-        self.logger().info(f"active_executors: {active_executors}")
-
+        # Only create a new position if none is active on that connector
         if len(active_executors) > 0:
             return None
 
@@ -109,10 +96,10 @@ class PkOne(StrategyV2Base):
         best_bid = self.get_best_bid(connector_name)
 
         ref_price: Decimal = (
-            # If side == BUY, place a limit buy order right above best bid
-            best_bid * Decimal(1 + self.config.delta_to_become_best_bid_or_ask_bps / 10000) if side == TradeType.BUY else
-            # If side == SELL, place a limit sell order right below best ask
-            best_ask * Decimal(1 - self.config.delta_to_become_best_bid_or_ask_bps / 10000)
+            # If side == BUY, place a limit buy order slightly below best bid
+            best_bid * Decimal(1 - self.config.delta_with_best_bid_or_ask_bps / 10000) if side == TradeType.BUY else
+            # If side == SELL, place a limit sell order slightly above best ask
+            best_ask * Decimal(1 + self.config.delta_with_best_bid_or_ask_bps / 10000)
         )
 
         quote_amount = self.get_position_quote_amount(connector_name)
@@ -120,9 +107,12 @@ class PkOne(StrategyV2Base):
         if quote_amount == 0:
             return None
 
-        self.oracle_price_before_position_creation = self.latest_oracle_price * Decimal(1 - price_delta_bps / 10000)
+        self.oracle_price_before_position_creation = self.get_latest_oracle_price() * Decimal(1 - price_delta_bps / 10000)
 
-        self.logger().info(f"NEW POSITION. Side: {side}, latest_oracle_price: {self.latest_oracle_price}, before that: {self.oracle_price_before_position_creation}, ref_price: {ref_price}, amount: {self.get_position_quote_amount(connector_name) / ref_price}, leverage: {self.get_connector_leverage(connector_name)}")
+        self.logger().info(
+            f"NEW POSITION. Side: {side}, latest_oracle_price: {self.get_latest_oracle_price()}, before that: {self.oracle_price_before_position_creation}")
+        self.logger().info(
+            f"best_ask: {best_ask}, best_bid: {best_bid}, ref_price: {ref_price}, delta_with_best_bid_or_ask_bps: {self.config.delta_with_best_bid_or_ask_bps}")
 
         return PositionExecutorConfig(
             timestamp=self.current_timestamp,
@@ -136,56 +126,59 @@ class PkOne(StrategyV2Base):
         )
 
     def get_signal(self) -> Optional[Decimal]:
-        candles_df = self.get_candles_df()
-        open_price = Decimal(candles_df.iloc[-1]["open"])
-        self.latest_oracle_price = Decimal(candles_df.iloc[-1]["close"])
-        volume = candles_df.iloc[-1]["volume"]
+        new_price = self.binance_connector.get_mid_price(self.config.binance_pair)
+        price_delta_bps: Decimal = Decimal(0)
 
-        if volume < self.config.candles_base_volume_threshold:
+        if len(self.oracle_price_df) > 0:
+            previous_price = self.get_latest_oracle_price()
+            price_delta_bps = calculate_delta_bps(new_price, previous_price)
+
+        self.logger().info(f"price_delta_bps: {price_delta_bps}")
+
+        new_row = pd.DataFrame({"timestamp": [self.current_timestamp], "price": [new_price], "price_delta_bps": [price_delta_bps]})
+        self.oracle_price_df = pd.concat([self.oracle_price_df, new_row]).tail(self.config.oracle_price_history_length)
+
+        if (
+                price_delta_bps.is_infinite() or
+                abs(price_delta_bps) < self.config.price_delta_threshold_on_leading_exchange_bps
+        ):
             return None
-
-        price_delta_bps = calculate_delta_bps(self.latest_oracle_price, open_price)
-
-        if abs(price_delta_bps) < self.config.candles_price_delta_threshold_bps:
-            return None
-
-        # If price_delta_bps > 0, I want to long the asset on trading_exchanges, i.e I want traders to sell to me
-        # So I will place a limit buy order at best bid price
-
-        # If price_delta_bps < 0, I want to short the asset on trading_exchanges, i.e I want traders to buy from me
-        # So I will place a limit sell order at best ask price
 
         return price_delta_bps
-
-    def get_candles_df(self):
-        return self.market_data_provider.get_candles_df(
-            self.config.candles_exchange,
-            self.config.candles_pair,
-            self.config.candles_interval,
-            self.config.candles_length
-        )
 
     def stop_actions_proposal(self) -> List[StopExecutorAction]:
         stop_actions = []
 
-        for connector_name, connector in self.connectors.items():
-            for executor in self.get_active_executors(connector_name):
-                if not executor.is_trading and self.has_trend_reversed(executor):
-                    self.logger().info("Trend has reversed! Canceling the unopen position.")
-                    stop_actions.append(StopExecutorAction(executor_id=executor.id))
+        for executor in self.get_active_executors(self.config.kucoin_exchange, True):
+            if has_order_expired(executor, self.config.unfilled_order_time_limit, self.current_timestamp):
+                stop_actions.append(StopExecutorAction(executor_id=executor.id))
 
         return stop_actions
 
     def has_trend_reversed(self, executor: ExecutorInfo) -> bool:
-        return (
-            (executor.side == TradeType.BUY and self.latest_oracle_price < self.oracle_price_before_position_creation) or
-            (executor.side == TradeType.SELL and self.latest_oracle_price > self.oracle_price_before_position_creation)
+        has_reversed = (
+            (executor.side == TradeType.BUY and self.get_latest_oracle_price() < self.oracle_price_before_position_creation) or
+            (executor.side == TradeType.SELL and self.get_latest_oracle_price() > self.oracle_price_before_position_creation)
         )
 
-    def get_active_executors(self, connector_name: str) -> List[ExecutorInfo]:
+        if has_reversed:
+            self.logger().info("Trend has reversed!")
+
+        return has_reversed
+
+    def get_latest_oracle_price(self) -> Decimal:
+        return Decimal(0) if len(self.oracle_price_df) == 0 else self.oracle_price_df["price"].iloc[-1]
+
+    def get_active_executors(self, connector_name: str, is_non_trading_only: bool = False) -> List[ExecutorInfo]:
+        filter_func = (
+            lambda e: e.connector_name == connector_name and e.is_active and not e.is_trading
+        ) if is_non_trading_only else (
+            lambda e: e.connector_name == connector_name and e.is_active
+        )
+
         active_executors = self.filter_executors(
             executors=self.get_all_executors(),
-            filter_func=lambda e: e.connector_name == connector_name and e.is_active
+            filter_func=filter_func
         )
 
         return active_executors
@@ -205,20 +198,8 @@ class PkOne(StrategyV2Base):
         return Decimal(available_quote_balance * leverage / 2)
 
     def get_connector_leverage(self, connector_name: str) -> int:
-        if connector_name == "bitget_perpetual":
-            return self.config.bitget_leverage
-        elif connector_name == "bybit_perpetual":
-            return self.config.bybit_leverage
-        elif connector_name == "gate_io_perpetual":
-            return self.config.gate_io_leverage
-        elif connector_name == "htx_perpetual":
-            return self.config.htx_leverage
-        elif connector_name == "hyperliquid_perpetual":
-            return self.config.hyperliquid_leverage
-        elif connector_name == "kucoin_perpetual":
+        if connector_name == "kucoin_perpetual":
             return self.config.kucoin_leverage
-        elif connector_name == "okx_perpetual":
-            return self.config.okx_leverage
         return 1
 
     def get_connector_trading_pair(self, connector_name: str) -> str:
@@ -339,13 +320,20 @@ class PkOne(StrategyV2Base):
 
         extra_info.extend(global_performance_summary)
 
-        # Candles
-        candles_summary = [f"\n\nCandles: {self.config.candles_pair} | Connector: {self.config.candles_exchange} | Interval: {self.config.candles_interval}"]
-        candles_df = self.get_candles_df()
-        candles_latest_first_df = candles_df.iloc[::-1].reset_index(drop=True)
-        candles_summary.extend(candles_latest_first_df.to_string(index=False).split("\n"))
-        extra_info.extend(candles_summary)
+        # Oracle Price DF
+        oracle_price_summary = ["\n\nOracle Price DF"]
+        oracle_price_summary.extend(self.get_formatted_oracle_price_df().to_string(index=False).split("\n"))
+        extra_info.extend(oracle_price_summary)
 
         # Combine original and extra information
         format_status = f"{original_info}\n\n" + "\n".join(extra_info)
         return format_status
+
+    def get_formatted_oracle_price_df(self):
+        # Create a copy of the DataFrame to avoid modifying the original
+        formatted_df = self.oracle_price_df.copy()
+
+        formatted_df['timestamp'] = formatted_df['timestamp'].apply(lambda x: datetime.utcfromtimestamp(x).isoformat())
+        formatted_df['price_delta_bps'] = formatted_df['price_delta_bps'].apply(lambda x: f"{x:.2f}")
+
+        return formatted_df.iloc[::-1].reset_index(drop=True)

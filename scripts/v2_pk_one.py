@@ -168,10 +168,7 @@ class PkOne(StrategyV2Base):
         stop_actions = []
 
         for connector_name, connector in self.connectors.items():
-            for executor in self.get_active_executors(connector_name):
-                if executor.is_trading:
-                    continue
-
+            for executor in self.get_active_executors(connector_name, True):
                 if has_order_expired(executor, self.config.unfilled_order_time_limit, self.current_timestamp):
                     stop_actions.append(StopExecutorAction(executor_id=executor.id))
 
@@ -188,10 +185,16 @@ class PkOne(StrategyV2Base):
 
         return has_reversed
 
-    def get_active_executors(self, connector_name: str) -> List[ExecutorInfo]:
+    def get_active_executors(self, connector_name: str, is_non_trading_only: bool = False) -> List[ExecutorInfo]:
+        filter_func = (
+            lambda e: e.connector_name == connector_name and e.is_active and not e.is_trading
+        ) if is_non_trading_only else (
+            lambda e: e.connector_name == connector_name and e.is_active
+        )
+
         active_executors = self.filter_executors(
             executors=self.get_all_executors(),
-            filter_func=lambda e: e.connector_name == connector_name and e.is_active
+            filter_func=filter_func
         )
 
         return active_executors
