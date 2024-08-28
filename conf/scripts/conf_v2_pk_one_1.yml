@@ -1,0 +1,40 @@
+markets: {}
+candles_config:
+- connector: binance
+  interval: 1s
+  max_records: 10
+  trading_pair: CRV-USDT
+controllers_config: []
+config_update_interval: 60
+script_file_name: v2_pk_one_config.py
+candles_exchange: binance
+candles_pair: CRV-USDT
+candles_interval: 1s
+candles_length: 10
+bitget_exchange: bitget_perpetual
+bitget_pair: CRV-USDT
+bitget_leverage: 20
+bybit_exchange: bybit_perpetual
+bybit_pair: CRV-USDT
+bybit_leverage: 20
+gate_io_exchange: gate_io_perpetual
+gate_io_pair: CRV-USDT
+gate_io_leverage: 20
+htx_exchange: gate_io_perpetual
+htx_pair: CRV-USDT
+htx_leverage: 20
+hyperliquid_exchange: hyperliquid_perpetual
+hyperliquid_pair: CRV-USD
+hyperliquid_leverage: 10
+kucoin_exchange: kucoin_perpetual
+kucoin_pair: CRV-USDT
+kucoin_leverage: 5
+okx_exchange: okx_perpetual
+okx_pair: CRV-USDT
+okx_leverage: 20
+position_mode: ONEWAY
+candles_price_delta_threshold_bps: 15
+candles_base_volume_threshold: 40000
+delta_with_best_bid_or_ask_bps: 100
+unfilled_order_time_limit: 2
+time_limit_min: 1

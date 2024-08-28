@@ -1,0 +1,16 @@
+markets: {}
+candles_config: []
+controllers_config: []
+config_update_interval: 60
+script_file_name: v2_pk_two_config.py
+position_mode: ONEWAY
+time_limit_min: 1
+binance_exchange: binance
+binance_pair: CRV-USDT
+kucoin_exchange: kucoin_perpetual
+kucoin_pair: CRV-USDT
+kucoin_leverage: 5
+oracle_price_history_length: 12
+price_delta_threshold_on_leading_exchange_bps: 5
+delta_with_best_bid_or_ask_bps: 100
+unfilled_order_time_limit: 2
