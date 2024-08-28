@@ -1,4 +1,4 @@
-id: QxyK2wixTTtNq7asyB7mAjGnsmr3u4Nb6e7Y4aXwNvA
+id: 6TGHogEho4kaz6vcJQNnv3dtBsCJgKgmDhpY7rct7oew
 controller_name: generic_pk
 controller_type: generic
 total_amount_quote: 100
@@ -13,7 +13,7 @@ take_profit_pct: 1.0
 filled_order_expiration_min: 60
 bollinger_bands_length: 7
 bollinger_bands_std_dev: 2.0
-bollinger_bands_bandwidth_threshold: 10.0
+bollinger_bands_bandwidth_threshold: 5.0
 candles_interval: 1m
 candles_length: 7
 unfilled_order_expiration_min: 5

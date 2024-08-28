@@ -33,7 +33,7 @@ class GenericPkConfig(ControllerConfigBase):
     # Technical analysis
     bollinger_bands_length: int = 7
     bollinger_bands_std_dev: float = 2.0
-    bollinger_bands_bandwidth_threshold: float = 10.0
+    bollinger_bands_bandwidth_threshold: float = 5.0
 
     # Candles
     candles_interval: str = "1m"
@@ -117,15 +117,15 @@ class GenericPk(ControllerBase):
         unfilled_executors = self.get_active_executors(self.config.connector_name, True)
 
         # TODO: remove
-        for ue in unfilled_executors:
-            summary = {
-                "status": ue.status,
-                "side": ue.config.side,
-                "is_active": ue.is_active,
-                "is_trading": ue.is_trading,
-                "filled_amount_quote": ue.filled_amount_quote
-            }
-            self.logger().info(f"unfilled_executor: {summary}")
+        # for ue in unfilled_executors:
+        #     summary = {
+        #         "status": ue.status,
+        #         "side": ue.config.side,
+        #         "is_active": ue.is_active,
+        #         "is_trading": ue.is_trading,
+        #         "filled_amount_quote": ue.filled_amount_quote
+        #     }
+        #     self.logger().info(f"unfilled_executor: {summary}")
 
         sell_executor_config = self.get_executor_config(unfilled_executors, TradeType.SELL, sell_price)
         if sell_executor_config is not None:
