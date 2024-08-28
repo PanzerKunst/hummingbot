@@ -33,6 +33,7 @@ class GenericPkConfig(ControllerConfigBase):
     # Technical analysis
     bollinger_bands_length: int = 7
     bollinger_bands_std_dev: float = 2.0
+    bollinger_bands_bandwidth_threshold: float = 10.0
 
     # Candles
     candles_interval: str = "1m"
@@ -90,8 +91,7 @@ class GenericPk(ControllerBase):
                                                               max_records=candles_config.max_records)
         # Add indicators
         candles_df.ta.bbands(length=self.config.bollinger_bands_length, std=self.config.bollinger_bands_std_dev, append=True)
-        bbp_series = candles_df[f"BBP_{self.config.bollinger_bands_length}_{self.config.bollinger_bands_std_dev}"]
-        self.processed_data["normalized_bbp"] = bbp_series.apply(self.get_normalized_bbp)
+        candles_df["normalized_bbp"] = candles_df[f"BBP_{self.config.bollinger_bands_length}_{self.config.bollinger_bands_std_dev}"].apply(self.get_normalized_bbp)
 
         self.processed_data["features"] = candles_df
 
@@ -106,9 +106,10 @@ class GenericPk(ControllerBase):
 
         mid_price = self.get_mid_price()
         latest_normalized_bbp = self.get_latest_normalized_bbp()
+        latest_bbb = self.get_latest_bbb()
 
         # TODO: remove
-        self.logger().info(f"mid_price: {mid_price}, latest_normalized_bbp: {latest_normalized_bbp}")
+        self.logger().info(f"mid_price: {mid_price}, latest_normalized_bbp: {latest_normalized_bbp}, latest_bbb: {latest_bbb}")
 
         sell_price = self.adjust_sell_price(mid_price, latest_normalized_bbp)
         buy_price = self.adjust_buy_price(mid_price, latest_normalized_bbp)
@@ -182,11 +183,11 @@ class GenericPk(ControllerBase):
 
         available_quote_balance = trade_connector.get_available_balance(quote_currency)
 
-        if available_quote_balance < 1:
+        if available_quote_balance < 10:
             return Decimal(0)
 
-        # If balance = 100 USDT with leverage 20x, the quote position should be 1000
-        return Decimal(available_quote_balance * self.config.leverage / 2)
+        # If balance = 100 USDT with leverage 20x, the quote position should be 500
+        return Decimal(available_quote_balance * self.config.leverage / 4)
 
     def get_best_ask(self) -> Decimal:
         return self._get_best_ask_or_bid(PriceType.BestAsk)
@@ -226,10 +227,13 @@ class GenericPk(ControllerBase):
         )
 
     def should_stop_unfilled_executor(self, unfilled_executor: ExecutorInfo) -> bool:
-        is_volatility_too_high = abs(self.get_latest_normalized_bbp()) > 1
+        is_volatility_too_high = (
+            abs(self.get_latest_normalized_bbp()) > 1 and
+            self.get_latest_bbb() > self.config.bollinger_bands_bandwidth_threshold
+        )
 
         if is_volatility_too_high:
-            self.logger().info(f"is_volatility_too_high. latest_normalized_bbp: {self.get_latest_normalized_bbp()}")
+            self.logger().info(f"is_volatility_too_high. latest_normalized_bbp: {self.get_latest_normalized_bbp()}. latest_bbb: {self.get_latest_bbb()}")
             return True
 
         return has_order_expired(unfilled_executor, self.config.unfilled_order_expiration_min * 60, self.market_data_provider.time())
@@ -243,7 +247,10 @@ class GenericPk(ControllerBase):
         return 2 * bbp - 1  # Between -1 and 1
 
     def get_latest_normalized_bbp(self) -> float:
-        return self.processed_data["normalized_bbp"].iloc[-1]
+        return self.processed_data["features"]["normalized_bbp"].iloc[-1]
+
+    def get_latest_bbb(self) -> float:
+        return self.processed_data["features"][f"BBB_{self.config.bollinger_bands_length}_{self.config.bollinger_bands_std_dev}"].iloc[-1]
 
     def adjust_sell_price(self, mid_price: Decimal, latest_normalized_bbp: float) -> Decimal:
         price_with_spread: Decimal = mid_price * Decimal(1 + self.config.min_spread_pct / 100)
