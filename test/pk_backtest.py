@@ -18,14 +18,14 @@ async def backtest():
     # backtesting_engine = MarketMakingBacktesting()
     # controller_config = backtesting_engine.get_controller_config_instance_from_yml("pmmdynamic-okx-wld_0.1.yml")
 
-    start_time_ms = datetime(2024, 8, 10).timestamp() * 1000
-    end_time_ms = datetime(2024, 8, 11).timestamp() * 1000
+    start_time = datetime(2024, 8, 10).timestamp()
+    end_time = datetime(2024, 8, 11).timestamp()
 
     backtesting_results = await backtesting_engine.run_backtesting(
         controller_config=controller_config,
         trade_cost=0.0006,
-        start=int(start_time_ms),
-        end=int(end_time_ms),
+        start=int(start_time),
+        end=int(end_time),
         backtesting_resolution="1m"
     )
 
