@@ -142,7 +142,7 @@ class GenericPk(ControllerBase):
         for unfilled_executor in self.get_active_executors(self.config.connector_name, True):
             if self.should_stop_unfilled_executor(unfilled_executor):
                 self.logger().info("Stopping unfilled executor")
-                stop_actions.append(StopExecutorAction(executor_id=unfilled_executor.id))
+                stop_actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=unfilled_executor.id))
 
         return stop_actions
 
