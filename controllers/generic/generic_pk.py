@@ -63,6 +63,7 @@ class GenericPkConfig(ControllerConfigBase):
 
     # HB command to generate config file:
     # create --controller-config generic.generic_pk
+    # start --script v2_with_controllers.py --conf conf_v2_with_controllers_generic_pk.yml
 
 
 class GenericPk(ControllerBase):
