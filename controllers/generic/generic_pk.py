@@ -113,11 +113,11 @@ class GenericPk(ControllerBase):
 
         sell_executor_config = self.get_executor_config(unfilled_executors, TradeType.SELL, sell_price)
         if sell_executor_config is not None:
-            create_actions.append(CreateExecutorAction(executor_config=sell_executor_config))
+            create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=sell_executor_config))
 
         buy_executor_config = self.get_executor_config(unfilled_executors, TradeType.BUY, buy_price)
         if buy_executor_config is not None:
-            create_actions.append(CreateExecutorAction(executor_config=buy_executor_config))
+            create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=buy_executor_config))
 
         return create_actions
 
