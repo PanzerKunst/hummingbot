@@ -16,9 +16,8 @@ from scripts.utility.my_utils import has_order_expired
 
 class GenericPkConfig(ControllerConfigBase):
     controller_name: str = "generic_pk"
-    connector_name: str = "okx"  # Do not rename attribute - used by BacktestingEngineBase
+    connector_name: str = "okx_perpetual"  # Do not rename attribute - used by BacktestingEngineBase
     trading_pair: str = "AAVE-USDT"  # Do not rename attribute - used by BacktestingEngineBase
-    unfilled_order_expiration: int = 60
 
     leverage: int = 5  # TODO: 20
     position_mode: PositionMode = PositionMode.HEDGE
@@ -27,6 +26,8 @@ class GenericPkConfig(ControllerConfigBase):
     stop_loss_pct: float = 1.4
     take_profit_pct: float = 0.7
     filled_order_expiration_min: int = 60
+
+    # TODO: dymanic SL, TP?
 
     # Technical analysis
     bollinger_bands_length: int = 7
@@ -38,8 +39,9 @@ class GenericPkConfig(ControllerConfigBase):
     candles_config: List[CandlesConfig] = []  # Initialized in the constructor
 
     # Maker orders settings
-    spread_pct: float = 1.0
-    bbp_ref_price_adjustment_pct: int = 5
+    unfilled_order_expiration_min: int = 10
+    min_spread_pct: float = 0.5
+    normalized_bbp_mult: float = 0.01
 
     @property
     def triple_barrier_config(self) -> TripleBarrierConfig:
@@ -86,6 +88,9 @@ class GenericPk(ControllerBase):
                                                               max_records=candles_config.max_records)
         # Add indicators
         candles_df.ta.bbands(length=self.config.bollinger_bands_length, std=self.config.bollinger_bands_std_dev, append=True)
+        bbp_series = candles_df[f"BBP_{self.config.bollinger_bands_length}_{self.config.bollinger_bands_std_dev}"]
+        self.processed_data["normalized_bbp"] = bbp_series.apply(self.get_normalized_bbp)
+
         self.processed_data["features"] = candles_df
 
     def determine_executor_actions(self) -> List[ExecutorAction]:
@@ -97,17 +102,11 @@ class GenericPk(ControllerBase):
     def create_actions_proposal(self) -> List[ExecutorAction]:
         create_actions = []
 
-        latest_df_row = self.processed_data["features"].iloc[-1]
-        bollinger_bands_pct = latest_df_row[f"BBP_{self.config.bollinger_bands_length}_{self.config.bollinger_bands_std_dev}"]
-        ref_price = self.adjust_ref_price(self.get_mid_price(), bollinger_bands_pct)
+        mid_price = self.get_mid_price()
+        latest_normalized_bbp = self.get_latest_normalized_bbp()
 
-        # TODO: remove
-        # mid_price = self.get_mid_price()
-
-        sell_price = ref_price * Decimal(1 + self.config.spread_pct / 100)
-        buy_price = ref_price * Decimal(1 - self.config.spread_pct / 100)
-
-        # TODO: make sure those are not better than best ask and bid
+        sell_price = self.adjust_sell_price(mid_price, latest_normalized_bbp)
+        buy_price = self.adjust_buy_price(mid_price, latest_normalized_bbp)
 
         unfilled_executors = self.get_active_executors(self.config.connector_name, True)
 
@@ -125,16 +124,14 @@ class GenericPk(ControllerBase):
         stop_actions = []
 
         for unfilled_executor in self.get_active_executors(self.config.connector_name, True):
-            if has_order_expired(unfilled_executor, self.config.unfilled_order_expiration, self.market_data_provider.time()):
+            if self.should_stop_unfilled_executor(unfilled_executor):
+                self.logger().info("Stopping unfilled executor")
                 stop_actions.append(StopExecutorAction(executor_id=unfilled_executor.id))
-
-        # TODO: Unfilled ask orders should expire sooner when bollinger_bands_pct is close to 1
-        # TODO: Unfilled ask orders should expire sooner when bollinger_bands_pct is close to 0
 
         return stop_actions
 
     #
-    # Custom functions
+    # Custom functions potentially interesting for other controllers
     #
 
     def get_active_executors(self, connector_name: str, is_non_trading_only: bool = False) -> List[ExecutorInfo]:
@@ -160,12 +157,6 @@ class GenericPk(ControllerBase):
     def get_mid_price(self):
         return self.market_data_provider.get_price_by_type(self.config.connector_name, self.config.trading_pair, PriceType.MidPrice)
 
-    def adjust_ref_price(self, mid_price: Decimal, bbp: float) -> Decimal:
-        normalized_bb = 2 * bbp - 1  # Between -1 and 1
-        adjustment_factor = 1 + (self.config.bbp_ref_price_adjustment_pct / 100 * normalized_bb)
-
-        return mid_price * Decimal(adjustment_factor)
-
     def get_position_quote_amount(self) -> Decimal:
         _, quote_currency = split_hb_trading_pair(self.config.trading_pair)
         trade_connector = self.get_trade_connector()
@@ -182,16 +173,16 @@ class GenericPk(ControllerBase):
         return Decimal(available_quote_balance * self.config.leverage / 2)
 
     def get_best_ask(self) -> Decimal:
-        return self.get_best_ask_or_bid(PriceType.BestAsk)
+        return self._get_best_ask_or_bid(PriceType.BestAsk)
 
     def get_best_bid(self) -> Decimal:
-        return self.get_best_ask_or_bid(PriceType.BestBid)
+        return self._get_best_ask_or_bid(PriceType.BestBid)
 
-    def get_best_ask_or_bid(self, price_type: PriceType) -> Decimal:
+    def _get_best_ask_or_bid(self, price_type: PriceType) -> Decimal:
         return self.market_data_provider.get_price_by_type(self.config.connector_name, self.config.trading_pair, price_type)
 
-    def get_executor_config(self, executors: List[ExecutorInfo], side: TradeType, ref_price: Decimal) -> Optional[PositionExecutorConfig]:
-        unfilled_side_executors = [executor for executor in executors if executor.side == side]
+    def get_executor_config(self, unfilled_executors: List[ExecutorInfo], side: TradeType, ref_price: Decimal) -> Optional[PositionExecutorConfig]:
+        unfilled_side_executors = [e for e in unfilled_executors if e.side == side]
 
         # Only create a new position if there is none on that side
         if len(unfilled_side_executors) > 0:
@@ -217,3 +208,41 @@ class GenericPk(ControllerBase):
             triple_barrier_config=self.config.triple_barrier_config,
             leverage=self.config.leverage
         )
+
+    def should_stop_unfilled_executor(self, unfilled_executor: ExecutorInfo) -> bool:
+        is_volatility_too_high = abs(self.get_latest_normalized_bbp()) > 1
+
+        if is_volatility_too_high:
+            self.logger().info(f"is_volatility_too_high. latest_normalized_bbp: {self.get_latest_normalized_bbp()}")
+            return True
+
+        return has_order_expired(unfilled_executor, self.config.unfilled_order_expiration_min * 60, self.market_data_provider.time())
+
+    #
+    # Custom functions specific to this controller
+    #
+
+    @staticmethod
+    def get_normalized_bbp(bbp: float) -> float:
+        return 2 * bbp - 1  # Between -1 and 1
+
+    def get_latest_normalized_bbp(self) -> float:
+        return self.processed_data["normalized_bbp"].iloc[-1]
+
+    def adjust_sell_price(self, mid_price: Decimal, latest_normalized_bbp: float) -> Decimal:
+        price_with_spread: Decimal = mid_price * Decimal(1 + self.config.min_spread_pct / 100)
+
+        if latest_normalized_bbp < 0:
+            return price_with_spread
+
+        spread_mult = latest_normalized_bbp * self.config.normalized_bbp_mult + 1
+        return price_with_spread * Decimal(spread_mult)
+
+    def adjust_buy_price(self, mid_price: Decimal, latest_normalized_bbp: float) -> Decimal:
+        price_with_spread: Decimal = mid_price * Decimal(1 - self.config.min_spread_pct / 100)
+
+        if latest_normalized_bbp > 0:
+            return price_with_spread
+
+        spread_div = abs(latest_normalized_bbp * self.config.normalized_bbp_mult - 1)
+        return price_with_spread / Decimal(spread_div)
