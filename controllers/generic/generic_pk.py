@@ -21,17 +21,18 @@ class GenericPkConfig(ControllerConfigBase):
 
     leverage: int = 5  # TODO: 20
     position_mode: PositionMode = PositionMode.HEDGE
+    total_amount_quote: int = 100  # Unused. Specified here to avoid prompt
 
     # Triple Barrier
-    stop_loss_pct: float = 1.4
-    take_profit_pct: float = 0.7
+    stop_loss_pct: float = 2.0
+    take_profit_pct: float = 1.0
     filled_order_expiration_min: int = 60
 
     # TODO: dymanic SL, TP?
 
     # Technical analysis
     bollinger_bands_length: int = 7
-    bollinger_bands_std_dev: float = 2.2
+    bollinger_bands_std_dev: float = 2.0
 
     # Candles
     candles_interval: str = "1m"
@@ -39,9 +40,9 @@ class GenericPkConfig(ControllerConfigBase):
     candles_config: List[CandlesConfig] = []  # Initialized in the constructor
 
     # Maker orders settings
-    unfilled_order_expiration_min: int = 10
+    unfilled_order_expiration_min: int = 5
     min_spread_pct: float = 0.5
-    normalized_bbp_mult: float = 0.01
+    normalized_bbp_mult: float = 0.02
 
     @property
     def triple_barrier_config(self) -> TripleBarrierConfig:
@@ -106,10 +107,24 @@ class GenericPk(ControllerBase):
         mid_price = self.get_mid_price()
         latest_normalized_bbp = self.get_latest_normalized_bbp()
 
+        # TODO: remove
+        self.logger().info(f"mid_price: {mid_price}, latest_normalized_bbp: {latest_normalized_bbp}")
+
         sell_price = self.adjust_sell_price(mid_price, latest_normalized_bbp)
         buy_price = self.adjust_buy_price(mid_price, latest_normalized_bbp)
 
         unfilled_executors = self.get_active_executors(self.config.connector_name, True)
+
+        # TODO: remove
+        for ue in unfilled_executors:
+            summary = {
+                "status": ue.status,
+                "side": ue.config.side,
+                "is_active": ue.is_active,
+                "is_trading": ue.is_trading,
+                "filled_amount_quote": ue.filled_amount_quote
+            }
+            self.logger().info(f"unfilled_executor: {summary}")
 
         sell_executor_config = self.get_executor_config(unfilled_executors, TradeType.SELL, sell_price)
         if sell_executor_config is not None:
