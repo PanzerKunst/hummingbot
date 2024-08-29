@@ -13,7 +13,6 @@ from hummingbot.strategy_v2.controllers.controller_base import ControllerBase, C
 from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig, TripleBarrierConfig
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, ExecutorAction, StopExecutorAction
 from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
-from scripts.utility.my_utils import has_order_expired
 
 
 class GenericPkConfig(ControllerConfigBase):
@@ -23,12 +22,12 @@ class GenericPkConfig(ControllerConfigBase):
 
     leverage: int = 20
     position_mode: PositionMode = PositionMode.HEDGE
-    total_amount_quote: int = 100  # Unused. Specified here to avoid prompt
+    total_amount_quote: int = 100  # Specified here primarily to avoid prompt. Used only when backtesting
 
     # Triple Barrier
-    stop_loss_pct: float = 2.0
+    stop_loss_pct: float = 2.5
     take_profit_pct: float = 1.0
-    filled_order_expiration_min: int = 60
+    filled_order_expiration_min: int = 120
 
     # TODO: dymanic SL, TP?
 
@@ -38,16 +37,15 @@ class GenericPkConfig(ControllerConfigBase):
     bollinger_bands_bandwidth_threshold: float = 1.5
 
     # Candles
-    candles_connector: str = "okx"
+    candles_connector: str = "okx_perpetual"
     candles_interval: str = "1m"
     candles_length: int = bollinger_bands_length * 2
     candles_config: List[CandlesConfig] = []  # Initialized in the constructor
 
     # Maker orders settings
-    unfilled_order_expiration_min: int = 5
     min_spread_pct: float = 0.5
-    normalized_bbp_mult: float = 0.02
-    normalized_bbb_mult: float = 0.05
+    normalized_bbp_mult: float = 0.1
+    normalized_bbb_mult: float = 0.1
 
     @property
     def triple_barrier_config(self) -> TripleBarrierConfig:
@@ -98,7 +96,7 @@ class GenericPk(ControllerBase):
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
         candles_df["normalized_bbp"] = candles_df[f"BBP_{self.config.bollinger_bands_length}_{self.config.bollinger_bands_std_dev}"].apply(self.get_normalized_bbp)
 
-        self.processed_data["features"] = candles_df.tail(self.config.bollinger_bands_length)
+        self.processed_data["features"] = candles_df
 
     def determine_executor_actions(self) -> List[ExecutorAction]:
         actions = []
@@ -113,24 +111,10 @@ class GenericPk(ControllerBase):
         latest_normalized_bbp = self.get_latest_normalized_bbp()
         latest_bbb = self.get_latest_bbb()
 
-        # TODO: remove
-        self.logger().info(f"mid_price: {mid_price}, latest_normalized_bbp: {latest_normalized_bbp}, latest_bbb: {latest_bbb}")
-
         sell_price = self.adjust_sell_price(mid_price, latest_normalized_bbp, latest_bbb)
         buy_price = self.adjust_buy_price(mid_price, latest_normalized_bbp, latest_bbb)
 
         unfilled_executors = self.get_active_executors(self.config.connector_name, True)
-
-        # TODO: remove
-        # for ue in unfilled_executors:
-        #     summary = {
-        #         "status": ue.status,
-        #         "side": ue.config.side,
-        #         "is_active": ue.is_active,
-        #         "is_trading": ue.is_trading,
-        #         "filled_amount_quote": ue.filled_amount_quote
-        #     }
-        #     self.logger().info(f"unfilled_executor: {summary}")
 
         sell_executor_config = self.get_executor_config(unfilled_executors, TradeType.SELL, sell_price)
         if sell_executor_config is not None:
@@ -165,7 +149,7 @@ class GenericPk(ControllerBase):
             f"BBB_{self.config.bollinger_bands_length}_{self.config.bollinger_bands_std_dev}"
         ]
 
-        return [format_df_for_printout(features_df[columns_to_display], table_format="psql",)]
+        return [format_df_for_printout(features_df[columns_to_display].tail(self.config.bollinger_bands_length), table_format="psql",)]
 
     #
     # Custom functions potentially interesting for other controllers
@@ -199,7 +183,7 @@ class GenericPk(ControllerBase):
         trade_connector = self.get_trade_connector()
 
         if trade_connector is None:  # When backtesting
-            return Decimal(100)
+            return Decimal(self.config.total_amount_quote)
 
         available_quote_balance = trade_connector.get_available_balance(quote_currency)
 
@@ -257,7 +241,7 @@ class GenericPk(ControllerBase):
             self.logger().info(f"is_volatility_too_high. latest_normalized_bbp: {self.get_latest_normalized_bbp()}. latest_bbb: {self.get_latest_bbb()}")
             return True
 
-        return has_order_expired(unfilled_executor, self.config.unfilled_order_expiration_min * 60, self.market_data_provider.time())
+        return False
 
     #
     # Custom functions specific to this controller

@@ -1,4 +1,4 @@
-id: AX1hegsjY2Eg1qHH7a5vJFEVQiKuuKMHrJc4dQ698Lhs
+id: A1psBfboZZ1He9h85baqLqDEVX6mpMouGe3rVzpXnAqr
 controller_name: generic_pk
 controller_type: generic
 total_amount_quote: 100
@@ -8,16 +8,15 @@ connector_name: okx_perpetual
 trading_pair: AAVE-USDT
 leverage: 20
 position_mode: HEDGE
-stop_loss_pct: 2.0
+stop_loss_pct: 2.5
 take_profit_pct: 1.0
-filled_order_expiration_min: 60
+filled_order_expiration_min: 120
 bollinger_bands_length: 7
 bollinger_bands_std_dev: 2.0
 bollinger_bands_bandwidth_threshold: 1.5
 candles_connector: okx_perpetual
 candles_interval: 1m
 candles_length: 14
-unfilled_order_expiration_min: 5
-min_spread_pct: 0.3
-normalized_bbp_mult: 0.02
-normalized_bbb_mult: 0.05
+min_spread_pct: 0.5
+normalized_bbp_mult: 0.1
+normalized_bbb_mult: 0.1
