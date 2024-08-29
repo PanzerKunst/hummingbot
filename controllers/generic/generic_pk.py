@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set
 
 import pandas as pd
 import pandas_ta as ta  # noqa: F401
@@ -105,35 +105,40 @@ class GenericPk(ControllerBase):
         return actions
 
     def create_actions_proposal(self) -> List[ExecutorAction]:
+        quote_amount = self.get_position_quote_amount()
+
+        if quote_amount == 0:
+            return []
+
         create_actions = []
 
         mid_price = self.get_mid_price()
         latest_normalized_bbp = self.get_latest_normalized_bbp()
         latest_bbb = self.get_latest_bbb()
 
-        sell_price, sell_price_adjustment_bbp, sell_price_adjustment_bbb = self.adjust_sell_price(mid_price, latest_normalized_bbp, latest_bbb)
-        buy_price, buy_price_adjustment_bbp, buy_price_adjustment_bbb = self.adjust_buy_price(mid_price, latest_normalized_bbp, latest_bbb)
-
         unfilled_executors = self.get_active_executors(self.config.connector_name, True)
+        unfilled_sell_executors = [e for e in unfilled_executors if e.side == TradeType.SELL]  # TODO: by_side
 
-        sell_executor_config = self.get_executor_config(unfilled_executors, TradeType.SELL, sell_price)
-        if sell_executor_config is not None:
+        if len(unfilled_sell_executors) == 0:
+            sell_price = self.adjust_sell_price(mid_price, latest_normalized_bbp, latest_bbb)
+            sell_executor_config = self.get_executor_config(TradeType.SELL, sell_price, quote_amount)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=sell_executor_config))
-            self.logger().info(f"NEW SELL POSITION: price:{sell_price}, adj_bbp:{sell_price_adjustment_bbp}, adj_bbb:{sell_price_adjustment_bbb}, normalized_bbp_mult:{self.config.normalized_bbp_mult}, normalized_bbb_mult:{self.config.normalized_bbb_mult}")
 
-        buy_executor_config = self.get_executor_config(unfilled_executors, TradeType.BUY, buy_price)
-        if buy_executor_config is not None:
+        unfilled_buy_executors = [e for e in unfilled_executors if e.side == TradeType.BUY]
+
+        if len(unfilled_buy_executors) == 0:
+            buy_price = self.adjust_buy_price(mid_price, latest_normalized_bbp, latest_bbb)
+            buy_executor_config = self.get_executor_config(TradeType.BUY, buy_price, quote_amount)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=buy_executor_config))
-            self.logger().info(f"NEW BUY POSITION: buy_price:{buy_price}, adj_bbp:{buy_price_adjustment_bbp}, adj_bbb:{buy_price_adjustment_bbb}, normalized_bbp_mult:{self.config.normalized_bbp_mult}, normalized_bbb_mult:{self.config.normalized_bbb_mult}")
 
-        return []  # TODO create_actions
+        return create_actions
 
     def stop_actions_proposal(self) -> List[ExecutorAction]:
         stop_actions = []
 
-        for unfilled_executor in self.get_active_executors(self.config.connector_name, True):
-            if self.should_stop_unfilled_executor(unfilled_executor):
-                self.logger().info("Stopping unfilled executor")
+        if self.should_stop_unfilled_executors():
+            self.logger().info("##### Stopping unfilled executors #####")
+            for unfilled_executor in self.get_active_executors(self.config.connector_name, True):
                 stop_actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=unfilled_executor.id))
 
         return stop_actions
@@ -205,18 +210,7 @@ class GenericPk(ControllerBase):
     def _get_best_ask_or_bid(self, price_type: PriceType) -> Decimal:
         return self.market_data_provider.get_price_by_type(self.config.connector_name, self.config.trading_pair, price_type)
 
-    def get_executor_config(self, unfilled_executors: List[ExecutorInfo], side: TradeType, ref_price: Decimal) -> Optional[PositionExecutorConfig]:
-        unfilled_side_executors = [e for e in unfilled_executors if e.side == side]
-
-        # Only create a new position if there is none on that side
-        if len(unfilled_side_executors) > 0:
-            return None
-
-        quote_amount = self.get_position_quote_amount()
-
-        if quote_amount == 0:
-            return None
-
+    def get_executor_config(self, side: TradeType, ref_price: Decimal, quote_amount: Decimal) -> PositionExecutorConfig:
         return PositionExecutorConfig(
             timestamp=self.market_data_provider.time(),
             connector_name=self.config.connector_name,
@@ -228,9 +222,9 @@ class GenericPk(ControllerBase):
             leverage=self.config.leverage
         )
 
-    def should_stop_unfilled_executor(self, unfilled_executor: ExecutorInfo) -> bool:
+    def should_stop_unfilled_executors(self) -> bool:
         is_volatility_too_high = (
-            abs(self.get_latest_normalized_bbp()) > 1 and
+            abs(self.get_latest_normalized_bbp()) > 0.3 and
             self.get_latest_bbb() > self.config.bollinger_bands_bandwidth_threshold
         )
 
@@ -246,7 +240,7 @@ class GenericPk(ControllerBase):
 
     @staticmethod
     def get_normalized_bbp(bbp: float) -> float:
-        return 2 * bbp - 1  # Between -1 and 1
+        return bbp - 0.5
 
     def get_latest_normalized_bbp(self) -> float:
         return self.processed_data["features"]["normalized_bbp"].iloc[-1]
@@ -254,38 +248,50 @@ class GenericPk(ControllerBase):
     def get_latest_bbb(self) -> float:
         return self.processed_data["features"][f"BBB_{self.config.bollinger_bands_length}_{self.config.bollinger_bands_std_dev}"].iloc[-1]
 
-    def adjust_sell_price(self, mid_price: Decimal, latest_normalized_bbp: float, latest_bbb: float) -> Tuple[Decimal, float, float]:
-        price_with_spread: Decimal = mid_price * Decimal(1 + self.config.min_spread_pct / 100)
+    def adjust_sell_price(self, mid_price: Decimal, latest_normalized_bbp: float, latest_bbb: float) -> Decimal:
+        default_adjustment = self.config.min_spread_pct / 100
 
-        price_adjustment_bbp: float = 0.0
+        bbp_adjustment: float = 0.0
 
         if latest_normalized_bbp > 0:
-            price_adjustment_bbp = latest_normalized_bbp * self.config.normalized_bbp_mult
+            bbp_adjustment = latest_normalized_bbp * self.config.normalized_bbp_mult
 
-        price_adjustment_bbb: float = 0.0
+        bbb_adjustment: float = 0.0
 
         if latest_bbb > 1:
             decimals = latest_bbb - 1  # Ex: 0.5, 1.0
-            price_adjustment_bbb = decimals * self.config.normalized_bbb_mult  # Ex: 0.025, 0.05
+            bbb_adjustment = decimals * self.config.normalized_bbb_mult  # Ex: 0.025, 0.05
 
-        ref_price = price_with_spread * Decimal(1 + price_adjustment_bbp) * Decimal(1 + price_adjustment_bbb)
+        total_adjustment = default_adjustment + bbp_adjustment + bbb_adjustment
 
-        return ref_price, price_adjustment_bbp, price_adjustment_bbb
+        ref_price = mid_price * Decimal(1 + total_adjustment)
 
-    def adjust_buy_price(self, mid_price: Decimal, latest_normalized_bbp: float, latest_bbb: float) -> Tuple[Decimal, float, float]:
-        price_with_spread: Decimal = mid_price * Decimal(1 - self.config.min_spread_pct / 100)
+        self.logger().info(f"Adjusting SELL price. mid:{mid_price}, norm_bbp:{latest_normalized_bbp}, bbb:{latest_bbb}")
+        self.logger().info(f"Adjusting SELL price. def_adj:{default_adjustment}, bbp_adj:{bbp_adjustment}, bbb_adj:{bbb_adjustment}")
+        self.logger().info(f"Adjusting SELL price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
-        price_adjustment_bbp: float = 0.0
+        return ref_price
+
+    def adjust_buy_price(self, mid_price: Decimal, latest_normalized_bbp: float, latest_bbb: float) -> Decimal:
+        default_adjustment = self.config.min_spread_pct / 100
+
+        bbp_adjustment: float = 0.0
 
         if latest_normalized_bbp < 0:
-            price_adjustment_bbp = abs(latest_normalized_bbp) * self.config.normalized_bbp_mult
+            bbp_adjustment = abs(latest_normalized_bbp) * self.config.normalized_bbp_mult
 
-        price_adjustment_bbb: float = 0.0
+        bbb_adjustment: float = 0.0
 
         if latest_bbb > 1:
             decimals = latest_bbb - 1  # Ex: 0.5, 1.0
-            price_adjustment_bbb = decimals * self.config.normalized_bbb_mult  # Ex: 0.025, 0.05
+            bbb_adjustment = decimals * self.config.normalized_bbb_mult  # Ex: 0.025, 0.05
 
-        ref_price = price_with_spread * Decimal(1 - price_adjustment_bbp) * Decimal(1 - price_adjustment_bbb)
+        total_adjustment = default_adjustment + bbp_adjustment + bbb_adjustment
 
-        return ref_price, -price_adjustment_bbp, -price_adjustment_bbb
+        ref_price = mid_price * Decimal(1 - total_adjustment)
+
+        self.logger().info(f"Adjusting BUY price. mid:{mid_price}, norm_bbp:{latest_normalized_bbp}, bbb:{latest_bbb}")
+        self.logger().info(f"Adjusting BUY price. def_adj:{default_adjustment}, bbp_adj:{bbp_adjustment}, bbb_adj:{bbb_adjustment}")
+        self.logger().info(f"Adjusting BUY price. total_adj:{total_adjustment}, ref_price:{ref_price}")
+
+        return ref_price

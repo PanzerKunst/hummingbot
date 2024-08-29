@@ -13,10 +13,10 @@ take_profit_pct: 1.0
 filled_order_expiration_min: 120
 bollinger_bands_length: 7
 bollinger_bands_std_dev: 2.0
-bollinger_bands_bandwidth_threshold: 1.5
+bollinger_bands_bandwidth_threshold: 0.5
 candles_connector: okx_perpetual
 candles_interval: 1m
 candles_length: 14
-min_spread_pct: 0.5
-normalized_bbp_mult: 0.05
-normalized_bbb_mult: 0.1
+min_spread_pct: 1
+normalized_bbp_mult: 0.0
+normalized_bbb_mult: 0.0
