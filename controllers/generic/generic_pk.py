@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 
 import pandas as pd
 import pandas_ta as ta  # noqa: F401
@@ -44,7 +44,7 @@ class GenericPkConfig(ControllerConfigBase):
 
     # Maker orders settings
     min_spread_pct: float = 0.5
-    normalized_bbp_mult: float = 0.1
+    normalized_bbp_mult: float = 0.05
     normalized_bbb_mult: float = 0.1
 
     @property
@@ -111,18 +111,20 @@ class GenericPk(ControllerBase):
         latest_normalized_bbp = self.get_latest_normalized_bbp()
         latest_bbb = self.get_latest_bbb()
 
-        sell_price = self.adjust_sell_price(mid_price, latest_normalized_bbp, latest_bbb)
-        buy_price = self.adjust_buy_price(mid_price, latest_normalized_bbp, latest_bbb)
+        sell_price, price_mult_bbp, price_mult_bbb = self.adjust_sell_price(mid_price, latest_normalized_bbp, latest_bbb)
+        buy_price, price_div_bbp, price_div_bbb = self.adjust_buy_price(mid_price, latest_normalized_bbp, latest_bbb)
 
         unfilled_executors = self.get_active_executors(self.config.connector_name, True)
 
         sell_executor_config = self.get_executor_config(unfilled_executors, TradeType.SELL, sell_price)
         if sell_executor_config is not None:
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=sell_executor_config))
+            self.logger().info(f"NEW SELL POSITION: price:{sell_price}, mult_bbp:{price_mult_bbp}, mult_bbb:{price_mult_bbb}, normalized_bbp_mult:{self.config.normalized_bbp_mult}, normalized_bbb_mult:{self.config.normalized_bbb_mult}")
 
         buy_executor_config = self.get_executor_config(unfilled_executors, TradeType.BUY, buy_price)
         if buy_executor_config is not None:
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=buy_executor_config))
+            self.logger().info(f"NEW BUY POSITION: buy_price:{buy_price}, div_bbp:{price_div_bbp}, div_bbb:{price_div_bbb}, normalized_bbp_mult:{self.config.normalized_bbp_mult}, normalized_bbb_mult:{self.config.normalized_bbb_mult}")
 
         return create_actions
 
@@ -215,11 +217,6 @@ class GenericPk(ControllerBase):
         if quote_amount == 0:
             return None
 
-        best_ask = self.get_best_ask()
-        best_bid = self.get_best_bid()
-
-        self.logger().info(f"NEW POSITION. Side: {side}, best_ask: {best_ask}, best_bid: {best_bid}, ref_price: {ref_price}")
-
         return PositionExecutorConfig(
             timestamp=self.market_data_provider.time(),
             connector_name=self.config.connector_name,
@@ -257,7 +254,7 @@ class GenericPk(ControllerBase):
     def get_latest_bbb(self) -> float:
         return self.processed_data["features"][f"BBB_{self.config.bollinger_bands_length}_{self.config.bollinger_bands_std_dev}"].iloc[-1]
 
-    def adjust_sell_price(self, mid_price: Decimal, latest_normalized_bbp: float, latest_bbb: float) -> Decimal:
+    def adjust_sell_price(self, mid_price: Decimal, latest_normalized_bbp: float, latest_bbb: float) -> Tuple[Decimal, float, float]:
         price_with_spread: Decimal = mid_price * Decimal(1 + self.config.min_spread_pct / 100)
 
         price_mult_bbp: float = 1.0
@@ -272,11 +269,11 @@ class GenericPk(ControllerBase):
             decimals_normalized = decimals * self.config.normalized_bbb_mult  # Ex: 0.025, 0.05
             price_mult_bbb = decimals_normalized + 1  # Ex: 1.025, 1.05
 
-        self.logger().info(f"adjust_sell_price | latest_normalized_bbp: {latest_normalized_bbp}, latest_bbb: {latest_bbb}, price_mult_bbp: {price_mult_bbp}, price_mult_bbb: {price_mult_bbb}")
+        ref_price = price_with_spread * Decimal(price_mult_bbp) * Decimal(price_mult_bbb)
 
-        return price_with_spread * Decimal(price_mult_bbp) * Decimal(price_mult_bbb)
+        return ref_price, price_mult_bbp, price_mult_bbb
 
-    def adjust_buy_price(self, mid_price: Decimal, latest_normalized_bbp: float, latest_bbb: float) -> Decimal:
+    def adjust_buy_price(self, mid_price: Decimal, latest_normalized_bbp: float, latest_bbb: float) -> Tuple[Decimal, float, float]:
         price_with_spread: Decimal = mid_price * Decimal(1 - self.config.min_spread_pct / 100)
 
         price_div_bbp: float = 1.0
@@ -291,6 +288,6 @@ class GenericPk(ControllerBase):
             decimals_normalized = decimals * self.config.normalized_bbb_mult  # Ex: 0.025, 0.05
             price_div_bbb = decimals_normalized + 1  # Ex: 1.025, 1.05
 
-        self.logger().info(f"adjust_buy_price | latest_normalized_bbp: {latest_normalized_bbp}, latest_bbb: {latest_bbb}, price_div_bbp: {price_div_bbp}, price_div_bbb: {price_div_bbb}")
+        ref_price = price_with_spread / Decimal(price_div_bbp) / Decimal(price_div_bbb)
 
-        return price_with_spread / Decimal(price_div_bbp) / Decimal(price_div_bbb)
+        return ref_price, price_div_bbp, price_div_bbb

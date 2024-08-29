@@ -18,5 +18,5 @@ candles_connector: okx_perpetual
 candles_interval: 1m
 candles_length: 14
 min_spread_pct: 0.5
-normalized_bbp_mult: 0.1
+normalized_bbp_mult: 0.05
 normalized_bbb_mult: 0.1
