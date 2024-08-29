@@ -250,22 +250,22 @@ class GenericPk(ControllerBase):
         return self.processed_data["features"][f"BBB_{self.config.bollinger_bands_length}_{self.config.bollinger_bands_std_dev}"].iloc[-1]
 
     def adjust_sell_price(self, mid_price: Decimal, latest_normalized_bbp: float, latest_bbb: float) -> Decimal:
-        default_adjustment = self.config.min_spread_pct / 100
+        default_adjustment = self.config.min_spread_pct / 100  # Ex 0.015
 
         bbp_adjustment: float = 0.0
 
-        if latest_normalized_bbp > 0:
-            bbp_adjustment = latest_normalized_bbp * self.config.normalized_bbp_mult
+        if latest_normalized_bbp > 0:  # Ex 0.2 or 0.6
+            bbp_adjustment = latest_normalized_bbp * self.config.normalized_bbp_mult  # Ex 0.02 or 0.06
 
         bbb_adjustment: float = 0.0
 
         if latest_bbb > self.config.bbb_mult_threshold:
-            above_threshold = latest_bbb - self.config.bbb_mult_threshold  # Ex: 0.1, 0.3
-            bbb_adjustment = above_threshold * self.config.normalized_bbb_mult  # Ex: 0.01, 0.03
+            above_threshold = latest_bbb - self.config.bbb_mult_threshold  # Ex: 0.1 or 0.3
+            bbb_adjustment = above_threshold * self.config.normalized_bbb_mult  # Ex: 0.01 or 0.03
 
-        total_adjustment = default_adjustment + bbp_adjustment + bbb_adjustment
+        total_adjustment = default_adjustment + bbp_adjustment + bbb_adjustment  # Ex: 0.015 + 0.02 + 0.01 = 0.045
 
-        ref_price = mid_price * Decimal(1 + total_adjustment)
+        ref_price = mid_price * Decimal(1 + total_adjustment)  # mid_price * 1.045
 
         self.logger().info(f"Adjusting SELL price. mid:{mid_price}, norm_bbp:{latest_normalized_bbp}, bbb:{latest_bbb}")
         self.logger().info(f"Adjusting SELL price. def_adj:{default_adjustment}, bbp_adj:{bbp_adjustment}, bbb_adj:{bbb_adjustment}")
@@ -274,22 +274,22 @@ class GenericPk(ControllerBase):
         return ref_price
 
     def adjust_buy_price(self, mid_price: Decimal, latest_normalized_bbp: float, latest_bbb: float) -> Decimal:
-        default_adjustment = self.config.min_spread_pct / 100
+        default_adjustment = self.config.min_spread_pct / 100  # Ex 0.015
 
         bbp_adjustment: float = 0.0
 
-        if latest_normalized_bbp < 0:
-            bbp_adjustment = abs(latest_normalized_bbp) * self.config.normalized_bbp_mult
+        if latest_normalized_bbp < 0:  # Ex -0.2 or -0.6
+            bbp_adjustment = abs(latest_normalized_bbp) * self.config.normalized_bbp_mult  # Ex 0.02 or 0.06
 
         bbb_adjustment: float = 0.0
 
         if latest_bbb > self.config.bbb_mult_threshold:
-            decimals = latest_bbb - self.config.bbb_mult_threshold  # Ex: 0.1, 0.3
-            bbb_adjustment = decimals * self.config.normalized_bbb_mult  # Ex: 0.01, 0.03
+            above_threshold = latest_bbb - self.config.bbb_mult_threshold  # Ex: 0.1 or 0.3
+            bbb_adjustment = above_threshold * self.config.normalized_bbb_mult  # Ex: 0.01 or 0.03
 
-        total_adjustment = default_adjustment + bbp_adjustment + bbb_adjustment
+        total_adjustment = default_adjustment + bbp_adjustment + bbb_adjustment  # Ex: 0.015 + 0.02 + 0.01 = 0.045
 
-        ref_price = mid_price * Decimal(1 - total_adjustment)
+        ref_price = mid_price * Decimal(1 - total_adjustment)  # mid_price * 0.955
 
         self.logger().info(f"Adjusting BUY price. mid:{mid_price}, norm_bbp:{latest_normalized_bbp}, bbb:{latest_bbb}")
         self.logger().info(f"Adjusting BUY price. def_adj:{default_adjustment}, bbp_adj:{bbp_adjustment}, bbb_adj:{bbb_adjustment}")
