@@ -111,20 +111,20 @@ class GenericPk(ControllerBase):
         latest_normalized_bbp = self.get_latest_normalized_bbp()
         latest_bbb = self.get_latest_bbb()
 
-        sell_price, price_mult_bbp, price_mult_bbb = self.adjust_sell_price(mid_price, latest_normalized_bbp, latest_bbb)
-        buy_price, price_div_bbp, price_div_bbb = self.adjust_buy_price(mid_price, latest_normalized_bbp, latest_bbb)
+        sell_price, sell_price_adjustment_bbp, sell_price_adjustment_bbb = self.adjust_sell_price(mid_price, latest_normalized_bbp, latest_bbb)
+        buy_price, buy_price_adjustment_bbp, buy_price_adjustment_bbb = self.adjust_buy_price(mid_price, latest_normalized_bbp, latest_bbb)
 
         unfilled_executors = self.get_active_executors(self.config.connector_name, True)
 
         sell_executor_config = self.get_executor_config(unfilled_executors, TradeType.SELL, sell_price)
         if sell_executor_config is not None:
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=sell_executor_config))
-            self.logger().info(f"NEW SELL POSITION: price:{sell_price}, mult_bbp:{price_mult_bbp}, mult_bbb:{price_mult_bbb}, normalized_bbp_mult:{self.config.normalized_bbp_mult}, normalized_bbb_mult:{self.config.normalized_bbb_mult}")
+            self.logger().info(f"NEW SELL POSITION: price:{sell_price}, adj_bbp:{sell_price_adjustment_bbp}, adj_bbb:{sell_price_adjustment_bbb}, normalized_bbp_mult:{self.config.normalized_bbp_mult}, normalized_bbb_mult:{self.config.normalized_bbb_mult}")
 
         buy_executor_config = self.get_executor_config(unfilled_executors, TradeType.BUY, buy_price)
         if buy_executor_config is not None:
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=buy_executor_config))
-            self.logger().info(f"NEW BUY POSITION: buy_price:{buy_price}, div_bbp:{price_div_bbp}, div_bbb:{price_div_bbb}, normalized_bbp_mult:{self.config.normalized_bbp_mult}, normalized_bbb_mult:{self.config.normalized_bbb_mult}")
+            self.logger().info(f"NEW BUY POSITION: buy_price:{buy_price}, adj_bbp:{buy_price_adjustment_bbp}, adj_bbb:{buy_price_adjustment_bbb}, normalized_bbp_mult:{self.config.normalized_bbp_mult}, normalized_bbb_mult:{self.config.normalized_bbb_mult}")
 
         return []  # TODO create_actions
 
@@ -288,4 +288,4 @@ class GenericPk(ControllerBase):
 
         ref_price = price_with_spread * Decimal(1 - price_adjustment_bbp) * Decimal(1 - price_adjustment_bbb)
 
-        return ref_price, price_adjustment_bbp, price_adjustment_bbb
+        return ref_price, -price_adjustment_bbp, -price_adjustment_bbb
