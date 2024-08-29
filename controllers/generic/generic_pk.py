@@ -126,7 +126,7 @@ class GenericPk(ControllerBase):
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=buy_executor_config))
             self.logger().info(f"NEW BUY POSITION: buy_price:{buy_price}, div_bbp:{price_div_bbp}, div_bbb:{price_div_bbb}, normalized_bbp_mult:{self.config.normalized_bbp_mult}, normalized_bbb_mult:{self.config.normalized_bbb_mult}")
 
-        return create_actions
+        return []  # TODO create_actions
 
     def stop_actions_proposal(self) -> List[ExecutorAction]:
         stop_actions = []
@@ -257,37 +257,35 @@ class GenericPk(ControllerBase):
     def adjust_sell_price(self, mid_price: Decimal, latest_normalized_bbp: float, latest_bbb: float) -> Tuple[Decimal, float, float]:
         price_with_spread: Decimal = mid_price * Decimal(1 + self.config.min_spread_pct / 100)
 
-        price_mult_bbp: float = 1.0
+        price_adjustment_bbp: float = 0.0
 
         if latest_normalized_bbp > 0:
-            price_mult_bbp = latest_normalized_bbp * self.config.normalized_bbp_mult + 1
+            price_adjustment_bbp = latest_normalized_bbp * self.config.normalized_bbp_mult
 
-        price_mult_bbb: float = 1.0
+        price_adjustment_bbb: float = 0.0
 
         if latest_bbb > 1:
             decimals = latest_bbb - 1  # Ex: 0.5, 1.0
-            decimals_normalized = decimals * self.config.normalized_bbb_mult  # Ex: 0.025, 0.05
-            price_mult_bbb = decimals_normalized + 1  # Ex: 1.025, 1.05
+            price_adjustment_bbb = decimals * self.config.normalized_bbb_mult  # Ex: 0.025, 0.05
 
-        ref_price = price_with_spread * Decimal(price_mult_bbp) * Decimal(price_mult_bbb)
+        ref_price = price_with_spread * Decimal(1 + price_adjustment_bbp) * Decimal(1 + price_adjustment_bbb)
 
-        return ref_price, price_mult_bbp, price_mult_bbb
+        return ref_price, price_adjustment_bbp, price_adjustment_bbb
 
     def adjust_buy_price(self, mid_price: Decimal, latest_normalized_bbp: float, latest_bbb: float) -> Tuple[Decimal, float, float]:
         price_with_spread: Decimal = mid_price * Decimal(1 - self.config.min_spread_pct / 100)
 
-        price_div_bbp: float = 1.0
+        price_adjustment_bbp: float = 0.0
 
         if latest_normalized_bbp < 0:
-            price_div_bbp = abs(latest_normalized_bbp * self.config.normalized_bbp_mult - 1)
+            price_adjustment_bbp = abs(latest_normalized_bbp) * self.config.normalized_bbp_mult
 
-        price_div_bbb: float = 1.0
+        price_adjustment_bbb: float = 0.0
 
         if latest_bbb > 1:
             decimals = latest_bbb - 1  # Ex: 0.5, 1.0
-            decimals_normalized = decimals * self.config.normalized_bbb_mult  # Ex: 0.025, 0.05
-            price_div_bbb = decimals_normalized + 1  # Ex: 1.025, 1.05
+            price_adjustment_bbb = decimals * self.config.normalized_bbb_mult  # Ex: 0.025, 0.05
 
-        ref_price = price_with_spread / Decimal(price_div_bbp) / Decimal(price_div_bbb)
+        ref_price = price_with_spread * Decimal(1 - price_adjustment_bbp) * Decimal(1 - price_adjustment_bbb)
 
-        return ref_price, price_div_bbp, price_div_bbb
+        return ref_price, price_adjustment_bbp, price_adjustment_bbb
