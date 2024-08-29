@@ -46,6 +46,7 @@ class GenericPkConfig(ControllerConfigBase):
     min_spread_pct: float = 0.5
     normalized_bbp_mult: float = 0.05
     normalized_bbb_mult: float = 0.1
+    bbb_mult_threshold: float = 0.7
 
     @property
     def triple_barrier_config(self) -> TripleBarrierConfig:
@@ -224,7 +225,7 @@ class GenericPk(ControllerBase):
 
     def should_stop_unfilled_executors(self) -> bool:
         is_volatility_too_high = (
-            abs(self.get_latest_normalized_bbp()) > 0.44 and
+            abs(self.get_latest_normalized_bbp()) > 0.49 and
             self.get_latest_bbb() > self.config.bollinger_bands_bandwidth_threshold
         )
 
@@ -258,9 +259,9 @@ class GenericPk(ControllerBase):
 
         bbb_adjustment: float = 0.0
 
-        if latest_bbb > 1:
-            decimals = latest_bbb - 1  # Ex: 0.5, 1.0
-            bbb_adjustment = decimals * self.config.normalized_bbb_mult  # Ex: 0.025, 0.05
+        if latest_bbb > self.config.bbb_mult_threshold:
+            above_threshold = latest_bbb - self.config.bbb_mult_threshold  # Ex: 0.1, 0.3
+            bbb_adjustment = above_threshold * self.config.normalized_bbb_mult  # Ex: 0.01, 0.03
 
         total_adjustment = default_adjustment + bbp_adjustment + bbb_adjustment
 
@@ -282,9 +283,9 @@ class GenericPk(ControllerBase):
 
         bbb_adjustment: float = 0.0
 
-        if latest_bbb > 1:
-            decimals = latest_bbb - 1  # Ex: 0.5, 1.0
-            bbb_adjustment = decimals * self.config.normalized_bbb_mult  # Ex: 0.025, 0.05
+        if latest_bbb > self.config.bbb_mult_threshold:
+            decimals = latest_bbb - self.config.bbb_mult_threshold  # Ex: 0.1, 0.3
+            bbb_adjustment = decimals * self.config.normalized_bbb_mult  # Ex: 0.01, 0.03
 
         total_adjustment = default_adjustment + bbp_adjustment + bbb_adjustment
 

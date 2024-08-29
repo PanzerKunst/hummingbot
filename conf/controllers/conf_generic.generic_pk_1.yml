@@ -19,4 +19,5 @@ candles_interval: 1m
 candles_length: 14
 min_spread_pct: 1
 normalized_bbp_mult: 0.0
-normalized_bbb_mult: 0.0
+normalized_bbb_mult: 0.1
+bbb_mult_threshold: 0.7
