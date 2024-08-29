@@ -224,7 +224,7 @@ class GenericPk(ControllerBase):
 
     def should_stop_unfilled_executors(self) -> bool:
         is_volatility_too_high = (
-            abs(self.get_latest_normalized_bbp()) > 0.3 and
+            abs(self.get_latest_normalized_bbp()) > 0.44 and
             self.get_latest_bbb() > self.config.bollinger_bands_bandwidth_threshold
         )
 
