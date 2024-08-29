@@ -1,8 +1,10 @@
 from decimal import Decimal
 from typing import Dict, List, Optional, Set
 
+import pandas as pd
 import pandas_ta as ta  # noqa: F401
 
+from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.connector.utils import split_hb_trading_pair
 from hummingbot.core.data_type.common import OrderType, PositionMode, PriceType, TradeType
@@ -19,7 +21,7 @@ class GenericPkConfig(ControllerConfigBase):
     connector_name: str = "okx_perpetual"  # Do not rename attribute - used by BacktestingEngineBase
     trading_pair: str = "AAVE-USDT"  # Do not rename attribute - used by BacktestingEngineBase
 
-    leverage: int = 5  # TODO: 20
+    leverage: int = 20
     position_mode: PositionMode = PositionMode.HEDGE
     total_amount_quote: int = 100  # Unused. Specified here to avoid prompt
 
@@ -33,17 +35,19 @@ class GenericPkConfig(ControllerConfigBase):
     # Technical analysis
     bollinger_bands_length: int = 7
     bollinger_bands_std_dev: float = 2.0
-    bollinger_bands_bandwidth_threshold: float = 5.0
+    bollinger_bands_bandwidth_threshold: float = 1.5
 
     # Candles
+    candles_connector: str = "okx"
     candles_interval: str = "1m"
-    candles_length: int = bollinger_bands_length
+    candles_length: int = bollinger_bands_length * 2
     candles_config: List[CandlesConfig] = []  # Initialized in the constructor
 
     # Maker orders settings
     unfilled_order_expiration_min: int = 5
     min_spread_pct: float = 0.5
     normalized_bbp_mult: float = 0.02
+    normalized_bbb_mult: float = 0.05
 
     @property
     def triple_barrier_config(self) -> TripleBarrierConfig:
@@ -74,7 +78,7 @@ class GenericPk(ControllerBase):
 
         if len(self.config.candles_config) == 0:
             self.config.candles_config = [CandlesConfig(
-                connector=self.config.connector_name,
+                connector=self.config.candles_connector,
                 trading_pair=self.config.trading_pair,
                 interval=self.config.candles_interval,
                 max_records=self.config.candles_length
@@ -91,9 +95,10 @@ class GenericPk(ControllerBase):
                                                               max_records=candles_config.max_records)
         # Add indicators
         candles_df.ta.bbands(length=self.config.bollinger_bands_length, std=self.config.bollinger_bands_std_dev, append=True)
+        candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
         candles_df["normalized_bbp"] = candles_df[f"BBP_{self.config.bollinger_bands_length}_{self.config.bollinger_bands_std_dev}"].apply(self.get_normalized_bbp)
 
-        self.processed_data["features"] = candles_df
+        self.processed_data["features"] = candles_df.tail(self.config.bollinger_bands_length)
 
     def determine_executor_actions(self) -> List[ExecutorAction]:
         actions = []
@@ -111,8 +116,8 @@ class GenericPk(ControllerBase):
         # TODO: remove
         self.logger().info(f"mid_price: {mid_price}, latest_normalized_bbp: {latest_normalized_bbp}, latest_bbb: {latest_bbb}")
 
-        sell_price = self.adjust_sell_price(mid_price, latest_normalized_bbp)
-        buy_price = self.adjust_buy_price(mid_price, latest_normalized_bbp)
+        sell_price = self.adjust_sell_price(mid_price, latest_normalized_bbp, latest_bbb)
+        buy_price = self.adjust_buy_price(mid_price, latest_normalized_bbp, latest_bbb)
 
         unfilled_executors = self.get_active_executors(self.config.connector_name, True)
 
@@ -146,6 +151,21 @@ class GenericPk(ControllerBase):
                 stop_actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=unfilled_executor.id))
 
         return stop_actions
+
+    def to_format_status(self) -> List[str]:
+        features_df = self.processed_data.get("features", pd.DataFrame())
+
+        if features_df.empty:
+            return []
+
+        columns_to_display = [
+            "timestamp_iso",
+            "close",
+            "normalized_bbp",
+            f"BBB_{self.config.bollinger_bands_length}_{self.config.bollinger_bands_std_dev}"
+        ]
+
+        return [format_df_for_printout(features_df[columns_to_display], table_format="psql",)]
 
     #
     # Custom functions potentially interesting for other controllers
@@ -183,11 +203,12 @@ class GenericPk(ControllerBase):
 
         available_quote_balance = trade_connector.get_available_balance(quote_currency)
 
-        if available_quote_balance < 10:
+        if available_quote_balance < 1:
             return Decimal(0)
 
         # If balance = 100 USDT with leverage 20x, the quote position should be 500
-        return Decimal(available_quote_balance * self.config.leverage / 4)
+        # TODO return Decimal(available_quote_balance * self.config.leverage / 4)
+        return Decimal(available_quote_balance * self.config.leverage / 20)
 
     def get_best_ask(self) -> Decimal:
         return self._get_best_ask_or_bid(PriceType.BestAsk)
@@ -252,20 +273,40 @@ class GenericPk(ControllerBase):
     def get_latest_bbb(self) -> float:
         return self.processed_data["features"][f"BBB_{self.config.bollinger_bands_length}_{self.config.bollinger_bands_std_dev}"].iloc[-1]
 
-    def adjust_sell_price(self, mid_price: Decimal, latest_normalized_bbp: float) -> Decimal:
+    def adjust_sell_price(self, mid_price: Decimal, latest_normalized_bbp: float, latest_bbb: float) -> Decimal:
         price_with_spread: Decimal = mid_price * Decimal(1 + self.config.min_spread_pct / 100)
 
-        if latest_normalized_bbp < 0:
-            return price_with_spread
-
-        spread_mult = latest_normalized_bbp * self.config.normalized_bbp_mult + 1
-        return price_with_spread * Decimal(spread_mult)
-
-    def adjust_buy_price(self, mid_price: Decimal, latest_normalized_bbp: float) -> Decimal:
-        price_with_spread: Decimal = mid_price * Decimal(1 - self.config.min_spread_pct / 100)
+        price_mult_bbp: float = 1.0
 
         if latest_normalized_bbp > 0:
-            return price_with_spread
+            price_mult_bbp = latest_normalized_bbp * self.config.normalized_bbp_mult + 1
 
-        spread_div = abs(latest_normalized_bbp * self.config.normalized_bbp_mult - 1)
-        return price_with_spread / Decimal(spread_div)
+        price_mult_bbb: float = 1.0
+
+        if latest_bbb > 1:
+            decimals = latest_bbb - 1  # Ex: 0.5, 1.0
+            decimals_normalized = decimals * self.config.normalized_bbb_mult  # Ex: 0.025, 0.05
+            price_mult_bbb = decimals_normalized + 1  # Ex: 1.025, 1.05
+
+        self.logger().info(f"adjust_sell_price | latest_normalized_bbp: {latest_normalized_bbp}, latest_bbb: {latest_bbb}, price_mult_bbp: {price_mult_bbp}, price_mult_bbb: {price_mult_bbb}")
+
+        return price_with_spread * Decimal(price_mult_bbp) * Decimal(price_mult_bbb)
+
+    def adjust_buy_price(self, mid_price: Decimal, latest_normalized_bbp: float, latest_bbb: float) -> Decimal:
+        price_with_spread: Decimal = mid_price * Decimal(1 - self.config.min_spread_pct / 100)
+
+        price_div_bbp: float = 1.0
+
+        if latest_normalized_bbp < 0:
+            price_div_bbp = abs(latest_normalized_bbp * self.config.normalized_bbp_mult - 1)
+
+        price_div_bbb: float = 1.0
+
+        if latest_bbb > 1:
+            decimals = latest_bbb - 1  # Ex: 0.5, 1.0
+            decimals_normalized = decimals * self.config.normalized_bbb_mult  # Ex: 0.025, 0.05
+            price_div_bbb = decimals_normalized + 1  # Ex: 1.025, 1.05
+
+        self.logger().info(f"adjust_buy_price | latest_normalized_bbp: {latest_normalized_bbp}, latest_bbb: {latest_bbb}, price_div_bbp: {price_div_bbp}, price_div_bbb: {price_div_bbb}")
+
+        return price_with_spread / Decimal(price_div_bbp) / Decimal(price_div_bbb)
