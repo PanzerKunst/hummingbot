@@ -162,8 +162,6 @@ class GenericPk(ControllerBase):
         is_market_trending_down: bool = self.is_market_trending(Trend.DOWN)
         is_market_trending: bool = is_market_trending_up or is_market_trending_down
 
-        self.logger().info(f"stop_actions_proposal: is_high_volatility:{is_high_volatility}, is_market_trending_up:{is_market_trending_up}, is_market_trending_down:{is_market_trending_down}")
-
         active_executors = self.get_active_executors(self.config.connector_name)
 
         if is_high_volatility or is_market_trending:
