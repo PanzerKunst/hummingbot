@@ -126,7 +126,7 @@ class GenericPk(ControllerBase):
     def create_actions_proposal(self) -> List[ExecutorAction]:
         quote_amount = self.get_position_quote_amount()
 
-        if quote_amount == 0:
+        if quote_amount == 0 or self.is_high_volatility():
             return []
 
         create_actions = []
@@ -160,7 +160,7 @@ class GenericPk(ControllerBase):
         is_market_trending_up: bool = self.is_market_trending(Trend.UP)
         is_market_trending_down: bool = self.is_market_trending(Trend.DOWN)
         is_market_trending: bool = is_market_trending_up or is_market_trending_down
-        is_high_volatility: bool = self.get_latest_bbb() > self.config.volatility_threshold_bbb
+        is_high_volatility: bool = self.is_high_volatility()
 
         active_executors = self.get_active_executors(self.config.connector_name)
 
@@ -286,6 +286,9 @@ class GenericPk(ControllerBase):
     def is_market_trending(self, trend: Trend) -> bool:
         column = "is_trending_up" if trend == Trend.UP else "is_trending_down"
         return self.processed_data["features"][column].iloc[-1]
+
+    def is_high_volatility(self) -> bool:
+        return self.get_latest_bbb() > self.config.volatility_threshold_bbb
 
     def adjust_sell_price(self, mid_price: Decimal, latest_avg_normalized_bbp: float) -> Decimal:
         default_adjustment = self.config.min_spread_pct / 100  # Ex
