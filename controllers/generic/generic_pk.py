@@ -132,20 +132,20 @@ class GenericPk(ControllerBase):
         create_actions = []
 
         mid_price = self.get_mid_price()
-        latest_avg_normalized_bbp = self.get_latest_avg_normalized_bbp()
+        latest_bbb = self.get_latest_bbb()
 
         unfilled_executors = self.get_active_executors(self.config.connector_name, True)
         unfilled_sell_executors = [e for e in unfilled_executors if e.side == TradeType.SELL]  # TODO: use function "by_side"
 
         if len(unfilled_sell_executors) == 0:
-            sell_price = self.adjust_sell_price(mid_price, latest_avg_normalized_bbp)
+            sell_price = self.adjust_sell_price(mid_price, latest_bbb)
             sell_executor_config = self.get_executor_config(TradeType.SELL, sell_price, quote_amount)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=sell_executor_config))
 
         unfilled_buy_executors = [e for e in unfilled_executors if e.side == TradeType.BUY]
 
         if len(unfilled_buy_executors) == 0:
-            buy_price = self.adjust_buy_price(mid_price, latest_avg_normalized_bbp)
+            buy_price = self.adjust_buy_price(mid_price, latest_bbb)
             buy_executor_config = self.get_executor_config(TradeType.BUY, buy_price, quote_amount)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=buy_executor_config))
 
@@ -290,38 +290,38 @@ class GenericPk(ControllerBase):
     def is_high_volatility(self) -> bool:
         return self.get_latest_bbb() > self.config.volatility_threshold_bbb
 
-    def adjust_sell_price(self, mid_price: Decimal, latest_avg_normalized_bbp: float) -> Decimal:
+    def adjust_sell_price(self, mid_price: Decimal, latest_bbb: float) -> Decimal:
         default_adjustment = self.config.min_spread_pct / 100  # Ex
 
-        bbp_adjustment: float = 0.0
+        bbb_adjustment: float = 0.0
 
-        if latest_avg_normalized_bbp > 0.3:  # Ex
-            bbp_adjustment = latest_avg_normalized_bbp * 0.0  # Ex
+        if latest_bbb > 0.5:  # Ex
+            bbb_adjustment = latest_bbb * 0.2  # Ex
 
-        total_adjustment = default_adjustment + bbp_adjustment  # Ex
+        total_adjustment = default_adjustment + bbb_adjustment  # Ex
 
         ref_price = mid_price * Decimal(1 + total_adjustment)  # mid_price *
 
-        self.logger().info(f"Adjusting SELL price. mid:{mid_price}, avg_norm_bbp:{latest_avg_normalized_bbp}")
-        self.logger().info(f"Adjusting SELL price. def_adj:{default_adjustment}, bbp_adj:{bbp_adjustment}")
+        self.logger().info(f"Adjusting SELL price. mid:{mid_price}, latest_bbb:{latest_bbb}")
+        self.logger().info(f"Adjusting SELL price. def_adj:{default_adjustment}, bbb_adj:{bbb_adjustment}")
         self.logger().info(f"Adjusting SELL price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
         return ref_price
 
-    def adjust_buy_price(self, mid_price: Decimal, latest_avg_normalized_bbp: float) -> Decimal:
+    def adjust_buy_price(self, mid_price: Decimal, latest_bbb: float) -> Decimal:
         default_adjustment = self.config.min_spread_pct / 100  # Ex
 
-        bbp_adjustment: float = 0.0
+        bbb_adjustment: float = 0.0
 
-        if latest_avg_normalized_bbp < -0.3:  # Ex
-            bbp_adjustment = abs(latest_avg_normalized_bbp) * 0.0  # Ex
+        if latest_bbb > 0.5:  # Ex
+            bbb_adjustment = latest_bbb * 0.2  # Ex
 
-        total_adjustment = default_adjustment + bbp_adjustment  # Ex
+        total_adjustment = default_adjustment + bbb_adjustment  # Ex
 
         ref_price = mid_price * Decimal(1 - total_adjustment)  # mid_price *
 
-        self.logger().info(f"Adjusting BUY price. mid:{mid_price}, avg_norm_bbp:{latest_avg_normalized_bbp}")
-        self.logger().info(f"Adjusting BUY price. def_adj:{default_adjustment}, bbp_adj:{bbp_adjustment}")
+        self.logger().info(f"Adjusting BUY price. mid:{mid_price}, latest_bbb:{latest_bbb}")
+        self.logger().info(f"Adjusting BUY price. def_adj:{default_adjustment}, bbb_adj:{bbb_adjustment}")
         self.logger().info(f"Adjusting BUY price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
         return ref_price
