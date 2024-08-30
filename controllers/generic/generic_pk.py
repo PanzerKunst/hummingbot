@@ -302,7 +302,7 @@ class GenericPk(ControllerBase):
 
         if latest_bbb > 0.5:  # Ex
             above_threshold = latest_bbb - 0.5
-            volatility_adjustment = above_threshold * 0.1  # Ex
+            volatility_adjustment = above_threshold * 0.01  # Ex
 
         # When it's not trending up, reduce the spread
         trend_adjustment_pct: float = - self.config.default_spread_pct * 0.4
@@ -327,7 +327,7 @@ class GenericPk(ControllerBase):
 
         if latest_bbb > 0.5:  # Ex
             above_threshold = latest_bbb - 0.5
-            volatility_adjustment = above_threshold * 0.1  # Ex
+            volatility_adjustment = above_threshold * 0.01  # Ex
 
         # When it's not trending down, reduce the spread
         trend_adjustment_pct: float = - self.config.default_spread_pct * 0.4
