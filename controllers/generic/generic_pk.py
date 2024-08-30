@@ -192,7 +192,7 @@ class GenericPk(ControllerBase):
         columns_to_display = [
             "timestamp_iso",
             "close",
-            "bbp_for_trend",
+            f"BBP_{self.config.bbands_length_for_trend}_{self.config.bbands_std_dev_for_trend}",
             "normalized_bbp",
             "is_trending_up",
             "is_trending_down",
