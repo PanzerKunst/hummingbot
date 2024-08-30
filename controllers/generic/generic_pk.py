@@ -27,17 +27,18 @@ class GenericPkConfig(ControllerConfigBase):
     unfilled_order_expiration_min: int = 10
 
     # Triple Barrier
-    stop_loss_pct: float = 0.8
-    take_profit_pct: float = 0.5
+    stop_loss_pct: float = 0.5
+    take_profit_pct: float = 0.3
     filled_order_expiration_min: int = 1000
 
     # TODO: dymanic SL, TP?
 
     # Technical analysis
-    bollinger_bands_length: int = 12
-    bollinger_bands_std_dev: float = 2.0
+    bbands_length_for_trend: int = 12
+    bbands_std_dev_for_trend: float = 2.0
     candles_count_for_trend: int = 16
-    volatility_threshold_bbp: float = 0.5
+    bbands_length_for_volatility: int = 2
+    bbands_std_dev_for_volatility: float = 3.0
     volatility_threshold_bbb: float = 1.0
 
     # Candles
@@ -47,7 +48,7 @@ class GenericPkConfig(ControllerConfigBase):
     candles_config: List[CandlesConfig] = []  # Initialized in the constructor
 
     # Maker orders settings
-    min_spread_pct: float = 0.5
+    min_spread_pct: float = 0.3
 
     @property
     def triple_barrier_config(self) -> TripleBarrierConfig:
@@ -93,11 +94,11 @@ class GenericPk(ControllerBase):
                                                               trading_pair=candles_config.trading_pair,
                                                               interval=candles_config.interval,
                                                               max_records=candles_config.max_records)
-        # Add indicators
-        candles_df.ta.bbands(length=self.config.bollinger_bands_length, std=self.config.bollinger_bands_std_dev, append=True)
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
-        candles_df["normalized_bbp"] = candles_df[f"BBP_{self.config.bollinger_bands_length}_{self.config.bollinger_bands_std_dev}"].apply(
-            self.get_normalized_bbp)
+
+        # Add indicators
+        candles_df.ta.bbands(length=self.config.bbands_length_for_trend, std=self.config.bbands_std_dev_for_trend, append=True)
+        candles_df["normalized_bbp"] = candles_df[f"BBP_{self.config.bbands_length_for_trend}_{self.config.bbands_std_dev_for_trend}"].apply(self.get_normalized_bbp)
 
         window = self.config.candles_count_for_trend
 
@@ -110,6 +111,9 @@ class GenericPk(ControllerBase):
         ).astype(bool)
 
         candles_df["avg_normalized_bbp"] = candles_df["normalized_bbp"].rolling(window=window).mean()
+
+        bbands_for_volatility = candles_df.ta.bbands(length=self.config.bbands_length_for_volatility, std=self.config.bbands_std_dev_for_volatility)
+        candles_df["bbb_for_volatility"] = bbands_for_volatility[f"BBB_{self.config.bbands_length_for_volatility}_{self.config.bbands_std_dev_for_volatility}"]
 
         self.processed_data["features"] = candles_df
 
@@ -153,19 +157,15 @@ class GenericPk(ControllerBase):
     def stop_actions_proposal(self) -> List[ExecutorAction]:
         stop_actions = []
 
-        is_high_volatility: bool = (
-            abs(self.get_latest_normalized_bbp()) > self.config.volatility_threshold_bbp and
-            self.get_latest_bbb() > self.config.volatility_threshold_bbb
-        )
-
         is_market_trending_up: bool = self.is_market_trending(Trend.UP)
         is_market_trending_down: bool = self.is_market_trending(Trend.DOWN)
         is_market_trending: bool = is_market_trending_up or is_market_trending_down
+        is_high_volatility: bool = self.get_latest_bbb() > self.config.volatility_threshold_bbb
 
         active_executors = self.get_active_executors(self.config.connector_name)
 
         if is_high_volatility or is_market_trending:
-            self.logger().info("##### is_high_volatility or is_market_trending -> Stopping unfilled executors #####")
+            self.logger().info(f"##### is_high_volatility:{is_high_volatility} or is_market_trending:{is_market_trending} -> Stopping unfilled executors #####")
             for unfilled_executor in [e for e in active_executors if not e.is_trading]:
                 stop_actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=unfilled_executor.id))
 
@@ -192,11 +192,12 @@ class GenericPk(ControllerBase):
         columns_to_display = [
             "timestamp_iso",
             "close",
+            "bbp_for_trend",
             "normalized_bbp",
-            f"BBB_{self.config.bollinger_bands_length}_{self.config.bollinger_bands_std_dev}",
             "is_trending_up",
             "is_trending_down",
-            "avg_normalized_bbp"
+            "avg_normalized_bbp",
+            "bbb_for_volatility"
         ]
 
         return [format_df_for_printout(features_df[columns_to_display].tail(self.config.candles_count_for_trend), table_format="psql", )]
@@ -280,7 +281,7 @@ class GenericPk(ControllerBase):
         return self.processed_data["features"]["avg_normalized_bbp"].iloc[-1]
 
     def get_latest_bbb(self) -> float:
-        return self.processed_data["features"][f"BBB_{self.config.bollinger_bands_length}_{self.config.bollinger_bands_std_dev}"].iloc[-1]
+        return self.processed_data["features"]["bbb_for_volatility"].iloc[-1]
 
     def is_market_trending(self, trend: Trend) -> bool:
         column = "is_trending_up" if trend == Trend.UP else "is_trending_down"

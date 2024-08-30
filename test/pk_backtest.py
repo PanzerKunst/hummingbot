@@ -37,13 +37,13 @@ async def backtest():
         executors=executors,
         config=config.dict())
     fig.add_trace(go.Scatter(x=df.index,
-                             y=df[f"BBU_{config.bollinger_bands_length}_{config.bollinger_bands_std_dev}"])
+                             y=df[f"BBU_{config.bbands_length_for_trend}_{config.bbands_std_dev_for_trend}"])
                   )
     fig.add_trace(go.Scatter(x=df.index,
-                             y=df[f"BBM_{config.bollinger_bands_length}_{config.bollinger_bands_std_dev}"])
+                             y=df[f"BBM_{config.bbands_length_for_trend}_{config.bbands_std_dev_for_trend}"])
                   )
     fig.add_trace(go.Scatter(x=df.index,
-                             y=df[f"BBL_{config.bollinger_bands_length}_{config.bollinger_bands_std_dev}"])
+                             y=df[f"BBL_{config.bbands_length_for_trend}_{config.bbands_std_dev_for_trend}"])
                   )
     print(results)
     plot(fig)
