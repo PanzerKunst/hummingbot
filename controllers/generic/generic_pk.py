@@ -171,9 +171,9 @@ class GenericPk(ControllerBase):
 
         if is_market_trending:
             for filled_executor in [e for e in active_executors if e.is_trading]:
-                pnl = filled_executor.net_pnl_pct * 100
-                self.logger().info(f"##### is_market_trending + filled_executor with pnl:{pnl} #####")
-                if pnl > self.config.stop_loss_pct * 0.7:
+                pnl_pct = filled_executor.net_pnl_pct * 100
+                self.logger().info(f"##### is_market_trending + filled_executor with pnl:{pnl_pct} #####")
+                if pnl_pct < 0 and abs(pnl_pct) > self.config.stop_loss_pct * 0.7:
                     self.logger().info("##### pnl too close to SL -> closing position #####")
                     stop_actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=filled_executor.id))
 
