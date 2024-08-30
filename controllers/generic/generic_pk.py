@@ -126,7 +126,7 @@ class GenericPk(ControllerBase):
     def create_actions_proposal(self) -> List[ExecutorAction]:
         quote_amount = self.get_position_quote_amount()
 
-        if quote_amount == 0 or self.is_high_volatility():
+        if quote_amount == 0 or self.is_high_volatility() or self.is_market_trending():
             return []
 
         create_actions = []
@@ -157,9 +157,7 @@ class GenericPk(ControllerBase):
     def stop_actions_proposal(self) -> List[ExecutorAction]:
         stop_actions = []
 
-        is_market_trending_up: bool = self.is_market_trending(Trend.UP)
-        is_market_trending_down: bool = self.is_market_trending(Trend.DOWN)
-        is_market_trending: bool = is_market_trending_up or is_market_trending_down
+        is_market_trending: bool = self.is_market_trending()
         is_high_volatility: bool = self.is_high_volatility()
 
         active_executors = self.get_active_executors(self.config.connector_name)
@@ -283,9 +281,12 @@ class GenericPk(ControllerBase):
     def get_latest_bbb(self) -> float:
         return self.processed_data["features"]["bbb_for_volatility"].iloc[-1]
 
-    def is_market_trending(self, trend: Trend) -> bool:
+    def is_trending(self, trend: Trend) -> bool:
         column = "is_trending_up" if trend == Trend.UP else "is_trending_down"
         return self.processed_data["features"][column].iloc[-1]
+
+    def is_market_trending(self) -> bool:
+        return self.is_trending(Trend.UP) or self.is_trending(Trend.DOWN)
 
     def is_high_volatility(self) -> bool:
         return self.get_latest_bbb() > self.config.volatility_threshold_bbb
