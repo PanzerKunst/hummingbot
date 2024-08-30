@@ -1,4 +1,5 @@
 from decimal import Decimal
+from enum import Enum
 
 from hummingbot.connector.derivative.position import Position
 from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
@@ -25,3 +26,8 @@ def has_order_expired(executor: ExecutorInfo, time_limit: int, current_timestamp
     """
     delta = current_timestamp - executor.timestamp
     return delta > time_limit
+
+
+class Trend(Enum):
+    UP = "UP"
+    DOWN = "DOWN"

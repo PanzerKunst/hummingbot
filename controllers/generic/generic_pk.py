@@ -13,6 +13,7 @@ from hummingbot.strategy_v2.controllers.controller_base import ControllerBase, C
 from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig, TripleBarrierConfig
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, ExecutorAction, StopExecutorAction
 from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
+from scripts.utility.my_utils import Trend, has_order_expired
 
 
 class GenericPkConfig(ControllerConfigBase):
@@ -23,30 +24,30 @@ class GenericPkConfig(ControllerConfigBase):
     leverage: int = 20
     position_mode: PositionMode = PositionMode.HEDGE
     total_amount_quote: int = 100  # Specified here primarily to avoid prompt. Used only when backtesting
+    unfilled_order_expiration_min: int = 10
 
     # Triple Barrier
-    stop_loss_pct: float = 2.5
-    take_profit_pct: float = 1.0
-    filled_order_expiration_min: int = 120
+    stop_loss_pct: float = 0.8
+    take_profit_pct: float = 0.5
+    filled_order_expiration_min: int = 1000
 
     # TODO: dymanic SL, TP?
 
     # Technical analysis
-    bollinger_bands_length: int = 7
+    bollinger_bands_length: int = 12
     bollinger_bands_std_dev: float = 2.0
-    bollinger_bands_bandwidth_threshold: float = 1.5
+    candles_count_for_trend: int = 16
+    volatility_threshold_bbp: float = 0.5
+    volatility_threshold_bbb: float = 1.0
 
     # Candles
     candles_connector: str = "okx_perpetual"
     candles_interval: str = "1m"
-    candles_length: int = bollinger_bands_length * 2
+    candles_length: int = candles_count_for_trend * 2
     candles_config: List[CandlesConfig] = []  # Initialized in the constructor
 
     # Maker orders settings
     min_spread_pct: float = 0.5
-    normalized_bbp_mult: float = 0.05
-    normalized_bbb_mult: float = 0.1
-    bbb_mult_threshold: float = 0.7
 
     @property
     def triple_barrier_config(self) -> TripleBarrierConfig:
@@ -95,7 +96,20 @@ class GenericPk(ControllerBase):
         # Add indicators
         candles_df.ta.bbands(length=self.config.bollinger_bands_length, std=self.config.bollinger_bands_std_dev, append=True)
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
-        candles_df["normalized_bbp"] = candles_df[f"BBP_{self.config.bollinger_bands_length}_{self.config.bollinger_bands_std_dev}"].apply(self.get_normalized_bbp)
+        candles_df["normalized_bbp"] = candles_df[f"BBP_{self.config.bollinger_bands_length}_{self.config.bollinger_bands_std_dev}"].apply(
+            self.get_normalized_bbp)
+
+        window = self.config.candles_count_for_trend
+
+        candles_df["is_trending_up"] = candles_df["normalized_bbp"].rolling(window=window, min_periods=window).apply(
+            lambda x: (x > 0).all(), raw=True
+        ).astype(bool)
+
+        candles_df["is_trending_down"] = candles_df["normalized_bbp"].rolling(window=window, min_periods=window).apply(
+            lambda x: (x < 0).all(), raw=True
+        ).astype(bool)
+
+        candles_df["avg_normalized_bbp"] = candles_df["normalized_bbp"].rolling(window=window).mean()
 
         self.processed_data["features"] = candles_df
 
@@ -114,32 +128,59 @@ class GenericPk(ControllerBase):
         create_actions = []
 
         mid_price = self.get_mid_price()
-        latest_normalized_bbp = self.get_latest_normalized_bbp()
-        latest_bbb = self.get_latest_bbb()
+        latest_avg_normalized_bbp = self.get_latest_avg_normalized_bbp()
 
         unfilled_executors = self.get_active_executors(self.config.connector_name, True)
-        unfilled_sell_executors = [e for e in unfilled_executors if e.side == TradeType.SELL]  # TODO: by_side
+        unfilled_sell_executors = [e for e in unfilled_executors if e.side == TradeType.SELL]  # TODO: use function "by_side"
 
         if len(unfilled_sell_executors) == 0:
-            sell_price = self.adjust_sell_price(mid_price, latest_normalized_bbp, latest_bbb)
+            sell_price = self.adjust_sell_price(mid_price, latest_avg_normalized_bbp)
             sell_executor_config = self.get_executor_config(TradeType.SELL, sell_price, quote_amount)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=sell_executor_config))
 
         unfilled_buy_executors = [e for e in unfilled_executors if e.side == TradeType.BUY]
 
         if len(unfilled_buy_executors) == 0:
-            buy_price = self.adjust_buy_price(mid_price, latest_normalized_bbp, latest_bbb)
+            buy_price = self.adjust_buy_price(mid_price, latest_avg_normalized_bbp)
             buy_executor_config = self.get_executor_config(TradeType.BUY, buy_price, quote_amount)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=buy_executor_config))
 
         return create_actions
 
+    # TODO: in case of a stop-loss, wait until we have crossed the road again before making a new order on that side
+    # Or, close all orders on that side, and significantly increase the price adjustment
+
     def stop_actions_proposal(self) -> List[ExecutorAction]:
         stop_actions = []
 
-        if self.should_stop_unfilled_executors():
-            self.logger().info("##### Stopping unfilled executors #####")
-            for unfilled_executor in self.get_active_executors(self.config.connector_name, True):
+        is_high_volatility: bool = (
+            abs(self.get_latest_normalized_bbp()) > self.config.volatility_threshold_bbp and
+            self.get_latest_bbb() > self.config.volatility_threshold_bbb
+        )
+
+        is_market_trending_up: bool = self.is_market_trending(Trend.UP)
+        is_market_trending_down: bool = self.is_market_trending(Trend.DOWN)
+        is_market_trending: bool = is_market_trending_up or is_market_trending_down
+
+        self.logger().info(f"stop_actions_proposal: is_high_volatility:{is_high_volatility}, is_market_trending_up:{is_market_trending_up}, is_market_trending_down:{is_market_trending_down}")
+
+        active_executors = self.get_active_executors(self.config.connector_name)
+
+        if is_high_volatility or is_market_trending:
+            self.logger().info("##### is_high_volatility or is_market_trending -> Stopping unfilled executors #####")
+            for unfilled_executor in [e for e in active_executors if not e.is_trading]:
+                stop_actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=unfilled_executor.id))
+
+        if is_market_trending:
+            for filled_executor in [e for e in active_executors if e.is_trading]:
+                pnl = filled_executor.net_pnl_pct * 100
+                self.logger().info(f"##### is_market_trending + filled_executor with pnl:{pnl} #####")
+                if pnl > self.config.stop_loss_pct * 0.7:
+                    self.logger().info("##### pnl too close to SL -> closing position #####")
+                    stop_actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=filled_executor.id))
+
+        for unfilled_executor in [e for e in active_executors if not e.is_trading]:
+            if has_order_expired(unfilled_executor, self.config.unfilled_order_expiration_min * 60, self.market_data_provider.time()):
                 stop_actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=unfilled_executor.id))
 
         return stop_actions
@@ -154,10 +195,13 @@ class GenericPk(ControllerBase):
             "timestamp_iso",
             "close",
             "normalized_bbp",
-            f"BBB_{self.config.bollinger_bands_length}_{self.config.bollinger_bands_std_dev}"
+            f"BBB_{self.config.bollinger_bands_length}_{self.config.bollinger_bands_std_dev}",
+            "is_trending_up",
+            "is_trending_down",
+            "avg_normalized_bbp"
         ]
 
-        return [format_df_for_printout(features_df[columns_to_display].tail(self.config.bollinger_bands_length), table_format="psql",)]
+        return [format_df_for_printout(features_df[columns_to_display].tail(self.config.candles_count_for_trend), table_format="psql", )]
 
     #
     # Custom functions potentially interesting for other controllers
@@ -223,18 +267,6 @@ class GenericPk(ControllerBase):
             leverage=self.config.leverage
         )
 
-    def should_stop_unfilled_executors(self) -> bool:
-        is_volatility_too_high = (
-            abs(self.get_latest_normalized_bbp()) > 0.49 and
-            self.get_latest_bbb() > self.config.bollinger_bands_bandwidth_threshold
-        )
-
-        if is_volatility_too_high:
-            self.logger().info(f"is_volatility_too_high. latest_normalized_bbp: {self.get_latest_normalized_bbp()}. latest_bbb: {self.get_latest_bbb()}")
-            return True
-
-        return False
-
     #
     # Custom functions specific to this controller
     #
@@ -246,53 +278,48 @@ class GenericPk(ControllerBase):
     def get_latest_normalized_bbp(self) -> float:
         return self.processed_data["features"]["normalized_bbp"].iloc[-1]
 
+    def get_latest_avg_normalized_bbp(self) -> float:
+        return self.processed_data["features"]["avg_normalized_bbp"].iloc[-1]
+
     def get_latest_bbb(self) -> float:
         return self.processed_data["features"][f"BBB_{self.config.bollinger_bands_length}_{self.config.bollinger_bands_std_dev}"].iloc[-1]
 
-    def adjust_sell_price(self, mid_price: Decimal, latest_normalized_bbp: float, latest_bbb: float) -> Decimal:
-        default_adjustment = self.config.min_spread_pct / 100  # Ex 0.015
+    def is_market_trending(self, trend: Trend) -> bool:
+        column = "is_trending_up" if trend == Trend.UP else "is_trending_down"
+        return self.processed_data["features"][column].iloc[-1]
+
+    def adjust_sell_price(self, mid_price: Decimal, latest_avg_normalized_bbp: float) -> Decimal:
+        default_adjustment = self.config.min_spread_pct / 100  # Ex
 
         bbp_adjustment: float = 0.0
 
-        if latest_normalized_bbp > 0:  # Ex 0.2 or 0.6
-            bbp_adjustment = latest_normalized_bbp * self.config.normalized_bbp_mult  # Ex 0.02 or 0.06
+        if latest_avg_normalized_bbp > 0.3:  # Ex
+            bbp_adjustment = latest_avg_normalized_bbp * 0.0  # Ex
 
-        bbb_adjustment: float = 0.0
+        total_adjustment = default_adjustment + bbp_adjustment  # Ex
 
-        if latest_bbb > self.config.bbb_mult_threshold:
-            above_threshold = latest_bbb - self.config.bbb_mult_threshold  # Ex: 0.1 or 0.3
-            bbb_adjustment = above_threshold * self.config.normalized_bbb_mult  # Ex: 0.01 or 0.03
+        ref_price = mid_price * Decimal(1 + total_adjustment)  # mid_price *
 
-        total_adjustment = default_adjustment + bbp_adjustment + bbb_adjustment  # Ex: 0.015 + 0.02 + 0.01 = 0.045
-
-        ref_price = mid_price * Decimal(1 + total_adjustment)  # mid_price * 1.045
-
-        self.logger().info(f"Adjusting SELL price. mid:{mid_price}, norm_bbp:{latest_normalized_bbp}, bbb:{latest_bbb}")
-        self.logger().info(f"Adjusting SELL price. def_adj:{default_adjustment}, bbp_adj:{bbp_adjustment}, bbb_adj:{bbb_adjustment}")
+        self.logger().info(f"Adjusting SELL price. mid:{mid_price}, avg_norm_bbp:{latest_avg_normalized_bbp}")
+        self.logger().info(f"Adjusting SELL price. def_adj:{default_adjustment}, bbp_adj:{bbp_adjustment}")
         self.logger().info(f"Adjusting SELL price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
         return ref_price
 
-    def adjust_buy_price(self, mid_price: Decimal, latest_normalized_bbp: float, latest_bbb: float) -> Decimal:
-        default_adjustment = self.config.min_spread_pct / 100  # Ex 0.015
+    def adjust_buy_price(self, mid_price: Decimal, latest_avg_normalized_bbp: float) -> Decimal:
+        default_adjustment = self.config.min_spread_pct / 100  # Ex
 
         bbp_adjustment: float = 0.0
 
-        if latest_normalized_bbp < 0:  # Ex -0.2 or -0.6
-            bbp_adjustment = abs(latest_normalized_bbp) * self.config.normalized_bbp_mult  # Ex 0.02 or 0.06
+        if latest_avg_normalized_bbp < -0.3:  # Ex
+            bbp_adjustment = abs(latest_avg_normalized_bbp) * 0.0  # Ex
 
-        bbb_adjustment: float = 0.0
+        total_adjustment = default_adjustment + bbp_adjustment  # Ex
 
-        if latest_bbb > self.config.bbb_mult_threshold:
-            above_threshold = latest_bbb - self.config.bbb_mult_threshold  # Ex: 0.1 or 0.3
-            bbb_adjustment = above_threshold * self.config.normalized_bbb_mult  # Ex: 0.01 or 0.03
+        ref_price = mid_price * Decimal(1 - total_adjustment)  # mid_price *
 
-        total_adjustment = default_adjustment + bbp_adjustment + bbb_adjustment  # Ex: 0.015 + 0.02 + 0.01 = 0.045
-
-        ref_price = mid_price * Decimal(1 - total_adjustment)  # mid_price * 0.955
-
-        self.logger().info(f"Adjusting BUY price. mid:{mid_price}, norm_bbp:{latest_normalized_bbp}, bbb:{latest_bbb}")
-        self.logger().info(f"Adjusting BUY price. def_adj:{default_adjustment}, bbp_adj:{bbp_adjustment}, bbb_adj:{bbb_adjustment}")
+        self.logger().info(f"Adjusting BUY price. mid:{mid_price}, avg_norm_bbp:{latest_avg_normalized_bbp}")
+        self.logger().info(f"Adjusting BUY price. def_adj:{default_adjustment}, bbp_adj:{bbp_adjustment}")
         self.logger().info(f"Adjusting BUY price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
         return ref_price

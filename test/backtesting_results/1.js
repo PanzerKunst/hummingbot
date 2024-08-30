@@ -1,42 +1,45 @@
 const conf = `
-id: C1PkH8bFzG3xasPijGM9cUm4bPxTLXiem35grtJUspiL
+id: CE3jnE44ocDRoAcMcU9yzXjN3kUkMF3nQdsRN7H4Bkcf
 controller_name: generic_pk
 controller_type: generic
+total_amount_quote: 100
 manual_kill_switch: null
 candles_config: []
-connector_name: okx_perpetual
+connector_name: binance
 trading_pair: AAVE-USDT
-leverage: 5
+leverage: 20
 position_mode: HEDGE
-stop_loss_pct: 2.0
-take_profit_pct: 1.0
-filled_order_expiration_min: 60
-bollinger_bands_length: 7
-bollinger_bands_std_dev: 2.2
+stop_loss_pct: 0.5
+take_profit_pct: 0.3
+filled_order_expiration_min: 1000
+bollinger_bands_length: 12
+bollinger_bands_std_dev: 2.0
+candles_count_for_trend: 16
+volatility_threshold_bbp: 0.5
+volatility_threshold_bbb: 1.0
+candles_connector: binance
 candles_interval: 1m
-candles_length: 7
-unfilled_order_expiration_min: 10
-min_spread_pct: 0.5
-normalized_bbp_mult: 0.01
+candles_length: 32
+min_spread_pct: 0.2
 `
 
 const result = {
-    'net_pnl': 0.021773685751283318,
-    'net_pnl_quote': 2.1773685751283316,
-    'total_executors': 1270,
-    'total_executors_with_position': 168,
-    'total_volume': 33602.295428882346,
-    'total_long': 91,
-    'total_short': 77,
-    'close_types': {'EARLY_STOP': 1100, 'STOP_LOSS': 11, 'TAKE_PROFIT': 47, 'TIME_LIMIT': 112},
-    'accuracy_long': 0.5494505494505495,
-    'accuracy_short': 0.5194805194805194,
-    'total_positions': 168,
-    'accuracy': 0.5357142857142857,
-    'max_drawdown_usd': -12.24789843349171,
-    'max_drawdown_pct': -0.12201892724806596,
-    'sharpe_ratio': 0.853577488644082,
-    'profit_factor': 1.032614711562655,
-    'win_signals': 90,
-    'loss_signals': 78
+    'net_pnl': 0.06940890973848218,
+    'net_pnl_quote': 6.9408909738482185,
+    'total_executors': 94,
+    'total_executors_with_position': 87,
+    'total_volume': 17427.481118735097,
+    'total_long': 25,
+    'total_short': 62,
+    'close_types': {'STOP_LOSS': 25, 'TAKE_PROFIT': 61, 'TIME_LIMIT': 8},
+    'accuracy_long': 0.68,
+    'accuracy_short': 0.7096774193548387,
+    'total_positions': 87,
+    'accuracy': 0.7011494252873564,
+    'max_drawdown_usd': -5.080299581635364,
+    'max_drawdown_pct': -0.050618968622591104,
+    'sharpe_ratio': 1.1864663509080642,
+    'profit_factor': 1.3337733701938967,
+    'win_signals': 61,
+    'loss_signals': 26
 }
