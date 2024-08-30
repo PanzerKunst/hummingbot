@@ -36,7 +36,7 @@ class GenericPkConfig(ControllerConfigBase):
     # Technical analysis
     bbands_length_for_trend: int = 12
     bbands_std_dev_for_trend: float = 2.0
-    candles_count_for_trend: int = 16
+    candles_count_for_trend: int = 12
     bbands_length_for_volatility: int = 2
     bbands_std_dev_for_volatility: float = 3.0
     volatility_threshold_bbb: float = 1.0
@@ -48,7 +48,7 @@ class GenericPkConfig(ControllerConfigBase):
     candles_config: List[CandlesConfig] = []  # Initialized in the constructor
 
     # Maker orders settings
-    min_spread_pct: float = 0.3
+    default_spread_pct: float = 0.5
 
     @property
     def triple_barrier_config(self) -> TripleBarrierConfig:
@@ -126,26 +126,28 @@ class GenericPk(ControllerBase):
     def create_actions_proposal(self) -> List[ExecutorAction]:
         quote_amount = self.get_position_quote_amount()
 
-        if quote_amount == 0 or self.is_high_volatility() or self.is_market_trending():
+        if quote_amount == 0 or self.is_high_volatility():
             return []
 
         create_actions = []
 
         mid_price = self.get_mid_price()
         latest_bbb = self.get_latest_bbb()
+        is_trending_up = self.is_trending(Trend.UP)
+        is_trending_down = self.is_trending(Trend.DOWN)
 
         unfilled_executors = self.get_active_executors(self.config.connector_name, True)
         unfilled_sell_executors = [e for e in unfilled_executors if e.side == TradeType.SELL]  # TODO: use function "by_side"
 
         if len(unfilled_sell_executors) == 0:
-            sell_price = self.adjust_sell_price(mid_price, latest_bbb)
+            sell_price = self.adjust_sell_price(mid_price, latest_bbb, is_trending_up)
             sell_executor_config = self.get_executor_config(TradeType.SELL, sell_price, quote_amount)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=sell_executor_config))
 
         unfilled_buy_executors = [e for e in unfilled_executors if e.side == TradeType.BUY]
 
         if len(unfilled_buy_executors) == 0:
-            buy_price = self.adjust_buy_price(mid_price, latest_bbb)
+            buy_price = self.adjust_buy_price(mid_price, latest_bbb, is_trending_down)
             buy_executor_config = self.get_executor_config(TradeType.BUY, buy_price, quote_amount)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=buy_executor_config))
 
@@ -157,26 +159,28 @@ class GenericPk(ControllerBase):
     def stop_actions_proposal(self) -> List[ExecutorAction]:
         stop_actions = []
 
-        is_market_trending: bool = self.is_market_trending()
+        # is_market_trending: bool = self.is_market_trending()
         is_high_volatility: bool = self.is_high_volatility()
 
-        active_executors = self.get_active_executors(self.config.connector_name)
+        # if is_high_volatility or is_market_trending:
+        #     self.logger().info(f"##### is_high_volatility:{is_high_volatility} or is_market_trending:{is_market_trending} -> Stopping unfilled executors #####")
+        #     for unfilled_executor in [e for e in active_executors if not e.is_trading]:
+        #         stop_actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=unfilled_executor.id))
 
-        if is_high_volatility or is_market_trending:
-            self.logger().info(f"##### is_high_volatility:{is_high_volatility} or is_market_trending:{is_market_trending} -> Stopping unfilled executors #####")
-            for unfilled_executor in [e for e in active_executors if not e.is_trading]:
-                stop_actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=unfilled_executor.id))
+        # if is_market_trending:
+        #     for filled_executor in [e for e in active_executors if e.is_trading]:
+        #         pnl_pct = filled_executor.net_pnl_pct * 100
+        #         self.logger().info(f"##### is_market_trending + filled_executor with pnl:{pnl_pct} #####")
+        #         if pnl_pct < 0 and abs(pnl_pct) > self.config.stop_loss_pct * 0.7:
+        #             self.logger().info("##### pnl too close to SL -> closing position #####")
+        #             stop_actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=filled_executor.id))
 
-        if is_market_trending:
-            for filled_executor in [e for e in active_executors if e.is_trading]:
-                pnl_pct = filled_executor.net_pnl_pct * 100
-                self.logger().info(f"##### is_market_trending + filled_executor with pnl:{pnl_pct} #####")
-                if pnl_pct < 0 and abs(pnl_pct) > self.config.stop_loss_pct * 0.7:
-                    self.logger().info("##### pnl too close to SL -> closing position #####")
-                    stop_actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=filled_executor.id))
+        if is_high_volatility:
+            self.logger().info("##### is_high_volatility -> Stopping unfilled executors #####")
 
-        for unfilled_executor in [e for e in active_executors if not e.is_trading]:
-            if has_order_expired(unfilled_executor, self.config.unfilled_order_expiration_min * 60, self.market_data_provider.time()):
+        for unfilled_executor in self.get_active_executors(self.config.connector_name, True):
+            has_expired = has_order_expired(unfilled_executor, self.config.unfilled_order_expiration_min * 60, self.market_data_provider.time())
+            if has_expired or is_high_volatility:
                 stop_actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=unfilled_executor.id))
 
         return stop_actions
@@ -291,38 +295,50 @@ class GenericPk(ControllerBase):
     def is_high_volatility(self) -> bool:
         return self.get_latest_bbb() > self.config.volatility_threshold_bbb
 
-    def adjust_sell_price(self, mid_price: Decimal, latest_bbb: float) -> Decimal:
-        default_adjustment = self.config.min_spread_pct / 100  # Ex
+    def adjust_sell_price(self, mid_price: Decimal, latest_bbb: float, is_trending_up: bool) -> Decimal:
+        default_adjustment = self.config.default_spread_pct / 100  # Ex
 
-        bbb_adjustment: float = 0.0
+        volatility_adjustment: float = 0.0
 
         if latest_bbb > 0.5:  # Ex
-            bbb_adjustment = latest_bbb * 0.2  # Ex
+            volatility_adjustment = latest_bbb * 0.2  # Ex
 
-        total_adjustment = default_adjustment + bbb_adjustment  # Ex
+        # When it's not trending up, reduce the spread
+        trend_adjustment_pct: float = - self.config.default_spread_pct * 0.4
+
+        if is_trending_up:
+            trend_adjustment_pct = 0.0
+
+        total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100  # Ex
 
         ref_price = mid_price * Decimal(1 + total_adjustment)  # mid_price *
 
-        self.logger().info(f"Adjusting SELL price. mid:{mid_price}, latest_bbb:{latest_bbb}")
-        self.logger().info(f"Adjusting SELL price. def_adj:{default_adjustment}, bbb_adj:{bbb_adjustment}")
+        self.logger().info(f"Adjusting SELL price. mid:{mid_price}, latest_bbb:{latest_bbb}, is_trending_up:{is_trending_up}")
+        self.logger().info(f"Adjusting SELL price. def_adj:{default_adjustment}, volatility_adjustment:{volatility_adjustment}, trend_adjustment_pct:{trend_adjustment_pct}")
         self.logger().info(f"Adjusting SELL price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
         return ref_price
 
-    def adjust_buy_price(self, mid_price: Decimal, latest_bbb: float) -> Decimal:
-        default_adjustment = self.config.min_spread_pct / 100  # Ex
+    def adjust_buy_price(self, mid_price: Decimal, latest_bbb: float, is_trending_down: bool) -> Decimal:
+        default_adjustment = self.config.default_spread_pct / 100  # Ex
 
-        bbb_adjustment: float = 0.0
+        volatility_adjustment: float = 0.0
 
         if latest_bbb > 0.5:  # Ex
-            bbb_adjustment = latest_bbb * 0.2  # Ex
+            volatility_adjustment = latest_bbb * 0.2  # Ex
 
-        total_adjustment = default_adjustment + bbb_adjustment  # Ex
+        # When it's not trending down, reduce the spread
+        trend_adjustment_pct: float = - self.config.default_spread_pct * 0.4
+
+        if is_trending_down:
+            trend_adjustment_pct = 0.0
+
+        total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100  # Ex
 
         ref_price = mid_price * Decimal(1 - total_adjustment)  # mid_price *
 
-        self.logger().info(f"Adjusting BUY price. mid:{mid_price}, latest_bbb:{latest_bbb}")
-        self.logger().info(f"Adjusting BUY price. def_adj:{default_adjustment}, bbb_adj:{bbb_adjustment}")
+        self.logger().info(f"Adjusting BUY price. mid:{mid_price}, latest_bbb:{latest_bbb}, is_trending_down:{is_trending_down}")
+        self.logger().info(f"Adjusting BUY price. def_adj:{default_adjustment}, volatility_adjustment:{volatility_adjustment}, trend_adjustment_pct:{trend_adjustment_pct}")
         self.logger().info(f"Adjusting BUY price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
         return ref_price
