@@ -14,7 +14,7 @@ from hummingbot.strategy_v2.executors.position_executor.data_types import Positi
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, ExecutorAction, StopExecutorAction
 from hummingbot.strategy_v2.models.executors import CloseType
 from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
-from scripts.utility.my_utils import Trend, has_order_expired
+from scripts.utility.my_utils import has_order_expired
 
 
 class GenericPkConfig(ControllerConfigBase):
@@ -25,6 +25,7 @@ class GenericPkConfig(ControllerConfigBase):
     leverage: int = 20
     position_mode: PositionMode = PositionMode.HEDGE
     total_amount_quote: int = 100  # Specified here primarily to avoid prompt. Used only when backtesting
+    cooldown_time_min: int = 3  # A cooldown helps getting more meaningful information on the PnL of the currently filled order
     unfilled_order_expiration_min: int = 10
 
     # Triple Barrier
@@ -37,15 +38,14 @@ class GenericPkConfig(ControllerConfigBase):
     # Technical analysis
     bbands_length_for_trend: int = 12
     bbands_std_dev_for_trend: float = 2.0
-    candles_count_for_trend: int = 12
     bbands_length_for_volatility: int = 2
     bbands_std_dev_for_volatility: float = 3.0
-    volatility_threshold_bbb: float = 1.0
+    high_volatility_threshold: float = 1.0
 
     # Candles
     candles_connector: str = "okx_perpetual"
     candles_interval: str = "1m"
-    candles_length: int = candles_count_for_trend * 2
+    candles_length: int = bbands_length_for_trend * 2
     candles_config: List[CandlesConfig] = []  # Initialized in the constructor
 
     # Maker orders settings
@@ -105,18 +105,6 @@ class GenericPk(ControllerBase):
         candles_df.ta.bbands(length=self.config.bbands_length_for_trend, std=self.config.bbands_std_dev_for_trend, append=True)
         candles_df["normalized_bbp"] = candles_df[f"BBP_{self.config.bbands_length_for_trend}_{self.config.bbands_std_dev_for_trend}"].apply(self.get_normalized_bbp)
 
-        window = self.config.candles_count_for_trend
-
-        candles_df["is_trending_up"] = candles_df["normalized_bbp"].rolling(window=window, min_periods=window).apply(
-            lambda x: (x > 0).all(), raw=True
-        ).astype(bool)
-
-        candles_df["is_trending_down"] = candles_df["normalized_bbp"].rolling(window=window, min_periods=window).apply(
-            lambda x: (x < 0).all(), raw=True
-        ).astype(bool)
-
-        candles_df["avg_normalized_bbp"] = candles_df["normalized_bbp"].rolling(window=window).mean()
-
         bbands_for_volatility = candles_df.ta.bbands(length=self.config.bbands_length_for_volatility, std=self.config.bbands_std_dev_for_volatility)
         candles_df["bbb_for_volatility"] = bbands_for_volatility[f"BBB_{self.config.bbands_length_for_volatility}_{self.config.bbands_std_dev_for_volatility}"]
 
@@ -131,31 +119,24 @@ class GenericPk(ControllerBase):
         return actions
 
     def create_actions_proposal(self) -> List[ExecutorAction]:
-        quote_amount = self.get_position_quote_amount()
-
-        if quote_amount == 0 or self.is_high_volatility():
-            return []
-
         create_actions = []
 
         mid_price = self.get_mid_price()
         latest_bbb = self.get_latest_bbb()
-        is_trending_up = self.is_trending(Trend.UP)
-        is_trending_down = self.is_trending(Trend.DOWN)
 
         unfilled_executors = self.get_active_executors(True)
-        unfilled_sell_executors = [e for e in unfilled_executors if e.side == TradeType.SELL]  # TODO: use function "by_side"
+        unfilled_sell_executors = [e for e in unfilled_executors if e.side == TradeType.SELL]
 
-        if len(unfilled_sell_executors) == 0:
-            sell_price = self.adjust_sell_price(mid_price, latest_bbb, is_trending_up)
-            sell_executor_config = self.get_executor_config(TradeType.SELL, sell_price, quote_amount)
+        if self.can_create_executor(TradeType.SELL, unfilled_sell_executors):
+            sell_price = self.adjust_sell_price(mid_price, latest_bbb)
+            sell_executor_config = self.get_executor_config(TradeType.SELL, sell_price)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=sell_executor_config))
 
         unfilled_buy_executors = [e for e in unfilled_executors if e.side == TradeType.BUY]
 
-        if len(unfilled_buy_executors) == 0:
-            buy_price = self.adjust_buy_price(mid_price, latest_bbb, is_trending_down)
-            buy_executor_config = self.get_executor_config(TradeType.BUY, buy_price, quote_amount)
+        if self.can_create_executor(TradeType.BUY, unfilled_buy_executors):
+            buy_price = self.adjust_buy_price(mid_price, latest_bbb)
+            buy_executor_config = self.get_executor_config(TradeType.BUY, buy_price)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=buy_executor_config))
 
         return create_actions
@@ -186,13 +167,10 @@ class GenericPk(ControllerBase):
             "close",
             f"BBP_{self.config.bbands_length_for_trend}_{self.config.bbands_std_dev_for_trend}",
             "normalized_bbp",
-            "is_trending_up",
-            "is_trending_down",
-            "avg_normalized_bbp",
             "bbb_for_volatility"
         ]
 
-        return [format_df_for_printout(features_df[columns_to_display].tail(self.config.candles_count_for_trend), table_format="psql", )]
+        return [format_df_for_printout(features_df[columns_to_display].tail(self.config.bbands_length_for_trend), table_format="psql", )]
 
     #
     # Custom functions potentially interesting for other controllers
@@ -209,6 +187,23 @@ class GenericPk(ControllerBase):
             executors=self.executors_info,
             filter_func=filter_func
         )
+
+    def can_create_executor(self, side: TradeType, unfilled_executors: List[ExecutorInfo]) -> bool:
+        if self.get_position_quote_amount() == 0 or self.is_high_volatility() or len(unfilled_executors) > 0:
+            return False
+
+        trading_executors = self.get_trading_executors_on_side(side)
+        timestamp_of_most_recent_executor = max([executor.timestamp for executor in trading_executors], default=0)
+
+        is_cooldown_passed = timestamp_of_most_recent_executor + self.config.cooldown_time_min < self.market_data_provider.time()
+
+        # TODO: remove
+        if is_cooldown_passed:
+            self.logger().info("Still waiting for cooldown")
+        else:
+            self.logger().info(f"Cooldown passed! Can create a new executor on {side}")
+
+        return is_cooldown_passed
 
     def get_trade_connector(self) -> Optional[ConnectorBase]:
         try:
@@ -244,14 +239,14 @@ class GenericPk(ControllerBase):
     def _get_best_ask_or_bid(self, price_type: PriceType) -> Decimal:
         return self.market_data_provider.get_price_by_type(self.config.connector_name, self.config.trading_pair, price_type)
 
-    def get_executor_config(self, side: TradeType, ref_price: Decimal, quote_amount: Decimal) -> PositionExecutorConfig:
+    def get_executor_config(self, side: TradeType, ref_price: Decimal) -> PositionExecutorConfig:
         return PositionExecutorConfig(
             timestamp=self.market_data_provider.time(),
             connector_name=self.config.connector_name,
             trading_pair=self.config.trading_pair,
             side=side,
             entry_price=ref_price,
-            amount=quote_amount / ref_price,
+            amount=self.get_position_quote_amount() / ref_price,
             triple_barrier_config=self.config.triple_barrier_config,
             leverage=self.config.leverage
         )
@@ -292,21 +287,11 @@ class GenericPk(ControllerBase):
     def get_latest_normalized_bbp(self) -> float:
         return self.processed_data["features"]["normalized_bbp"].iloc[-1]
 
-    def get_latest_avg_normalized_bbp(self) -> float:
-        return self.processed_data["features"]["avg_normalized_bbp"].iloc[-1]
-
     def get_latest_bbb(self) -> float:
         return self.processed_data["features"]["bbb_for_volatility"].iloc[-1]
 
-    def is_trending(self, trend: Trend) -> bool:
-        column = "is_trending_up" if trend == Trend.UP else "is_trending_down"
-        return self.processed_data["features"][column].iloc[-1]
-
-    def is_market_trending(self) -> bool:
-        return self.is_trending(Trend.UP) or self.is_trending(Trend.DOWN)
-
     def is_high_volatility(self) -> bool:
-        return self.get_latest_bbb() > self.config.volatility_threshold_bbb
+        return self.get_latest_bbb() > self.config.high_volatility_threshold
 
     def check_for_stop_loss(self):
         last_buy_executor, last_sell_executor = self.get_last_terminated_executor_by_side()
@@ -355,7 +340,7 @@ class GenericPk(ControllerBase):
 
         return has_sl_occurred_on_buy and is_trending_down
 
-    def adjust_sell_price(self, mid_price: Decimal, latest_bbb: float, is_trending_up: bool) -> Decimal:
+    def adjust_sell_price(self, mid_price: Decimal, latest_bbb: float) -> Decimal:
         default_adjustment = self.config.default_spread_pct / 100
 
         volatility_adjustment: float = 0.0
@@ -386,13 +371,13 @@ class GenericPk(ControllerBase):
 
         ref_price = mid_price * Decimal(1 + total_adjustment)
 
-        self.logger().info(f"Adjusting SELL price. mid:{mid_price}, latest_bbb:{latest_bbb}, is_trending_up:{is_trending_up}")
+        self.logger().info(f"Adjusting SELL price. mid:{mid_price}, latest_bbb:{latest_bbb}")
         self.logger().info(f"Adjusting SELL price. def_adj:{default_adjustment}, volatility_adjustment:{volatility_adjustment}, trend_adjustment_pct:{trend_adjustment_pct}")
         self.logger().info(f"Adjusting SELL price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
         return ref_price
 
-    def adjust_buy_price(self, mid_price: Decimal, latest_bbb: float, is_trending_down: bool) -> Decimal:
+    def adjust_buy_price(self, mid_price: Decimal, latest_bbb: float) -> Decimal:
         default_adjustment = self.config.default_spread_pct / 100
 
         volatility_adjustment: float = 0.0
@@ -423,7 +408,7 @@ class GenericPk(ControllerBase):
 
         ref_price = mid_price * Decimal(1 - total_adjustment)
 
-        self.logger().info(f"Adjusting BUY price. mid:{mid_price}, latest_bbb:{latest_bbb}, is_trending_down:{is_trending_down}")
+        self.logger().info(f"Adjusting BUY price. mid:{mid_price}, latest_bbb:{latest_bbb}")
         self.logger().info(f"Adjusting BUY price. def_adj:{default_adjustment}, volatility_adjustment:{volatility_adjustment}, trend_adjustment_pct:{trend_adjustment_pct}")
         self.logger().info(f"Adjusting BUY price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
