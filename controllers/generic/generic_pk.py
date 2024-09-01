@@ -12,6 +12,7 @@ from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.strategy_v2.controllers.controller_base import ControllerBase, ControllerConfigBase
 from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig, TripleBarrierConfig
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, ExecutorAction, StopExecutorAction
+from hummingbot.strategy_v2.models.executors import CloseType
 from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
 from scripts.utility.my_utils import Trend, has_order_expired
 
@@ -75,7 +76,7 @@ class GenericPkConfig(ControllerConfigBase):
 
 
 class GenericPk(ControllerBase):
-    # TODO last_sl_executor: Optional[ExecutorInfo] = None
+    sl_executor: Optional[ExecutorInfo] = None
 
     def __init__(self, config: GenericPkConfig, *args, **kwargs):
         self.config = config
@@ -120,6 +121,8 @@ class GenericPk(ControllerBase):
 
         self.processed_data["features"] = candles_df
 
+        self.check_for_stop_loss(self.config.connector_name)
+
     def determine_executor_actions(self) -> List[ExecutorAction]:
         actions = []
         actions.extend(self.create_actions_proposal())
@@ -155,9 +158,6 @@ class GenericPk(ControllerBase):
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=buy_executor_config))
 
         return create_actions
-
-    # TODO: in case of a stop-loss, wait until we have crossed the road again before making a new order on that side
-    # Or, close all orders on that side, and significantly increase the price adjustment
 
     def stop_actions_proposal(self) -> List[ExecutorAction]:
         stop_actions = []
@@ -208,23 +208,6 @@ class GenericPk(ControllerBase):
             executors=self.executors_info,
             filter_func=filter_func
         )
-
-    # def has_stop_loss_occurred(self, connector_name: str) -> bool:
-    #     sl_terminated_executors = self.filter_executors(
-    #         executors=self.executors_info,
-    #         filter_func=lambda e: e.connector_name == connector_name and e.is_done() and e.close_type == CloseType.STOP_LOSS
-    #     )
-    #
-    #     if len(sl_terminated_executors) == 0:
-    #         return False
-    #
-    #     last_sl_executor = sl_terminated_executors[-1]
-    #
-    #     if last_sl_executor.id != self.last_sl_executor.id:
-    #         self.last_sl_executor = last_sl_executor
-    #         return True
-    #
-    #     return False
 
     def get_trade_connector(self) -> Optional[ConnectorBase]:
         try:
@@ -299,6 +282,44 @@ class GenericPk(ControllerBase):
     def is_high_volatility(self) -> bool:
         return self.get_latest_bbb() > self.config.volatility_threshold_bbb
 
+    def check_for_stop_loss(self, connector_name: str):
+        terminated_executors = self.filter_executors(
+            executors=self.executors_info,
+            filter_func=lambda e: e.connector_name == connector_name and e.is_done()
+        )
+
+        if len(terminated_executors) == 0:
+            return
+
+        last_terminated_executor = terminated_executors[-1]
+        is_stop_loss: bool = last_terminated_executor.close_type == CloseType.STOP_LOSS
+
+        # TODO: remove
+        if is_stop_loss:
+            self.logger().info("##### last_terminated_executor is_stop_loss #####")
+
+        self.sl_executor = last_terminated_executor if is_stop_loss else None
+
+    def has_sl_occurred_on_sell_and_bbp_is_positive(self) -> bool:
+        has_sl_occurred_on_sell: bool = self.sl_executor is not None and self.sl_executor.side == TradeType.SELL
+        is_bbp_positive: bool = self.get_latest_normalized_bbp() > 0
+
+        if has_sl_occurred_on_sell and not is_bbp_positive:
+            self.logger().info("##### We are crossing the road again (has_sl_occurred_on_sell and not is_bbp_positive) resetting self.sl_executor #####")
+            self.sl_executor = None
+
+        return has_sl_occurred_on_sell and is_bbp_positive
+
+    def has_sl_occurred_on_buy_and_bbp_is_negative(self) -> bool:
+        has_sl_occurred_on_buy: bool = self.sl_executor is not None and self.sl_executor.side == TradeType.BUY
+        is_bbp_negative: bool = self.get_latest_normalized_bbp() < 0
+
+        if has_sl_occurred_on_buy and not is_bbp_negative:
+            self.logger().info("##### We are crossing the road again (has_sl_occurred_on_buy and not is_bbp_negative) resetting self.sl_executor #####")
+            self.sl_executor = None
+
+        return has_sl_occurred_on_buy and is_bbp_negative
+
     def adjust_sell_price(self, mid_price: Decimal, latest_bbb: float, is_trending_up: bool) -> Decimal:
         default_adjustment = self.config.default_spread_pct / 100
 
@@ -308,11 +329,11 @@ class GenericPk(ControllerBase):
             above_threshold = latest_bbb - self.config.price_adjustment_volatility_threshold
             volatility_adjustment = above_threshold * 0.02
 
-        # When it's not trending up, reduce the spread
-        trend_adjustment_pct: float = - self.config.default_spread_pct * 0.4
+        trend_adjustment_pct: float = 0.0
 
-        if is_trending_up:
-            trend_adjustment_pct = 0.0
+        # If a SL has occured on a SELL order, and if mid_price > MA, we set trend_adjustment_pct very high
+        if self.has_sl_occurred_on_sell_and_bbp_is_positive():
+            trend_adjustment_pct = 5.0
 
         total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100
 
@@ -333,11 +354,11 @@ class GenericPk(ControllerBase):
             above_threshold = latest_bbb - self.config.price_adjustment_volatility_threshold
             volatility_adjustment = above_threshold * 0.02
 
-        # When it's not trending down, reduce the spread
-        trend_adjustment_pct: float = - self.config.default_spread_pct * 0.4
+        trend_adjustment_pct: float = 0.0
 
-        if is_trending_down:
-            trend_adjustment_pct = 0.0
+        # If a SL has occured on a BUY order, and if mid_price < MA, we set trend_adjustment_pct very high
+        if self.has_sl_occurred_on_buy_and_bbp_is_negative():
+            trend_adjustment_pct = 5.0
 
         total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100
 
