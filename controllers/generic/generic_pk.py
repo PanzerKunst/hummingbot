@@ -292,6 +292,10 @@ class GenericPk(ControllerBase):
             return
 
         last_terminated_executor = terminated_executors[-1]
+
+        # TODO remove
+        self.logger().info(f"last_terminated_executor.close_type: {last_terminated_executor.close_type}")
+
         is_stop_loss: bool = last_terminated_executor.close_type == CloseType.STOP_LOSS
 
         # TODO: remove
