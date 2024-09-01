@@ -6,7 +6,6 @@ import pandas_ta as ta  # noqa: F401
 
 from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
-from hummingbot.connector.utils import split_hb_trading_pair
 from hummingbot.core.data_type.common import OrderType, PositionMode, PriceType, TradeType
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.strategy_v2.controllers.controller_base import ControllerBase, ControllerConfigBase
@@ -24,7 +23,7 @@ class GenericPkConfig(ControllerConfigBase):
 
     leverage: int = 20
     position_mode: PositionMode = PositionMode.HEDGE
-    total_amount_quote: int = 100  # Specified here primarily to avoid prompt. Used only when backtesting
+    total_amount_quote: int = 70
     cooldown_time_min: int = 3  # A cooldown helps getting more meaningful information on the PnL of the currently filled order
     unfilled_order_expiration_min: int = 10
 
@@ -215,20 +214,9 @@ class GenericPk(ControllerBase):
         return self.market_data_provider.get_price_by_type(self.config.connector_name, self.config.trading_pair, PriceType.MidPrice)
 
     def get_position_quote_amount(self) -> Decimal:
-        _, quote_currency = split_hb_trading_pair(self.config.trading_pair)
-        trade_connector = self.get_trade_connector()
-
-        if trade_connector is None:  # When backtesting
-            return Decimal(self.config.total_amount_quote)
-
-        available_quote_balance = trade_connector.get_available_balance(quote_currency)
-
-        if available_quote_balance < 1:
-            return Decimal(0)
-
         # If balance = 100 USDT with leverage 20x, the quote position should be 500
-        # TODO return Decimal(available_quote_balance * self.config.leverage / 4)
-        return Decimal(available_quote_balance * self.config.leverage / 20)
+        # TODO return Decimal(self.config.total_amount_quote * self.config.leverage / 4)
+        return Decimal(self.config.total_amount_quote * self.config.leverage / 20)
 
     def get_best_ask(self) -> Decimal:
         return self._get_best_ask_or_bid(PriceType.BestAsk)
