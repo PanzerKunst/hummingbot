@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -194,13 +195,17 @@ class GenericPk(ControllerBase):
         trading_executors = self.get_trading_executors_on_side(side)
         timestamp_of_most_recent_executor = max([executor.timestamp for executor in trading_executors], default=0)
 
-        is_cooldown_passed = timestamp_of_most_recent_executor + self.config.cooldown_time_min < self.market_data_provider.time()
+        is_cooldown_passed = self.market_data_provider.time() > timestamp_of_most_recent_executor + self.config.cooldown_time_min
 
         # TODO: remove
+        executor_datetime_iso = datetime.utcfromtimestamp(timestamp_of_most_recent_executor).isoformat()
+        self.logger().info(f"executor_datetime_iso: {executor_datetime_iso}")
+        current_datetime_iso = datetime.utcfromtimestamp(self.market_data_provider.time()).isoformat()
+        self.logger().info(f"current_datetime_iso : {current_datetime_iso}")
         if is_cooldown_passed:
-            self.logger().info("Still waiting for cooldown")
-        else:
             self.logger().info(f"Cooldown passed! Can create a new executor on {side}")
+        else:
+            self.logger().info(f"Still waiting for cooldown for {side}")
 
         return is_cooldown_passed
 
