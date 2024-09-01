@@ -280,12 +280,14 @@ class GenericPk(ControllerBase):
     def get_latest_normalized_bbp(self) -> float:
         return self.processed_data["features"]["normalized_bbp"].iloc[-1]
 
-    def is_high_volatility(self) -> bool:
-        volatility_previous_full_minute = self.processed_data["features"]["bbb_for_volatility"].iloc[-2]
-        volatility_current_incomplete_minute = self.processed_data["features"]["bbb_for_volatility"].iloc[-1]
-        current_volatility = max(volatility_previous_full_minute, volatility_current_incomplete_minute)
+    def get_latest_bbb(self) -> float:
+        bbb_series = self.processed_data["features"]["bbb_for_volatility"]
+        bbb_previous_full_minute = bbb_series.iloc[-2]
+        bbb_current_incomplete_minute = bbb_series.iloc[-1]
+        return max(bbb_previous_full_minute, bbb_current_incomplete_minute)
 
-        return current_volatility > self.config.high_volatility_threshold
+    def is_high_volatility(self) -> bool:
+        return self.get_latest_bbb() > self.config.high_volatility_threshold
 
     def check_for_stop_loss(self):
         last_buy_executor, last_sell_executor = self.get_last_terminated_executor_by_side()
