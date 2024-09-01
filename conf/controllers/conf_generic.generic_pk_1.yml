@@ -9,7 +9,7 @@ trading_pair: AAVE-USDT
 leverage: 20
 position_mode: HEDGE
 unfilled_order_expiration_min: 10
-stop_loss_pct: 0.5
+stop_loss_pct: 0.3
 take_profit_pct: 0.3
 filled_order_expiration_min: 1000
 bbands_length_for_trend: 12
@@ -21,5 +21,5 @@ volatility_threshold_bbb: 1.0
 candles_connector: okx_perpetual
 candles_interval: 1m
 candles_length: 24
-default_spread_pct: 0.5
+default_spread_pct: 0.2
 price_adjustment_volatility_threshold: 0.5

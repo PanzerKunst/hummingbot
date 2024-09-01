@@ -292,11 +292,16 @@ class GenericPk(ControllerBase):
             return
 
         last_terminated_executor = terminated_executors[-1]
+        last_close_type = last_terminated_executor.close_type
 
         # TODO remove
-        self.logger().info(f"last_terminated_executor.close_type: {last_terminated_executor.close_type}")
+        self.logger().info(f"last_close_type: {last_close_type}")
 
-        is_stop_loss: bool = last_terminated_executor.close_type == CloseType.STOP_LOSS
+        # If we already have an SL, and last_terminated_executor.close_type != TAKE_PROFIT, we don't reset
+        if self.sl_executor is not None and last_close_type != CloseType.TAKE_PROFIT:
+            return
+
+        is_stop_loss: bool = last_close_type == CloseType.STOP_LOSS
 
         # TODO: remove
         if is_stop_loss:
@@ -309,7 +314,7 @@ class GenericPk(ControllerBase):
         is_bbp_positive: bool = self.get_latest_normalized_bbp() > 0
 
         if has_sl_occurred_on_sell and not is_bbp_positive:
-            self.logger().info("##### We are crossing the road again (has_sl_occurred_on_sell and not is_bbp_positive) resetting self.sl_executor #####")
+            self.logger().info("##### We passed the middle of the road again (has_sl_occurred_on_sell and not is_bbp_positive) resetting self.sl_executor #####")
             self.sl_executor = None
 
         return has_sl_occurred_on_sell and is_bbp_positive
@@ -319,7 +324,7 @@ class GenericPk(ControllerBase):
         is_bbp_negative: bool = self.get_latest_normalized_bbp() < 0
 
         if has_sl_occurred_on_buy and not is_bbp_negative:
-            self.logger().info("##### We are crossing the road again (has_sl_occurred_on_buy and not is_bbp_negative) resetting self.sl_executor #####")
+            self.logger().info("##### We passed the middle of the road again (has_sl_occurred_on_buy and not is_bbp_negative) resetting self.sl_executor #####")
             self.sl_executor = None
 
         return has_sl_occurred_on_buy and is_bbp_negative
