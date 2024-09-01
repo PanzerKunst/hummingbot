@@ -1,4 +1,3 @@
-from datetime import datetime
 from decimal import Decimal
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -25,7 +24,7 @@ class GenericPkConfig(ControllerConfigBase):
     leverage: int = 20
     position_mode: PositionMode = PositionMode.HEDGE
     total_amount_quote: int = 70
-    cooldown_time_min: int = 3  # A cooldown helps getting more meaningful information on the PnL of the currently filled order
+    # cooldown_time_min: int = 3  Unused for the moment
     unfilled_order_expiration_min: int = 10
 
     # Triple Barrier
@@ -127,14 +126,14 @@ class GenericPk(ControllerBase):
         unfilled_executors = self.get_active_executors(True)
         unfilled_sell_executors = [e for e in unfilled_executors if e.side == TradeType.SELL]
 
-        if self.can_create_executor(TradeType.SELL, unfilled_sell_executors):
+        if self.can_create_executor(unfilled_sell_executors):
             sell_price = self.adjust_sell_price(mid_price, latest_bbb)
             sell_executor_config = self.get_executor_config(TradeType.SELL, sell_price)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=sell_executor_config))
 
         unfilled_buy_executors = [e for e in unfilled_executors if e.side == TradeType.BUY]
 
-        if self.can_create_executor(TradeType.BUY, unfilled_buy_executors):
+        if self.can_create_executor(unfilled_buy_executors):
             buy_price = self.adjust_buy_price(mid_price, latest_bbb)
             buy_executor_config = self.get_executor_config(TradeType.BUY, buy_price)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=buy_executor_config))
@@ -188,26 +187,11 @@ class GenericPk(ControllerBase):
             filter_func=filter_func
         )
 
-    def can_create_executor(self, side: TradeType, unfilled_executors: List[ExecutorInfo]) -> bool:
+    def can_create_executor(self, unfilled_executors: List[ExecutorInfo]) -> bool:
         if self.get_position_quote_amount() == 0 or self.is_high_volatility() or len(unfilled_executors) > 0:
             return False
 
-        trading_executors = self.get_trading_executors_on_side(side)
-        timestamp_of_most_recent_executor = max([executor.timestamp for executor in trading_executors], default=0)
-
-        is_cooldown_passed = self.market_data_provider.time() > timestamp_of_most_recent_executor + self.config.cooldown_time_min
-
-        # TODO: remove
-        executor_datetime_iso = datetime.utcfromtimestamp(timestamp_of_most_recent_executor).isoformat()
-        self.logger().info(f"executor_datetime_iso: {executor_datetime_iso}")
-        current_datetime_iso = datetime.utcfromtimestamp(self.market_data_provider.time()).isoformat()
-        self.logger().info(f"current_datetime_iso : {current_datetime_iso}")
-        if is_cooldown_passed:
-            self.logger().info(f"Cooldown passed! Can create a new executor on {side}")
-        else:
-            self.logger().info(f"Still waiting for cooldown for {side}")
-
-        return is_cooldown_passed
+        return True
 
     def get_trade_connector(self) -> Optional[ConnectorBase]:
         try:
