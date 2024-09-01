@@ -285,7 +285,7 @@ class GenericPk(ControllerBase):
     def check_for_stop_loss(self, connector_name: str):
         terminated_executors = self.filter_executors(
             executors=self.executors_info,
-            filter_func=lambda e: e.connector_name == connector_name and e.is_done()
+            filter_func=lambda e: e.connector_name == connector_name and e.is_done
         )
 
         if len(terminated_executors) == 0:
