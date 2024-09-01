@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Dict, List, Optional, Set
+from typing import Dict, List, Optional, Set, Tuple
 
 import pandas as pd
 import pandas_ta as ta  # noqa: F401
@@ -122,7 +122,7 @@ class GenericPk(ControllerBase):
 
         self.processed_data["features"] = candles_df
 
-        self.check_for_stop_loss(self.config.connector_name)
+        self.check_for_stop_loss()
 
     def determine_executor_actions(self) -> List[ExecutorAction]:
         actions = []
@@ -143,7 +143,7 @@ class GenericPk(ControllerBase):
         is_trending_up = self.is_trending(Trend.UP)
         is_trending_down = self.is_trending(Trend.DOWN)
 
-        unfilled_executors = self.get_active_executors(self.config.connector_name, True)
+        unfilled_executors = self.get_active_executors(True)
         unfilled_sell_executors = [e for e in unfilled_executors if e.side == TradeType.SELL]  # TODO: use function "by_side"
 
         if len(unfilled_sell_executors) == 0:
@@ -168,7 +168,7 @@ class GenericPk(ControllerBase):
         if is_high_volatility:
             self.logger().info("##### is_high_volatility -> Stopping unfilled executors #####")
 
-        for unfilled_executor in self.get_active_executors(self.config.connector_name, True):
+        for unfilled_executor in self.get_active_executors(True):
             has_expired = has_order_expired(unfilled_executor, self.config.unfilled_order_expiration_min * 60, self.market_data_provider.time())
             if has_expired or is_high_volatility:
                 stop_actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=unfilled_executor.id))
@@ -198,11 +198,11 @@ class GenericPk(ControllerBase):
     # Custom functions potentially interesting for other controllers
     #
 
-    def get_active_executors(self, connector_name: str, is_non_trading_only: bool = False) -> List[ExecutorInfo]:
+    def get_active_executors(self, is_non_trading_only: bool = False) -> List[ExecutorInfo]:
         filter_func = (
-            lambda e: e.connector_name == connector_name and e.is_active and not e.is_trading
+            lambda e: e.connector_name == self.config.connector_name and e.is_active and not e.is_trading
         ) if is_non_trading_only else (
-            lambda e: e.connector_name == connector_name and e.is_active
+            lambda e: e.connector_name == self.config.connector_name and e.is_active
         )
 
         return self.filter_executors(
@@ -256,6 +256,32 @@ class GenericPk(ControllerBase):
             leverage=self.config.leverage
         )
 
+    def is_there_a_filled_position_on_side(self, side: TradeType):
+        active_executors = self.get_active_executors()
+        trading_executors_on_side = [e for e in active_executors if e.is_trading and e.side == side]
+        return len(trading_executors_on_side) > 0
+
+    def get_last_terminated_executor_by_side(self) -> Tuple[Optional[ExecutorInfo], Optional[ExecutorInfo]]:
+        terminated_executors = self.filter_executors(
+            executors=self.executors_info,
+            filter_func=lambda e: e.connector_name == self.config.connector_name and e.is_done
+        )
+
+        last_buy_executor: Optional[ExecutorInfo] = None
+        last_sell_executor: Optional[ExecutorInfo] = None
+
+        for executor in reversed(terminated_executors):
+            if last_buy_executor is None and executor.side == TradeType.BUY:
+                last_buy_executor = executor
+            if last_sell_executor is None and executor.side == TradeType.SELL:
+                last_sell_executor = executor
+
+            # If both are found, no need to continue the loop
+            if last_buy_executor and last_sell_executor:
+                break
+
+        return last_buy_executor, last_sell_executor
+
     #
     # Custom functions specific to this controller
     #
@@ -283,39 +309,32 @@ class GenericPk(ControllerBase):
     def is_high_volatility(self) -> bool:
         return self.get_latest_bbb() > self.config.volatility_threshold_bbb
 
-    def check_for_stop_loss(self, connector_name: str):
-        terminated_executors = self.filter_executors(
-            executors=self.executors_info,
-            filter_func=lambda e: e.connector_name == connector_name and e.is_done
-        )
+    def check_for_stop_loss(self):
+        last_buy_executor, last_sell_executor = self.get_last_terminated_executor_by_side()
 
-        if len(terminated_executors) == 0:
-            return
+        if last_buy_executor is not None:
+            close_type = last_buy_executor.close_type
 
-        terminated_executor = terminated_executors[-1]
-        close_type = terminated_executor.close_type
-        side = terminated_executor.side
+            # TODO remove
+            self.logger().info(f"last_buy_executor: {close_type}")
 
-        # TODO remove
-        self.logger().info(f"terminated_executor: {close_type} for {side}")
+            if close_type == CloseType.TAKE_PROFIT:
+                self.sl_executor_buy = None
+            elif close_type == CloseType.STOP_LOSS:
+                self.logger().info("##### last_buy_executor is_stop_loss #####")
+                self.sl_executor_buy = last_buy_executor
 
-        # If we already have an SL, and terminated_executor.close_type != TAKE_PROFIT, we don't reset
-        if self.sl_executor_buy is not None and side == TradeType.BUY and close_type != CloseType.TAKE_PROFIT:
-            return
+        if last_sell_executor is not None:
+            close_type = last_sell_executor.close_type
 
-        if self.sl_executor_sell is not None and side == TradeType.SELL and close_type != CloseType.TAKE_PROFIT:
-            return
+            # TODO remove
+            self.logger().info(f"last_sell_executor: {close_type}")
 
-        is_stop_loss: bool = close_type == CloseType.STOP_LOSS
-
-        # TODO: remove
-        if is_stop_loss:
-            self.logger().info("##### terminated_executor is_stop_loss #####")
-
-        if side == TradeType.BUY:
-            self.sl_executor_buy = terminated_executor if is_stop_loss else None
-        else:
-            self.sl_executor_sell = terminated_executor if is_stop_loss else None
+            if close_type == CloseType.TAKE_PROFIT:
+                self.sl_executor_sell = None
+            elif close_type == CloseType.STOP_LOSS:
+                self.logger().info("##### last_sell_executor is_stop_loss #####")
+                self.sl_executor_sell = last_sell_executor
 
     def has_sl_occurred_on_sell_and_price_trending_up(self) -> bool:
         has_sl_occurred_on_sell: bool = self.sl_executor_sell is not None
@@ -354,6 +373,11 @@ class GenericPk(ControllerBase):
 
         total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100
 
+        # If we're adding a new position while having a filled one on the same side, we double the spread
+        if self.is_there_a_filled_position_on_side(TradeType.SELL):
+            self.logger().info("Adding a position while having a filled one on the same side - doubling the spread")
+            total_adjustment = total_adjustment * 2
+
         ref_price = mid_price * Decimal(1 + total_adjustment)
 
         self.logger().info(f"Adjusting SELL price. mid:{mid_price}, latest_bbb:{latest_bbb}, is_trending_up:{is_trending_up}")
@@ -378,6 +402,11 @@ class GenericPk(ControllerBase):
             trend_adjustment_pct = 5.0
 
         total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100
+
+        # If we're adding a new position while having a filled one on the same side, we double the spread
+        if self.is_there_a_filled_position_on_side(TradeType.BUY):
+            self.logger().info("Adding a position while having a filled one on the same side - doubling the spread")
+            total_adjustment = total_adjustment * 2
 
         ref_price = mid_price * Decimal(1 - total_adjustment)
 
