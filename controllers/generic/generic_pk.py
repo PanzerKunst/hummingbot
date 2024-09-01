@@ -281,7 +281,7 @@ class GenericPk(ControllerBase):
         return self.processed_data["features"]["normalized_bbp"].iloc[-1]
 
     def get_latest_bbb(self) -> float:
-        bbb_series = self.processed_data["features"]["bbb_for_volatility"]
+        bbb_series: pd.Series = self.processed_data["features"]["bbb_for_volatility"]
         bbb_previous_full_minute = bbb_series.iloc[-2]
         bbb_current_incomplete_minute = bbb_series.iloc[-1]
         return max(bbb_previous_full_minute, bbb_current_incomplete_minute)
@@ -289,52 +289,72 @@ class GenericPk(ControllerBase):
     def is_high_volatility(self) -> bool:
         return self.get_latest_bbb() > self.config.high_volatility_threshold
 
+    def is_still_trending_up(self) -> bool:
+        return self.get_latest_normalized_bbp() > -0.2
+
+    def is_still_trending_down(self) -> bool:
+        return self.get_latest_normalized_bbp() < 0.2
+
     def check_for_stop_loss(self):
         last_buy_executor, last_sell_executor = self.get_last_terminated_executor_by_side()
+        self._check_for_stop_loss_on_sell(last_sell_executor)
+        self._check_for_stop_loss_on_buy(last_buy_executor)
 
-        if last_buy_executor is not None:
-            close_type = last_buy_executor.close_type
+    def _check_for_stop_loss_on_sell(self, last_executor: Optional[ExecutorInfo]):
+        if last_executor is None:
+            return
 
-            # TODO remove
-            self.logger().info(f"last_buy_executor: {close_type}")
+        close_type = last_executor.close_type
 
-            if close_type == CloseType.TAKE_PROFIT:
-                self.sl_executor_buy = None
-            elif close_type == CloseType.STOP_LOSS:
-                self.logger().info("##### last_buy_executor is_stop_loss #####")
-                self.sl_executor_buy = last_buy_executor
+        # TODO remove
+        self.logger().info(f"last_sell_executor: {close_type}")
 
-        if last_sell_executor is not None:
-            close_type = last_sell_executor.close_type
+        if close_type == CloseType.TAKE_PROFIT:
+            self.logger().info("##### last_sell_executor is TAKE_PROFIT #####")
+            self.sl_executor_sell = None
+            return
 
-            # TODO remove
-            self.logger().info(f"last_sell_executor: {close_type}")
+        if self.sl_executor_sell is None and close_type == CloseType.STOP_LOSS:
+            self.logger().info("##### last_sell_executor is_stop_loss #####")
+            self.sl_executor_sell = last_executor
+            return
 
-            if close_type == CloseType.TAKE_PROFIT:
-                self.sl_executor_sell = None
-            elif close_type == CloseType.STOP_LOSS:
-                self.logger().info("##### last_sell_executor is_stop_loss #####")
-                self.sl_executor_sell = last_sell_executor
+        if self.sl_executor_sell is not None and not self.is_still_trending_up():
+            self.logger().info(
+                "##### We passed the middle of the road again (has_sl_occurred_on_sell and not is_trending_up). Resetting self.sl_executor #####")
+            self.sl_executor_sell = None
+
+    def _check_for_stop_loss_on_buy(self, last_executor: Optional[ExecutorInfo]):
+        if last_executor is None:
+            return
+
+        close_type = last_executor.close_type
+
+        # TODO remove
+        self.logger().info(f"last_buy_executor: {close_type}")
+
+        if close_type == CloseType.TAKE_PROFIT:
+            self.logger().info("##### last_buy_executor is TAKE_PROFIT #####")
+            self.sl_executor_buy = None
+            return
+
+        if self.sl_executor_buy is None and close_type == CloseType.STOP_LOSS:
+            self.logger().info("##### last_buy_executor is_stop_loss #####")
+            self.sl_executor_buy = last_executor
+            return
+
+        if self.sl_executor_buy is not None and not self.is_still_trending_down():
+            self.logger().info(
+                "##### We passed the middle of the road again (has_sl_occurred_on_buy and not is_trending_down). Resetting self.sl_executor #####")
+            self.sl_executor_buy = None
 
     def has_sl_occurred_on_sell_and_price_trending_up(self) -> bool:
         has_sl_occurred_on_sell: bool = self.sl_executor_sell is not None
-        is_trending_up: bool = self.get_latest_normalized_bbp() > -0.2
-
-        if has_sl_occurred_on_sell and not is_trending_up:
-            self.logger().info("##### We passed the middle of the road again (has_sl_occurred_on_sell and not is_trending_up) resetting self.sl_executor #####")
-            self.sl_executor_sell = None
-
-        return has_sl_occurred_on_sell and is_trending_up
+        return has_sl_occurred_on_sell and self.is_still_trending_up()
 
     def has_sl_occurred_on_buy_and_price_trending_down(self) -> bool:
         has_sl_occurred_on_buy: bool = self.sl_executor_buy is not None
-        is_trending_down: bool = self.get_latest_normalized_bbp() < 0.2
-
-        if has_sl_occurred_on_buy and not is_trending_down:
-            self.logger().info("##### We passed the middle of the road again (has_sl_occurred_on_buy and not is_trending_down) resetting self.sl_executor #####")
-            self.sl_executor_buy = None
-
-        return has_sl_occurred_on_buy and is_trending_down
+        return has_sl_occurred_on_buy and self.is_still_trending_down()
 
     def adjust_sell_price(self, mid_price: Decimal, latest_bbb: float) -> Decimal:
         default_adjustment = self.config.default_spread_pct / 100
