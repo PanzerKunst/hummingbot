@@ -1,10 +1,10 @@
-id: 2gk378dinHVrUTzBF357Ywjor3WMxjkmmqd1GkvaXdWh
+id: oePNxNXqRNkXBD8397uozUvph2unKvBfkVxeDgoDTM8
 controller_name: generic_pk
 controller_type: generic
 total_amount_quote: 100
 manual_kill_switch: null
 candles_config: []
-connector_name: okx_perpetual
+connector_name: binance
 trading_pair: AAVE-USDT
 leverage: 20
 position_mode: HEDGE
@@ -18,7 +18,8 @@ candles_count_for_trend: 12
 bbands_length_for_volatility: 2
 bbands_std_dev_for_volatility: 3.0
 volatility_threshold_bbb: 1.0
-candles_connector: okx_perpetual
+candles_connector: binance
 candles_interval: 1m
-candles_length: 32
+candles_length: 24
 default_spread_pct: 0.5
+price_adjustment_volatility_threshold: 0.5

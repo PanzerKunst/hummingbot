@@ -49,6 +49,7 @@ class GenericPkConfig(ControllerConfigBase):
 
     # Maker orders settings
     default_spread_pct: float = 0.5
+    price_adjustment_volatility_threshold: float = 0.5
 
     @property
     def triple_barrier_config(self) -> TripleBarrierConfig:
@@ -74,6 +75,8 @@ class GenericPkConfig(ControllerConfigBase):
 
 
 class GenericPk(ControllerBase):
+    # TODO last_sl_executor: Optional[ExecutorInfo] = None
+
     def __init__(self, config: GenericPkConfig, *args, **kwargs):
         self.config = config
 
@@ -159,21 +162,7 @@ class GenericPk(ControllerBase):
     def stop_actions_proposal(self) -> List[ExecutorAction]:
         stop_actions = []
 
-        # is_market_trending: bool = self.is_market_trending()
         is_high_volatility: bool = self.is_high_volatility()
-
-        # if is_high_volatility or is_market_trending:
-        #     self.logger().info(f"##### is_high_volatility:{is_high_volatility} or is_market_trending:{is_market_trending} -> Stopping unfilled executors #####")
-        #     for unfilled_executor in [e for e in active_executors if not e.is_trading]:
-        #         stop_actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=unfilled_executor.id))
-
-        # if is_market_trending:
-        #     for filled_executor in [e for e in active_executors if e.is_trading]:
-        #         pnl_pct = filled_executor.net_pnl_pct * 100
-        #         self.logger().info(f"##### is_market_trending + filled_executor with pnl:{pnl_pct} #####")
-        #         if pnl_pct < 0 and abs(pnl_pct) > self.config.stop_loss_pct * 0.7:
-        #             self.logger().info("##### pnl too close to SL -> closing position #####")
-        #             stop_actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=filled_executor.id))
 
         if is_high_volatility:
             self.logger().info("##### is_high_volatility -> Stopping unfilled executors #####")
@@ -215,12 +204,27 @@ class GenericPk(ControllerBase):
             lambda e: e.connector_name == connector_name and e.is_active
         )
 
-        active_executors = self.filter_executors(
+        return self.filter_executors(
             executors=self.executors_info,
             filter_func=filter_func
         )
 
-        return active_executors
+    # def has_stop_loss_occurred(self, connector_name: str) -> bool:
+    #     sl_terminated_executors = self.filter_executors(
+    #         executors=self.executors_info,
+    #         filter_func=lambda e: e.connector_name == connector_name and e.is_done() and e.close_type == CloseType.STOP_LOSS
+    #     )
+    #
+    #     if len(sl_terminated_executors) == 0:
+    #         return False
+    #
+    #     last_sl_executor = sl_terminated_executors[-1]
+    #
+    #     if last_sl_executor.id != self.last_sl_executor.id:
+    #         self.last_sl_executor = last_sl_executor
+    #         return True
+    #
+    #     return False
 
     def get_trade_connector(self) -> Optional[ConnectorBase]:
         try:
@@ -296,13 +300,13 @@ class GenericPk(ControllerBase):
         return self.get_latest_bbb() > self.config.volatility_threshold_bbb
 
     def adjust_sell_price(self, mid_price: Decimal, latest_bbb: float, is_trending_up: bool) -> Decimal:
-        default_adjustment = self.config.default_spread_pct / 100  # Ex
+        default_adjustment = self.config.default_spread_pct / 100
 
         volatility_adjustment: float = 0.0
 
-        if latest_bbb > 0.5:  # Ex
-            above_threshold = latest_bbb - 0.5
-            volatility_adjustment = above_threshold * 0.01  # Ex
+        if latest_bbb > self.config.price_adjustment_volatility_threshold:
+            above_threshold = latest_bbb - self.config.price_adjustment_volatility_threshold
+            volatility_adjustment = above_threshold * 0.01
 
         # When it's not trending up, reduce the spread
         trend_adjustment_pct: float = - self.config.default_spread_pct * 0.4
@@ -310,7 +314,7 @@ class GenericPk(ControllerBase):
         if is_trending_up:
             trend_adjustment_pct = 0.0
 
-        total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100  # Ex
+        total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100
 
         ref_price = mid_price * Decimal(1 + total_adjustment)  # mid_price *
 
@@ -321,13 +325,13 @@ class GenericPk(ControllerBase):
         return ref_price
 
     def adjust_buy_price(self, mid_price: Decimal, latest_bbb: float, is_trending_down: bool) -> Decimal:
-        default_adjustment = self.config.default_spread_pct / 100  # Ex
+        default_adjustment = self.config.default_spread_pct / 100
 
         volatility_adjustment: float = 0.0
 
-        if latest_bbb > 0.5:  # Ex
-            above_threshold = latest_bbb - 0.5
-            volatility_adjustment = above_threshold * 0.01  # Ex
+        if latest_bbb > self.config.price_adjustment_volatility_threshold:
+            above_threshold = latest_bbb - self.config.price_adjustment_volatility_threshold
+            volatility_adjustment = above_threshold * 0.01
 
         # When it's not trending down, reduce the spread
         trend_adjustment_pct: float = - self.config.default_spread_pct * 0.4
@@ -335,7 +339,7 @@ class GenericPk(ControllerBase):
         if is_trending_down:
             trend_adjustment_pct = 0.0
 
-        total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100  # Ex
+        total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100
 
         ref_price = mid_price * Decimal(1 - total_adjustment)  # mid_price *
 

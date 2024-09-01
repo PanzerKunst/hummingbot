@@ -1,3 +1,8 @@
+/*
+    start_time = datetime(2024, 8, 1).timestamp()
+    end_time = datetime(2024, 8, 15).timestamp()
+ */
+
 const conf = `
 id: 2gk378dinHVrUTzBF357Ywjor3WMxjkmmqd1GkvaXdWh
 controller_name: generic_pk
@@ -26,22 +31,22 @@ default_spread_pct: 0.5
 `
 
 const result = {
-    'net_pnl': -0.053405626260237246,
-    'net_pnl_quote': -5.340562626023725,
-    'total_executors': 1223,
-    'total_executors_with_position': 469,
-    'total_volume': 93839.79519163081,
-    'total_long': 215,
-    'total_short': 254,
-    'close_types': {'EARLY_STOP': 752, 'STOP_LOSS': 184, 'TAKE_PROFIT': 284, 'TIME_LIMIT': 3},
-    'accuracy_long': 0.6139534883720931,
-    'accuracy_short': 0.5984251968503937,
-    'total_positions': 469,
-    'accuracy': 0.605543710021322,
-    'max_drawdown_usd': -21.70384059526234,
-    'max_drawdown_pct': -0.21814658243820445,
-    'sharpe_ratio': 0.742963195655871,
-    'profit_factor': 0.9566710399849462,
-    'win_signals': 284,
-    'loss_signals': 185
+    'net_pnl': -0.9461268155565451,
+    'net_pnl_quote': -94.6126815556545,
+    'total_executors': 4669,
+    'total_executors_with_position': 2170,
+    'total_volume': 434028.2297761045,
+    'total_long': 1100,
+    'total_short': 1070,
+    'close_types': {'EARLY_STOP': 2497, 'STOP_LOSS': 953, 'TAKE_PROFIT': 1215, 'TIME_LIMIT': 4},
+    'accuracy_long': 0.5590909090909091,
+    'accuracy_short': 0.5607476635514018,
+    'total_positions': 2170,
+    'accuracy': 0.5599078341013825,
+    'max_drawdown_usd': -101.23155427469482,
+    'max_drawdown_pct': -1.008526781855837,
+    'sharpe_ratio': -1.6059357525057467,
+    'profit_factor': 0.8482413310708118,
+    'win_signals': 1215,
+    'loss_signals': 955
 }
