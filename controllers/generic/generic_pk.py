@@ -306,7 +306,7 @@ class GenericPk(ControllerBase):
 
         if latest_bbb > self.config.price_adjustment_volatility_threshold:
             above_threshold = latest_bbb - self.config.price_adjustment_volatility_threshold
-            volatility_adjustment = above_threshold * 0.01
+            volatility_adjustment = above_threshold * 0.02
 
         # When it's not trending up, reduce the spread
         trend_adjustment_pct: float = - self.config.default_spread_pct * 0.4
@@ -316,7 +316,7 @@ class GenericPk(ControllerBase):
 
         total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100
 
-        ref_price = mid_price * Decimal(1 + total_adjustment)  # mid_price *
+        ref_price = mid_price * Decimal(1 + total_adjustment)
 
         self.logger().info(f"Adjusting SELL price. mid:{mid_price}, latest_bbb:{latest_bbb}, is_trending_up:{is_trending_up}")
         self.logger().info(f"Adjusting SELL price. def_adj:{default_adjustment}, volatility_adjustment:{volatility_adjustment}, trend_adjustment_pct:{trend_adjustment_pct}")
@@ -331,7 +331,7 @@ class GenericPk(ControllerBase):
 
         if latest_bbb > self.config.price_adjustment_volatility_threshold:
             above_threshold = latest_bbb - self.config.price_adjustment_volatility_threshold
-            volatility_adjustment = above_threshold * 0.01
+            volatility_adjustment = above_threshold * 0.02
 
         # When it's not trending down, reduce the spread
         trend_adjustment_pct: float = - self.config.default_spread_pct * 0.4
@@ -341,7 +341,7 @@ class GenericPk(ControllerBase):
 
         total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100
 
-        ref_price = mid_price * Decimal(1 - total_adjustment)  # mid_price *
+        ref_price = mid_price * Decimal(1 - total_adjustment)
 
         self.logger().info(f"Adjusting BUY price. mid:{mid_price}, latest_bbb:{latest_bbb}, is_trending_down:{is_trending_down}")
         self.logger().info(f"Adjusting BUY price. def_adj:{default_adjustment}, volatility_adjustment:{volatility_adjustment}, trend_adjustment_pct:{trend_adjustment_pct}")
