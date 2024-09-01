@@ -76,7 +76,8 @@ class GenericPkConfig(ControllerConfigBase):
 
 
 class GenericPk(ControllerBase):
-    sl_executor: Optional[ExecutorInfo] = None
+    sl_executor_buy: Optional[ExecutorInfo] = None
+    sl_executor_sell: Optional[ExecutorInfo] = None
 
     def __init__(self, config: GenericPkConfig, *args, **kwargs):
         self.config = config
@@ -291,43 +292,50 @@ class GenericPk(ControllerBase):
         if len(terminated_executors) == 0:
             return
 
-        last_terminated_executor = terminated_executors[-1]
-        last_close_type = last_terminated_executor.close_type
+        terminated_executor = terminated_executors[-1]
+        close_type = terminated_executor.close_type
+        side = terminated_executor.side
 
         # TODO remove
-        self.logger().info(f"last_close_type: {last_close_type}")
+        self.logger().info(f"terminated_executor: {close_type} for {side}")
 
-        # If we already have an SL, and last_terminated_executor.close_type != TAKE_PROFIT, we don't reset
-        if self.sl_executor is not None and last_close_type != CloseType.TAKE_PROFIT:
+        # If we already have an SL, and terminated_executor.close_type != TAKE_PROFIT, we don't reset
+        if self.sl_executor_buy is not None and side == TradeType.BUY and close_type != CloseType.TAKE_PROFIT:
             return
 
-        is_stop_loss: bool = last_close_type == CloseType.STOP_LOSS
+        if self.sl_executor_sell is not None and side == TradeType.SELL and close_type != CloseType.TAKE_PROFIT:
+            return
+
+        is_stop_loss: bool = close_type == CloseType.STOP_LOSS
 
         # TODO: remove
         if is_stop_loss:
-            self.logger().info("##### last_terminated_executor is_stop_loss #####")
+            self.logger().info("##### terminated_executor is_stop_loss #####")
 
-        self.sl_executor = last_terminated_executor if is_stop_loss else None
+        if side == TradeType.BUY:
+            self.sl_executor_buy = terminated_executor if is_stop_loss else None
+        else:
+            self.sl_executor_sell = terminated_executor if is_stop_loss else None
 
-    def has_sl_occurred_on_sell_and_bbp_is_positive(self) -> bool:
-        has_sl_occurred_on_sell: bool = self.sl_executor is not None and self.sl_executor.side == TradeType.SELL
-        is_bbp_positive: bool = self.get_latest_normalized_bbp() > 0
+    def has_sl_occurred_on_sell_and_price_trending_up(self) -> bool:
+        has_sl_occurred_on_sell: bool = self.sl_executor_sell is not None
+        is_trending_up: bool = self.get_latest_normalized_bbp() > -0.2
 
-        if has_sl_occurred_on_sell and not is_bbp_positive:
-            self.logger().info("##### We passed the middle of the road again (has_sl_occurred_on_sell and not is_bbp_positive) resetting self.sl_executor #####")
-            self.sl_executor = None
+        if has_sl_occurred_on_sell and not is_trending_up:
+            self.logger().info("##### We passed the middle of the road again (has_sl_occurred_on_sell and not is_trending_up) resetting self.sl_executor #####")
+            self.sl_executor_buy = None
 
-        return has_sl_occurred_on_sell and is_bbp_positive
+        return has_sl_occurred_on_sell and is_trending_up
 
-    def has_sl_occurred_on_buy_and_bbp_is_negative(self) -> bool:
-        has_sl_occurred_on_buy: bool = self.sl_executor is not None and self.sl_executor.side == TradeType.BUY
-        is_bbp_negative: bool = self.get_latest_normalized_bbp() < 0
+    def has_sl_occurred_on_buy_and_price_trending_down(self) -> bool:
+        has_sl_occurred_on_buy: bool = self.sl_executor_buy is not None
+        is_trending_down: bool = self.get_latest_normalized_bbp() < 0.2
 
-        if has_sl_occurred_on_buy and not is_bbp_negative:
-            self.logger().info("##### We passed the middle of the road again (has_sl_occurred_on_buy and not is_bbp_negative) resetting self.sl_executor #####")
-            self.sl_executor = None
+        if has_sl_occurred_on_buy and not is_trending_down:
+            self.logger().info("##### We passed the middle of the road again (has_sl_occurred_on_buy and not is_trending_down) resetting self.sl_executor #####")
+            self.sl_executor_buy = None
 
-        return has_sl_occurred_on_buy and is_bbp_negative
+        return has_sl_occurred_on_buy and is_trending_down
 
     def adjust_sell_price(self, mid_price: Decimal, latest_bbb: float, is_trending_up: bool) -> Decimal:
         default_adjustment = self.config.default_spread_pct / 100
@@ -340,8 +348,8 @@ class GenericPk(ControllerBase):
 
         trend_adjustment_pct: float = 0.0
 
-        # If a SL has occured on a SELL order, and if mid_price > MA, we set trend_adjustment_pct very high
-        if self.has_sl_occurred_on_sell_and_bbp_is_positive():
+        # If a SL has occured on a SELL order, and price still trending up, we set trend_adjustment_pct very high
+        if self.has_sl_occurred_on_sell_and_price_trending_up():
             trend_adjustment_pct = 5.0
 
         total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100
@@ -365,8 +373,8 @@ class GenericPk(ControllerBase):
 
         trend_adjustment_pct: float = 0.0
 
-        # If a SL has occured on a BUY order, and if mid_price < MA, we set trend_adjustment_pct very high
-        if self.has_sl_occurred_on_buy_and_bbp_is_negative():
+        # If a SL has occured on a BUY order, and price still trending down, we set trend_adjustment_pct very high
+        if self.has_sl_occurred_on_buy_and_price_trending_down():
             trend_adjustment_pct = 5.0
 
         total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100
