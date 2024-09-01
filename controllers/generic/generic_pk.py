@@ -28,8 +28,8 @@ class GenericPkConfig(ControllerConfigBase):
     unfilled_order_expiration_min: int = 10
 
     # Triple Barrier
-    stop_loss_pct: float = 0.5
-    take_profit_pct: float = 0.3
+    stop_loss_pct: float = 0.6
+    take_profit_pct: float = 0.4
     filled_order_expiration_min: int = 1000
 
     # TODO: dymanic SL, TP?
@@ -256,10 +256,9 @@ class GenericPk(ControllerBase):
             leverage=self.config.leverage
         )
 
-    def is_there_a_filled_position_on_side(self, side: TradeType):
+    def get_trading_executors_on_side(self, side: TradeType) -> List[ExecutorInfo]:
         active_executors = self.get_active_executors()
-        trading_executors_on_side = [e for e in active_executors if e.is_trading and e.side == side]
-        return len(trading_executors_on_side) > 0
+        return [e for e in active_executors if e.is_trading and e.side == side]
 
     def get_last_terminated_executor_by_side(self) -> Tuple[Optional[ExecutorInfo], Optional[ExecutorInfo]]:
         terminated_executors = self.filter_executors(
@@ -363,20 +362,27 @@ class GenericPk(ControllerBase):
 
         if latest_bbb > self.config.price_adjustment_volatility_threshold:
             above_threshold = latest_bbb - self.config.price_adjustment_volatility_threshold
-            volatility_adjustment = above_threshold * 0.02
+            volatility_adjustment += above_threshold * 0.02
 
         trend_adjustment_pct: float = 0.0
 
-        # If a SL has occured on a SELL order, and price still trending up, we set trend_adjustment_pct very high
+        # If there is a trading SELL position with negative PnL, we add 1% to the adjustment
+        for trading_executor in self.get_trading_executors_on_side(TradeType.SELL):
+            if trading_executor.net_pnl_pct < 0:
+                self.logger().info(f"Adding SELL position while negative filled position of pnl_pct {trading_executor.net_pnl_pct}")
+                trend_adjustment_pct += 1
+
         if self.has_sl_occurred_on_sell_and_price_trending_up():
-            trend_adjustment_pct = 5.0
+            self.logger().info("self.has_sl_occurred_on_sell_and_price_trending_up, adding 1% to trend_adjustment_pct")
+            trend_adjustment_pct += 1
+
+        # If we're adding a new position while having a filled one on the same side, we double the adjustments
+        if len(self.get_trading_executors_on_side(TradeType.SELL)) > 0:
+            self.logger().info("Adding a position while having a filled one on the same side - doubling the adjustments")
+            volatility_adjustment *= 2
+            trend_adjustment_pct *= 2
 
         total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100
-
-        # If we're adding a new position while having a filled one on the same side, we double the spread
-        if self.is_there_a_filled_position_on_side(TradeType.SELL):
-            self.logger().info("Adding a position while having a filled one on the same side - doubling the spread")
-            total_adjustment = total_adjustment * 2
 
         ref_price = mid_price * Decimal(1 + total_adjustment)
 
@@ -393,20 +399,27 @@ class GenericPk(ControllerBase):
 
         if latest_bbb > self.config.price_adjustment_volatility_threshold:
             above_threshold = latest_bbb - self.config.price_adjustment_volatility_threshold
-            volatility_adjustment = above_threshold * 0.02
+            volatility_adjustment += above_threshold * 0.02
 
         trend_adjustment_pct: float = 0.0
 
-        # If a SL has occured on a BUY order, and price still trending down, we set trend_adjustment_pct very high
+        # If there is a trading BUY position with negative PnL, we add 1% to the adjustment
+        for trading_executor in self.get_trading_executors_on_side(TradeType.BUY):
+            if trading_executor.net_pnl_pct < 0:
+                self.logger().info(f"Adding BUY position while negative filled position of pnl_pct {trading_executor.net_pnl_pct}")
+                trend_adjustment_pct += 1
+
         if self.has_sl_occurred_on_buy_and_price_trending_down():
-            trend_adjustment_pct = 5.0
+            self.logger().info("self.has_sl_occurred_on_buy_and_price_trending_down, adding 1% to trend_adjustment_pct")
+            trend_adjustment_pct += 1
+
+        # If we're adding a new position while having a filled one on the same side, we double the adjustments
+        if len(self.get_trading_executors_on_side(TradeType.BUY)) > 0:
+            self.logger().info("Adding a position while having a filled one on the same side - doubling the adjustments")
+            volatility_adjustment *= 2
+            trend_adjustment_pct *= 2
 
         total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100
-
-        # If we're adding a new position while having a filled one on the same side, we double the spread
-        if self.is_there_a_filled_position_on_side(TradeType.BUY):
-            self.logger().info("Adding a position while having a filled one on the same side - doubling the spread")
-            total_adjustment = total_adjustment * 2
 
         ref_price = mid_price * Decimal(1 - total_adjustment)
 
