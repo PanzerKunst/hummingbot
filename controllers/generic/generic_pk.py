@@ -342,7 +342,7 @@ class GenericPk(ControllerBase):
 
         if has_sl_occurred_on_sell and not is_trending_up:
             self.logger().info("##### We passed the middle of the road again (has_sl_occurred_on_sell and not is_trending_up) resetting self.sl_executor #####")
-            self.sl_executor_buy = None
+            self.sl_executor_sell = None
 
         return has_sl_occurred_on_sell and is_trending_up
 
