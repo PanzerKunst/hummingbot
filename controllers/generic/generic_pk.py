@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -24,7 +25,7 @@ class GenericPkConfig(ControllerConfigBase):
     leverage: int = 20
     position_mode: PositionMode = PositionMode.HEDGE
     total_amount_quote: int = 70
-    # cooldown_time_min: int = 3  Unused for the moment
+    cooldown_time_min: int = 3
     unfilled_order_expiration_min: int = 10
 
     # Triple Barrier
@@ -123,17 +124,18 @@ class GenericPk(ControllerBase):
         mid_price = self.get_mid_price()
         latest_bbb = self.get_latest_bbb()
 
+        last_buy_executor, last_sell_executor = self.get_last_terminated_executor_by_side()
         unfilled_executors = self.get_active_executors(True)
         unfilled_sell_executors = [e for e in unfilled_executors if e.side == TradeType.SELL]
 
-        if self.can_create_executor(unfilled_sell_executors):
+        if self.can_create_executor(unfilled_sell_executors, last_sell_executor):
             sell_price = self.adjust_sell_price(mid_price, latest_bbb)
             sell_executor_config = self.get_executor_config(TradeType.SELL, sell_price)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=sell_executor_config))
 
         unfilled_buy_executors = [e for e in unfilled_executors if e.side == TradeType.BUY]
 
-        if self.can_create_executor(unfilled_buy_executors):
+        if self.can_create_executor(unfilled_buy_executors, last_buy_executor):
             buy_price = self.adjust_buy_price(mid_price, latest_bbb)
             buy_executor_config = self.get_executor_config(TradeType.BUY, buy_price)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=buy_executor_config))
@@ -187,11 +189,27 @@ class GenericPk(ControllerBase):
             filter_func=filter_func
         )
 
-    def can_create_executor(self, unfilled_executors: List[ExecutorInfo]) -> bool:
+    def can_create_executor(self, unfilled_executors: List[ExecutorInfo], last_executor: Optional[ExecutorInfo]) -> bool:
         if self.get_position_quote_amount() == 0 or self.is_high_volatility() or len(unfilled_executors) > 0:
             return False
 
-        return True
+        if last_executor is None:
+            return True
+
+        close_timestamp = last_executor.close_timestamp
+        is_cooldown_passed = self.market_data_provider.time() > close_timestamp + self.config.cooldown_time_min
+
+        # TODO: remove
+        executor_close_datetime_iso = datetime.utcfromtimestamp(close_timestamp).isoformat()
+        self.logger().info(f"executor_close_datetime_iso: {executor_close_datetime_iso}")
+        current_datetime_iso = datetime.utcfromtimestamp(self.market_data_provider.time()).isoformat()
+        self.logger().info(f"current_datetime_iso : {current_datetime_iso}")
+        if is_cooldown_passed:
+            self.logger().info(f"Cooldown passed! Can create a new executor on {last_executor.side}")
+        else:
+            self.logger().info(f"Still waiting for cooldown for {last_executor.side}")
+
+        return is_cooldown_passed
 
     def get_trade_connector(self) -> Optional[ConnectorBase]:
         try:
@@ -290,9 +308,6 @@ class GenericPk(ControllerBase):
 
         close_type = last_executor.close_type
 
-        # TODO remove
-        self.logger().info(f"last_sell_executor: {close_type}")
-
         if close_type == CloseType.TAKE_PROFIT:
             self.logger().info("##### last_sell_executor is TAKE_PROFIT #####")
             self.sl_executor_sell = None
@@ -353,7 +368,8 @@ class GenericPk(ControllerBase):
 
         # If there is a trading SELL position with negative PnL, we add 1% to the adjustment
         for trading_executor in self.get_trading_executors_on_side(TradeType.SELL):
-            if trading_executor.net_pnl_pct < 0:
+            pnl_pct = trading_executor.net_pnl_pct * 100
+            if pnl_pct < -0.2:
                 self.logger().info(f"Adding SELL position while negative filled position of pnl_pct {trading_executor.net_pnl_pct}")
                 trend_adjustment_pct += 1
 
@@ -363,9 +379,9 @@ class GenericPk(ControllerBase):
 
         # If we're adding a new position while having a filled one on the same side, we double the adjustments
         if len(self.get_trading_executors_on_side(TradeType.SELL)) > 0:
-            self.logger().info("Adding a position while having a filled one on the same side - doubling the adjustments")
-            volatility_adjustment *= 2
-            trend_adjustment_pct *= 2
+            self.logger().info("Adding a position while having a filled one on the same side - increasing the adjustments")
+            volatility_adjustment += 0.01
+            trend_adjustment_pct += 0.01
 
         total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100
 
@@ -390,7 +406,8 @@ class GenericPk(ControllerBase):
 
         # If there is a trading BUY position with negative PnL, we add 1% to the adjustment
         for trading_executor in self.get_trading_executors_on_side(TradeType.BUY):
-            if trading_executor.net_pnl_pct < 0:
+            pnl_pct = trading_executor.net_pnl_pct * 100
+            if pnl_pct < -0.2:
                 self.logger().info(f"Adding BUY position while negative filled position of pnl_pct {trading_executor.net_pnl_pct}")
                 trend_adjustment_pct += 1
 
@@ -400,9 +417,9 @@ class GenericPk(ControllerBase):
 
         # If we're adding a new position while having a filled one on the same side, we double the adjustments
         if len(self.get_trading_executors_on_side(TradeType.BUY)) > 0:
-            self.logger().info("Adding a position while having a filled one on the same side - doubling the adjustments")
-            volatility_adjustment *= 2
-            trend_adjustment_pct *= 2
+            self.logger().info("Adding a position while having a filled one on the same side - increasing the adjustments")
+            volatility_adjustment += 0.01
+            trend_adjustment_pct += 0.01
 
         total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100
 

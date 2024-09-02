@@ -2,13 +2,13 @@ id: oePNxNXqRNkXBD8397uozUvph2unKvBfkVxeDgoDTM8
 controller_name: generic_pk
 controller_type: generic
 total_amount_quote: 70
+cooldown_time_min: 3
 manual_kill_switch: null
 candles_config: []
 connector_name: okx_perpetual
 trading_pair: AAVE-USDT
 leverage: 20
 position_mode: HEDGE
-cooldown_time_min: 3
 unfilled_order_expiration_min: 10
 stop_loss_pct: 0.6
 take_profit_pct: 0.4
