@@ -1,4 +1,3 @@
-from datetime import datetime
 from decimal import Decimal
 from typing import Dict, List, Optional, Set, Tuple
 
@@ -25,7 +24,7 @@ class GenericPkConfig(ControllerConfigBase):
     leverage: int = 20
     position_mode: PositionMode = PositionMode.HEDGE
     total_amount_quote: int = 70
-    cooldown_time_min: int = 3
+    # cooldown_time_min: int = 3 Unused at the moment
     unfilled_order_expiration_min: int = 10
 
     # Triple Barrier
@@ -123,18 +122,17 @@ class GenericPk(ControllerBase):
         mid_price = self.get_mid_price()
         latest_bbb = self.get_latest_bbb()
 
-        last_buy_executor, last_sell_executor = self.get_last_terminated_executor_by_side()
         unfilled_executors = self.get_active_executors(True)
         unfilled_sell_executors = [e for e in unfilled_executors if e.side == TradeType.SELL]
 
-        if self.can_create_executor(unfilled_sell_executors, last_sell_executor):
+        if self.can_create_executor(unfilled_sell_executors):
             sell_price = self.adjust_sell_price(mid_price, latest_bbb)
             sell_executor_config = self.get_executor_config(TradeType.SELL, sell_price)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=sell_executor_config))
 
         unfilled_buy_executors = [e for e in unfilled_executors if e.side == TradeType.BUY]
 
-        if self.can_create_executor(unfilled_buy_executors, last_buy_executor):
+        if self.can_create_executor(unfilled_buy_executors):
             buy_price = self.adjust_buy_price(mid_price, latest_bbb)
             buy_executor_config = self.get_executor_config(TradeType.BUY, buy_price)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=buy_executor_config))
@@ -188,27 +186,11 @@ class GenericPk(ControllerBase):
             filter_func=filter_func
         )
 
-    def can_create_executor(self, unfilled_executors: List[ExecutorInfo], last_executor: Optional[ExecutorInfo]) -> bool:
+    def can_create_executor(self, unfilled_executors: List[ExecutorInfo]) -> bool:
         if self.get_position_quote_amount() == 0 or self.is_high_volatility() or len(unfilled_executors) > 0:
             return False
 
-        if last_executor is None:
-            return True
-
-        close_timestamp = last_executor.close_timestamp
-        is_cooldown_passed = self.market_data_provider.time() > close_timestamp + self.config.cooldown_time_min
-
-        # TODO: remove
-        executor_close_datetime_iso = datetime.utcfromtimestamp(close_timestamp).isoformat()
-        self.logger().info(f"executor_close_datetime_iso: {executor_close_datetime_iso}")
-        current_datetime_iso = datetime.utcfromtimestamp(self.market_data_provider.time()).isoformat()
-        self.logger().info(f"current_datetime_iso : {current_datetime_iso}")
-        if is_cooldown_passed:
-            self.logger().info(f"Cooldown passed! Can create a new executor on {last_executor.side}")
-        else:
-            self.logger().info(f"Still waiting for cooldown for {last_executor.side}")
-
-        return is_cooldown_passed
+        return True
 
     def get_trade_connector(self) -> Optional[ConnectorBase]:
         try:
@@ -255,20 +237,96 @@ class GenericPk(ControllerBase):
             filter_func=lambda e: e.connector_name == self.config.connector_name and e.is_done
         )
 
-        last_buy_executor: Optional[ExecutorInfo] = None
         last_sell_executor: Optional[ExecutorInfo] = None
+        last_buy_executor: Optional[ExecutorInfo] = None
 
         for executor in reversed(terminated_executors):
-            if last_buy_executor is None and executor.side == TradeType.BUY:
-                last_buy_executor = executor
             if last_sell_executor is None and executor.side == TradeType.SELL:
                 last_sell_executor = executor
+            if last_buy_executor is None and executor.side == TradeType.BUY:
+                last_buy_executor = executor
 
             # If both are found, no need to continue the loop
-            if last_buy_executor and last_sell_executor:
+            if last_sell_executor and last_buy_executor:
                 break
 
-        return last_buy_executor, last_sell_executor
+        return last_sell_executor, last_buy_executor
+
+    def adjust_sell_price(self, mid_price: Decimal, latest_bbb: float) -> Decimal:
+        default_adjustment = self.config.default_spread_pct / 100
+
+        volatility_adjustment: float = 0.0
+
+        if latest_bbb > self.config.price_adjustment_volatility_threshold:
+            above_threshold = latest_bbb - self.config.price_adjustment_volatility_threshold
+            volatility_adjustment += above_threshold * 0.02
+
+        trend_adjustment_pct: float = 0.0
+
+        # If there is a trading SELL position with negative PnL, we add 1% to the adjustment
+        for trading_executor in self.get_trading_executors_on_side(TradeType.SELL):
+            pnl_pct = trading_executor.net_pnl_pct * 100
+            if pnl_pct < -0.2:
+                self.logger().info(f"Adding SELL position while negative filled position of pnl_pct {trading_executor.net_pnl_pct}")
+                trend_adjustment_pct += 1
+
+        if self.has_sl_occurred_on_sell_and_price_trending_up():
+            self.logger().info("self.has_sl_occurred_on_sell_and_price_trending_up, adding 1% to trend_adjustment_pct")
+            trend_adjustment_pct += 1
+
+        # If we're adding a new position while having a filled one on the same side, we double the adjustments
+        if len(self.get_trading_executors_on_side(TradeType.SELL)) > 0:
+            self.logger().info("Adding a position while having a filled one on the same side - increasing the adjustments")
+            volatility_adjustment += 0.01
+            trend_adjustment_pct += 0.01
+
+        total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100
+
+        ref_price = mid_price * Decimal(1 + total_adjustment)
+
+        self.logger().info(f"Adjusting SELL price. mid:{mid_price}, latest_bbb:{latest_bbb}")
+        self.logger().info(f"Adjusting SELL price. def_adj:{default_adjustment}, volatility_adjustment:{volatility_adjustment}, trend_adjustment_pct:{trend_adjustment_pct}")
+        self.logger().info(f"Adjusting SELL price. total_adj:{total_adjustment}, ref_price:{ref_price}")
+
+        return ref_price
+
+    def adjust_buy_price(self, mid_price: Decimal, latest_bbb: float) -> Decimal:
+        default_adjustment = self.config.default_spread_pct / 100
+
+        volatility_adjustment: float = 0.0
+
+        if latest_bbb > self.config.price_adjustment_volatility_threshold:
+            above_threshold = latest_bbb - self.config.price_adjustment_volatility_threshold
+            volatility_adjustment += above_threshold * 0.02
+
+        trend_adjustment_pct: float = 0.0
+
+        # If there is a trading BUY position with negative PnL, we add 1% to the adjustment
+        for trading_executor in self.get_trading_executors_on_side(TradeType.BUY):
+            pnl_pct = trading_executor.net_pnl_pct * 100
+            if pnl_pct < -0.2:
+                self.logger().info(f"Adding BUY position while negative filled position of pnl_pct {trading_executor.net_pnl_pct}")
+                trend_adjustment_pct += 1
+
+        if self.has_sl_occurred_on_buy_and_price_trending_down():
+            self.logger().info("self.has_sl_occurred_on_buy_and_price_trending_down, adding 1% to trend_adjustment_pct")
+            trend_adjustment_pct += 1
+
+        # If we're adding a new position while having a filled one on the same side, we double the adjustments
+        if len(self.get_trading_executors_on_side(TradeType.BUY)) > 0:
+            self.logger().info("Adding a position while having a filled one on the same side - increasing the adjustments")
+            volatility_adjustment += 0.01
+            trend_adjustment_pct += 0.01
+
+        total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100
+
+        ref_price = mid_price * Decimal(1 - total_adjustment)
+
+        self.logger().info(f"Adjusting BUY price. mid:{mid_price}, latest_bbb:{latest_bbb}")
+        self.logger().info(f"Adjusting BUY price. def_adj:{default_adjustment}, volatility_adjustment:{volatility_adjustment}, trend_adjustment_pct:{trend_adjustment_pct}")
+        self.logger().info(f"Adjusting BUY price. total_adj:{total_adjustment}, ref_price:{ref_price}")
+
+        return ref_price
 
     #
     # Custom functions specific to this controller
@@ -350,79 +408,3 @@ class GenericPk(ControllerBase):
     def has_sl_occurred_on_buy_and_price_trending_down(self) -> bool:
         has_sl_occurred_on_buy: bool = self.sl_executor_buy is not None
         return has_sl_occurred_on_buy and self.is_still_trending_down()
-
-    def adjust_sell_price(self, mid_price: Decimal, latest_bbb: float) -> Decimal:
-        default_adjustment = self.config.default_spread_pct / 100
-
-        volatility_adjustment: float = 0.0
-
-        if latest_bbb > self.config.price_adjustment_volatility_threshold:
-            above_threshold = latest_bbb - self.config.price_adjustment_volatility_threshold
-            volatility_adjustment += above_threshold * 0.02
-
-        trend_adjustment_pct: float = 0.0
-
-        # If there is a trading SELL position with negative PnL, we add 1% to the adjustment
-        for trading_executor in self.get_trading_executors_on_side(TradeType.SELL):
-            pnl_pct = trading_executor.net_pnl_pct * 100
-            if pnl_pct < -0.2:
-                self.logger().info(f"Adding SELL position while negative filled position of pnl_pct {trading_executor.net_pnl_pct}")
-                trend_adjustment_pct += 1
-
-        if self.has_sl_occurred_on_sell_and_price_trending_up():
-            self.logger().info("self.has_sl_occurred_on_sell_and_price_trending_up, adding 1% to trend_adjustment_pct")
-            trend_adjustment_pct += 1
-
-        # If we're adding a new position while having a filled one on the same side, we double the adjustments
-        if len(self.get_trading_executors_on_side(TradeType.SELL)) > 0:
-            self.logger().info("Adding a position while having a filled one on the same side - increasing the adjustments")
-            volatility_adjustment += 0.01
-            trend_adjustment_pct += 0.01
-
-        total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100
-
-        ref_price = mid_price * Decimal(1 + total_adjustment)
-
-        self.logger().info(f"Adjusting SELL price. mid:{mid_price}, latest_bbb:{latest_bbb}")
-        self.logger().info(f"Adjusting SELL price. def_adj:{default_adjustment}, volatility_adjustment:{volatility_adjustment}, trend_adjustment_pct:{trend_adjustment_pct}")
-        self.logger().info(f"Adjusting SELL price. total_adj:{total_adjustment}, ref_price:{ref_price}")
-
-        return ref_price
-
-    def adjust_buy_price(self, mid_price: Decimal, latest_bbb: float) -> Decimal:
-        default_adjustment = self.config.default_spread_pct / 100
-
-        volatility_adjustment: float = 0.0
-
-        if latest_bbb > self.config.price_adjustment_volatility_threshold:
-            above_threshold = latest_bbb - self.config.price_adjustment_volatility_threshold
-            volatility_adjustment += above_threshold * 0.02
-
-        trend_adjustment_pct: float = 0.0
-
-        # If there is a trading BUY position with negative PnL, we add 1% to the adjustment
-        for trading_executor in self.get_trading_executors_on_side(TradeType.BUY):
-            pnl_pct = trading_executor.net_pnl_pct * 100
-            if pnl_pct < -0.2:
-                self.logger().info(f"Adding BUY position while negative filled position of pnl_pct {trading_executor.net_pnl_pct}")
-                trend_adjustment_pct += 1
-
-        if self.has_sl_occurred_on_buy_and_price_trending_down():
-            self.logger().info("self.has_sl_occurred_on_buy_and_price_trending_down, adding 1% to trend_adjustment_pct")
-            trend_adjustment_pct += 1
-
-        # If we're adding a new position while having a filled one on the same side, we double the adjustments
-        if len(self.get_trading_executors_on_side(TradeType.BUY)) > 0:
-            self.logger().info("Adding a position while having a filled one on the same side - increasing the adjustments")
-            volatility_adjustment += 0.01
-            trend_adjustment_pct += 0.01
-
-        total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100
-
-        ref_price = mid_price * Decimal(1 - total_adjustment)
-
-        self.logger().info(f"Adjusting BUY price. mid:{mid_price}, latest_bbb:{latest_bbb}")
-        self.logger().info(f"Adjusting BUY price. def_adj:{default_adjustment}, volatility_adjustment:{volatility_adjustment}, trend_adjustment_pct:{trend_adjustment_pct}")
-        self.logger().info(f"Adjusting BUY price. total_adj:{total_adjustment}, ref_price:{ref_price}")
-
-        return ref_price

@@ -2,7 +2,6 @@ id: oePNxNXqRNkXBD8397uozUvph2unKvBfkVxeDgoDTM8
 controller_name: generic_pk
 controller_type: generic
 total_amount_quote: 70
-cooldown_time_min: 3
 manual_kill_switch: null
 candles_config: []
 connector_name: okx_perpetual
