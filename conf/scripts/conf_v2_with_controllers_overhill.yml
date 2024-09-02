@@ -1,0 +1,7 @@
+markets: {}
+candles_config: []
+controllers_config:
+- conf_generic.overhill_1.yml
+config_update_interval: 60
+script_file_name: v2_with_controllers.py
+time_to_cash_out: null

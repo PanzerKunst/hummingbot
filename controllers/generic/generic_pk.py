@@ -70,9 +70,8 @@ class GenericPkConfig(ControllerConfigBase):
         markets[self.connector_name].add(self.trading_pair)
         return markets
 
-    # HB command to generate config file:
-    # create --controller-config generic.generic_pk
-    # start --script v2_with_controllers.py --conf conf_v2_with_controllers_generic_pk.yml
+    # Generate config file: create --controller-config generic.generic_pk
+    # Start the bot: start --script v2_with_controllers.py --conf conf_v2_with_controllers_generic_pk.yml
 
 
 class GenericPk(ControllerBase):
@@ -328,9 +327,6 @@ class GenericPk(ControllerBase):
             return
 
         close_type = last_executor.close_type
-
-        # TODO remove
-        self.logger().info(f"last_buy_executor: {close_type}")
 
         if close_type == CloseType.TAKE_PROFIT:
             self.logger().info("##### last_buy_executor is TAKE_PROFIT #####")
