@@ -43,9 +43,13 @@ class OverhillConfig(ControllerConfigBase):
     candles_config: List[CandlesConfig] = []  # Initialized in the constructor
 
     # Trading algo
-    trend_begin_length: int = Field(16, client_data=ClientFieldData(is_updatable=True))
-    trend_end_length: int = Field(12, client_data=ClientFieldData(is_updatable=True))
-    trend_bbp_threshold: float = Field(0.15, client_data=ClientFieldData(is_updatable=True))
+    trend_begin_length: int = Field(8, client_data=ClientFieldData(is_updatable=True))
+    trend_end_length: int = Field(6, client_data=ClientFieldData(is_updatable=True))
+
+    trend_begin_min_price_diff_bps: int = Field(50, client_data=ClientFieldData(is_updatable=True))
+    trend_end_min_price_diff_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
+
+    trend_bbp_threshold: float = Field(0.1, client_data=ClientFieldData(is_updatable=True))
     delta_with_best_bid_or_ask_bps: int = Field(300, client_data=ClientFieldData(is_updatable=True))
 
     @property
@@ -97,11 +101,11 @@ class Overhill(ControllerBase):
 
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
         candles_df.ta.bbands(length=self.config.bbands_length, std=self.config.bbands_std_dev, append=True)
+        candles_df.rename(columns={f"BBP_{self.config.bbands_length}_{self.config.bbands_std_dev}": "bbp"}, inplace=True)
 
-        bbp_column_name = f"BBP_{self.config.bbands_length}_{self.config.bbands_std_dev}"
-        self.update_indicators(candles_df, bbp_column_name)
-        candles_df[bbp_column_name] = self.indicators_df["bbp"]
-        candles_df["normalized_bbp"] = candles_df[bbp_column_name].apply(self.get_normalized_bbp)
+        self.update_indicators(candles_df)
+        candles_df["bbp"] = self.indicators_df["bbp"]
+        candles_df["normalized_bbp"] = candles_df["bbp"].apply(self.get_normalized_bbp)
 
         self.processed_data["features"] = candles_df
 
@@ -162,7 +166,7 @@ class Overhill(ControllerBase):
         columns_to_display = [
             "timestamp_iso",
             "close",
-            f"BBP_{self.config.bbands_length}_{self.config.bbands_std_dev}",
+            "bbp",
             "normalized_bbp"
         ]
 
@@ -179,10 +183,10 @@ class Overhill(ControllerBase):
         latest_bbp = self.get_latest_normalized_bbp()
 
         if side == TradeType.SELL:
-            return self.has_passed_a_hill_trend(latest_bbp, self.config.trend_begin_length)
+            return self.has_passed_a_hill_trend(latest_bbp, self.config.trend_begin_length, self.config.trend_begin_min_price_diff_bps)
 
         if side == TradeType.BUY:
-            return self.has_passed_a_valley_trend(latest_bbp, self.config.trend_begin_length)
+            return self.has_passed_a_valley_trend(latest_bbp, self.config.trend_begin_length, self.config.trend_begin_min_price_diff_bps)
 
     def get_trade_connector(self) -> Optional[ConnectorBase]:
         try:
@@ -283,17 +287,17 @@ class Overhill(ControllerBase):
     # Custom functions specific to this controller
     #
 
-    def update_indicators(self, df: pd.DataFrame, bbp_column_name: str):
+    def update_indicators(self, df: pd.DataFrame):
         rows_to_add = []
 
         for _, row in df.iloc[:-1].iterrows():  # Last row is excluded, as it contains incomplete data
-            if pd.notna(row[bbp_column_name]):
+            if pd.notna(row["bbp"]):
                 timestamp = row["timestamp"]
                 if self._get_indicators_for_timestamp(timestamp) is None:
                     rows_to_add.append({
                         "timestamp": timestamp,
                         "timestamp_iso": row["timestamp_iso"],
-                        "bbp": row[bbp_column_name]
+                        "bbp": row["bbp"]
                     })
 
         if len(rows_to_add) > 0:
@@ -327,61 +331,70 @@ class Overhill(ControllerBase):
     def get_latest_normalized_bbp(self) -> float:
         return self.processed_data["features"]["normalized_bbp"].iloc[-2]
 
-    def has_passed_a_hill_trend(self, latest_bbp: float, trend_length: int) -> bool:
+    def has_passed_a_hill_trend(self, latest_bbp: float, trend_length: int, min_price_diff_bps: int) -> bool:
         if latest_bbp > -self.config.trend_bbp_threshold:
             return False
 
         intervals_to_consider: int = self._get_intervals_to_consider(trend_length)
-        preceding_items = self.processed_data["features"]["normalized_bbp"].iloc[-intervals_to_consider:-2]
+        preceding_rows = self.processed_data["features"].iloc[-intervals_to_consider:-2]
 
-        return self._contains_consecutive_positive_items(preceding_items, trend_length)
+        longest_positive_bbp_block = self._find_longest_positive_bbp_block(preceding_rows)
+        trend_price_difference_bps = (longest_positive_bbp_block.iloc[-1]["close"] - longest_positive_bbp_block.iloc[0]["close"]) * 10000
 
-    def has_passed_a_valley_trend(self, latest_bbp: float, trend_length: int) -> bool:
+        # TODO: remove
+        self.logger().info(f"longest_positive_bbp_block: {longest_positive_bbp_block}")
+        self.logger().info(f"trend_price_difference_bps: {trend_price_difference_bps}")
+
+        return (
+            len(longest_positive_bbp_block) > trend_length and
+            trend_price_difference_bps > min_price_diff_bps
+        )
+
+    def has_passed_a_valley_trend(self, latest_bbp: float, trend_length: int, min_price_diff_bps: int) -> bool:
         if latest_bbp < self.config.trend_bbp_threshold:
             return False
 
         intervals_to_consider: int = self._get_intervals_to_consider(trend_length)
-        preceding_items = self.processed_data["features"]["normalized_bbp"].iloc[-intervals_to_consider:-2]
+        preceding_rows = self.processed_data["features"].iloc[-intervals_to_consider:-2]
 
-        return self._contains_consecutive_negative_items(preceding_items, trend_length)
+        longest_negative_bbp_block = self._find_longest_negative_bbp_block(preceding_rows)
+        trend_price_difference_bps = (longest_negative_bbp_block.iloc[-1]["close"] - longest_negative_bbp_block.iloc[0]["close"]) * 10000
+
+        # TODO: remove
+        self.logger().info(f"longest_negative_bbp_block: {longest_negative_bbp_block}")
+        self.logger().info(f"trend_price_difference_bps: {trend_price_difference_bps}")
+
+        return (
+            len(longest_negative_bbp_block) > trend_length and
+            abs(trend_price_difference_bps) > min_price_diff_bps
+        )
 
     def has_finished_a_valley_trend(self, latest_bbp: float) -> bool:
-        return self.has_passed_a_hill_trend(latest_bbp, self.config.trend_end_length)
+        return self.has_passed_a_hill_trend(latest_bbp, self.config.trend_end_length, self.config.trend_end_min_price_diff_bps)
 
     def has_finished_a_hill_trend(self, latest_bbp: float) -> bool:
-        return self.has_passed_a_valley_trend(latest_bbp, self.config.trend_end_length)
+        return self.has_passed_a_valley_trend(latest_bbp, self.config.trend_end_length, self.config.trend_end_min_price_diff_bps)
 
     # TODO @staticmethod
-    def _contains_consecutive_positive_items(self, series: List, count: int) -> bool:
-        consecutive_count = 0
+    def _find_longest_positive_bbp_block(self, df: pd.DataFrame):
+        # Create a boolean mask for positive bbp values
+        positive_mask = df["normalized_bbp"] > 0
 
-        for value in series:
-            if value > 0:
-                consecutive_count += 1
-                if consecutive_count >= count:
-                    self.logger().info(f"_contains_consecutive_positive_items. Returning True. count:{count}")
-                    self.logger().info(f"_contains_consecutive_positive_items. series:{series}")
-                    return True
-            else:
-                consecutive_count = 0
+        # Create groups of consecutive positive values
+        groups = (positive_mask != positive_mask.shift()).cumsum()
 
-        return False
+        # Find the longest group of positive values
+        longest_group = groups[positive_mask].value_counts().idxmax()
+
+        # Return the rows corresponding to the longest group
+        return df[groups == longest_group]
 
     # TODO @staticmethod
-    def _contains_consecutive_negative_items(self, series: List, count: int) -> bool:
-        consecutive_count = 0
-
-        for value in series:
-            if value < 0:
-                consecutive_count += 1
-                if consecutive_count >= count:
-                    self.logger().info(f"_contains_consecutive_negative_items. Returning True. count:{count}")
-                    self.logger().info(f"_contains_consecutive_negative_items. series:{series}")
-                    return True
-            else:
-                consecutive_count = 0
-
-        return False
+    def _find_longest_negative_bbp_block(self, df: pd.DataFrame):
+        negative_mask = df["normalized_bbp"] < 0
+        groups = (negative_mask != negative_mask.shift()).cumsum()
+        longest_group = groups[negative_mask].value_counts().idxmax()
+        return df[groups == longest_group]
 
     @staticmethod
     def _get_intervals_to_consider(trend_length: int) -> int:
