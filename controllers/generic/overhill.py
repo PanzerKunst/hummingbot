@@ -340,6 +340,9 @@ class Overhill(ControllerBase):
 
         longest_positive_bbp_block = self._find_longest_positive_bbp_block(preceding_rows)
 
+        if len(longest_positive_bbp_block) == 0:
+            return False
+
         start_price = longest_positive_bbp_block.iloc[0]["close"]
         end_price = longest_positive_bbp_block.iloc[-1]["close"]
         trend_price_difference_bps = (end_price - start_price) / start_price * 10000
@@ -361,6 +364,9 @@ class Overhill(ControllerBase):
         preceding_rows = self.processed_data["features"].iloc[-intervals_to_consider:-2]
 
         longest_negative_bbp_block = self._find_longest_negative_bbp_block(preceding_rows)
+
+        if len(longest_negative_bbp_block) == 0:
+            return False
 
         start_price = longest_negative_bbp_block.iloc[0]["close"]
         end_price = longest_negative_bbp_block.iloc[-1]["close"]
