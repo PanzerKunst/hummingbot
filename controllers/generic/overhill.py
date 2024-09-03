@@ -50,7 +50,7 @@ class OverhillConfig(ControllerConfigBase):
     trend_end_min_price_diff_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
 
     trend_bbp_threshold: float = Field(0.1, client_data=ClientFieldData(is_updatable=True))
-    delta_with_best_bid_or_ask_bps: int = Field(5, client_data=ClientFieldData(is_updatable=True))  # TODO
+    delta_with_best_bid_or_ask_bps: int = Field(1, client_data=ClientFieldData(is_updatable=True))
 
     @property
     def triple_barrier_config(self) -> TripleBarrierConfig:
@@ -353,10 +353,6 @@ class Overhill(ControllerBase):
         end_price = longest_positive_bbp_block.iloc[-1]["close"]
         trend_price_difference_bps = (end_price - start_price) / start_price * 10000
 
-        # TODO: remove
-        self.logger().info(f"longest_positive_bbp_block:\n{longest_positive_bbp_block}")
-        self.logger().info(f"trend_price_difference_bps: {trend_price_difference_bps}")
-
         return (
             len(longest_positive_bbp_block) > trend_length and
             trend_price_difference_bps > min_price_diff_bps
@@ -376,10 +372,6 @@ class Overhill(ControllerBase):
         start_price = longest_negative_bbp_block.iloc[0]["close"]
         end_price = longest_negative_bbp_block.iloc[-1]["close"]
         trend_price_difference_bps = (end_price - start_price) / start_price * 10000
-
-        # TODO: remove
-        self.logger().info(f"longest_negative_bbp_block:\n{longest_negative_bbp_block}")
-        self.logger().info(f"trend_price_difference_bps: {trend_price_difference_bps}")
 
         return (
             len(longest_negative_bbp_block) > trend_length and
