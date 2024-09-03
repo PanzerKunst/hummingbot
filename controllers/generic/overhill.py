@@ -1,6 +1,5 @@
-from collections import deque
 from decimal import Decimal
-from typing import Deque, Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 import pandas as pd
 import pandas_ta as ta  # noqa: F401
@@ -84,7 +83,7 @@ class Overhill(ControllerBase):
                 max_records=self.config.candles_length
             )]
 
-        self.technical_indicators: Deque[Tuple[float, str, float]] = deque(maxlen=self.config.candles_length)  # timestamp, timestamp_iso, bbp
+        self.indicators_df = pd.DataFrame(columns=["timestamp", "timestamp_iso", "bbp"])
 
     async def update_processed_data(self):
         candles_config = self.config.candles_config[0]
@@ -99,11 +98,10 @@ class Overhill(ControllerBase):
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
         candles_df.ta.bbands(length=self.config.bbands_length, std=self.config.bbands_std_dev, append=True)
 
-        self.update_indicators(candles_df)
-
-        indicators_df = self.get_indicators_as_df()
-        candles_df["bbp"] = indicators_df["bbp"]
-        candles_df["normalized_bbp"] = candles_df["bbp"].apply(self.get_normalized_bbp)
+        bbp_column_name = f"BBP_{self.config.bbands_length}_{self.config.bbands_std_dev}"
+        self.update_indicators(candles_df, bbp_column_name)
+        candles_df[bbp_column_name] = self.indicators_df["bbp"]
+        candles_df["normalized_bbp"] = candles_df[bbp_column_name].apply(self.get_normalized_bbp)
 
         self.processed_data["features"] = candles_df
 
@@ -164,7 +162,7 @@ class Overhill(ControllerBase):
         columns_to_display = [
             "timestamp_iso",
             "close",
-            "bbp",
+            f"BBP_{self.config.bbands_length}_{self.config.bbands_std_dev}",
             "normalized_bbp"
         ]
 
@@ -285,26 +283,32 @@ class Overhill(ControllerBase):
     # Custom functions specific to this controller
     #
 
-    def update_indicators(self, df: pd.DataFrame):
-        last_complete_minute = df.iloc[-2]
-        latest_timestamp = last_complete_minute["timestamp"]
-        latest_datetime = last_complete_minute["timestamp_iso"]
-        latest_bbp = last_complete_minute[f"BBP_{self.config.bbands_length}_{self.config.bbands_std_dev}"]
+    def update_indicators(self, df: pd.DataFrame, bbp_column_name: str):
+        rows_to_add = []
 
-        if self._get_indicators_for_timestamp(latest_timestamp) is None:
-            self.technical_indicators.append((latest_timestamp, latest_datetime, latest_bbp))
+        for _, row in df.iloc[:-1].iterrows():  # Last row is excluded, as it contains incomplete data
+            if pd.notna(row[bbp_column_name]):
+                timestamp = row["timestamp"]
+                if self._get_indicators_for_timestamp(timestamp) is None:
+                    rows_to_add.append({
+                        "timestamp": timestamp,
+                        "timestamp_iso": row["timestamp_iso"],
+                        "bbp": row[bbp_column_name]
+                    })
+
+        if len(rows_to_add) > 0:
+            new_rows = pd.DataFrame(rows_to_add)
+            self.indicators_df = pd.concat([self.indicators_df, new_rows], ignore_index=True)
+            self.indicators_df["index"] = self.indicators_df["timestamp"]
+            self.indicators_df.set_index("index", inplace=True)
 
     def _get_indicators_for_timestamp(self, timestamp: float) -> Optional:
-        for row in self.technical_indicators:
-            if row[0] == timestamp:
-                return row
-        return None
+        matching_row = self.indicators_df.query(f"timestamp == {timestamp}")
 
-    def get_indicators_as_df(self) -> pd.DataFrame:
-        df = pd.DataFrame(self.technical_indicators, columns=["timestamp", "timestamp_iso", "bbp"])
-        df["index"] = df["timestamp"]
-        df.set_index("index", inplace=True)
-        return df
+        if not matching_row.empty:
+            return matching_row.iloc[0]
+        else:
+            return None
 
     @staticmethod
     def get_normalized_bbp(bbp: float) -> float:
