@@ -387,8 +387,8 @@ class Overhill(ControllerBase):
     def has_finished_a_hill_trend(self, latest_bbp: float) -> bool:
         return self.has_passed_a_valley_trend(latest_bbp, self.config.trend_end_length, self.config.trend_end_min_price_diff_bps)
 
-    # TODO @staticmethod
-    def _find_longest_positive_bbp_block(self, df: pd.DataFrame) -> pd.DataFrame:
+    @staticmethod
+    def _find_longest_positive_bbp_block(df: pd.DataFrame) -> pd.DataFrame:
         # Create a boolean mask for positive bbp values
         positive_mask = df["normalized_bbp"] > 0
 
@@ -398,22 +398,22 @@ class Overhill(ControllerBase):
         # Create groups of consecutive positive values
         groups = (positive_mask != positive_mask.shift()).cumsum()
 
-        # Find the longest group of positive values
-        longest_group = groups[positive_mask].value_counts().idxmax()
+        # Find the last group of positive values
+        last_group = groups[positive_mask].max()
 
-        # Return the rows corresponding to the longest group
-        return df[groups == longest_group]
+        # Return the rows corresponding to the last group
+        return df[groups == last_group]
 
-    # TODO @staticmethod
-    def _find_longest_negative_bbp_block(self, df: pd.DataFrame) -> pd.DataFrame:
+    @staticmethod
+    def _find_longest_negative_bbp_block(df: pd.DataFrame) -> pd.DataFrame:
         negative_mask = df["normalized_bbp"] < 0
 
         if not negative_mask.any():
             return pd.DataFrame()
 
         groups = (negative_mask != negative_mask.shift()).cumsum()
-        longest_group = groups[negative_mask].value_counts().idxmax()
-        return df[groups == longest_group]
+        last_group = groups[negative_mask].max()
+        return df[groups == last_group]
 
     @staticmethod
     def _get_intervals_to_consider(trend_length: int) -> int:
