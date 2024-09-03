@@ -20,7 +20,7 @@ from scripts.utility.my_utils import has_order_expired
 class OverhillConfig(ControllerConfigBase):
     controller_name: str = "overhill"
     connector_name: str = "kucoin_perpetual"  # Do not rename attribute - used by BacktestingEngineBase
-    trading_pair: str = "AAVE-USDT"  # Do not rename attribute - used by BacktestingEngineBase
+    trading_pair: str = "ONE-USDT"  # Do not rename attribute - used by BacktestingEngineBase
 
     leverage: int = 20
     position_mode: PositionMode = PositionMode.HEDGE
@@ -28,7 +28,7 @@ class OverhillConfig(ControllerConfigBase):
     unfilled_order_expiration_min: int = 1
 
     # Triple Barrier
-    stop_loss_pct: float = Field(1.0, client_data=ClientFieldData(is_updatable=True))
+    stop_loss_pct: float = Field(2.0, client_data=ClientFieldData(is_updatable=True))
     take_profit_pct: float = Field(5.0, client_data=ClientFieldData(is_updatable=True))
     filled_order_expiration_min: int = 1000
 
@@ -43,14 +43,14 @@ class OverhillConfig(ControllerConfigBase):
     candles_config: List[CandlesConfig] = []  # Initialized in the constructor
 
     # Trading algo
-    trend_begin_length: int = Field(8, client_data=ClientFieldData(is_updatable=True))
-    trend_end_length: int = Field(6, client_data=ClientFieldData(is_updatable=True))
+    trend_begin_length: int = Field(7, client_data=ClientFieldData(is_updatable=True))
+    trend_end_length: int = Field(5, client_data=ClientFieldData(is_updatable=True))
 
-    trend_begin_min_price_diff_bps: int = Field(30, client_data=ClientFieldData(is_updatable=True))  # TODO: 50
+    trend_begin_min_price_diff_bps: int = Field(80, client_data=ClientFieldData(is_updatable=True))  # TODO
     trend_end_min_price_diff_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
 
     trend_bbp_threshold: float = Field(0.1, client_data=ClientFieldData(is_updatable=True))
-    delta_with_best_bid_or_ask_bps: int = Field(300, client_data=ClientFieldData(is_updatable=True))
+    delta_with_best_bid_or_ask_bps: int = Field(10, client_data=ClientFieldData(is_updatable=True))
 
     @property
     def triple_barrier_config(self) -> TripleBarrierConfig:
