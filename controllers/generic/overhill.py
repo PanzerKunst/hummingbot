@@ -372,7 +372,7 @@ class Overhill(ControllerBase):
 
         return (
             len(longest_negative_bbp_block) > trend_length and
-            abs(trend_price_difference_bps) > min_price_diff_bps
+            trend_price_difference_bps < -min_price_diff_bps
         )
 
     def has_finished_a_valley_trend(self, latest_bbp: float) -> bool:
