@@ -339,7 +339,10 @@ class Overhill(ControllerBase):
         preceding_rows = self.processed_data["features"].iloc[-intervals_to_consider:-2]
 
         longest_positive_bbp_block = self._find_longest_positive_bbp_block(preceding_rows)
-        trend_price_difference_bps = (longest_positive_bbp_block.iloc[-1]["close"] - longest_positive_bbp_block.iloc[0]["close"]) * 10000
+
+        start_price = longest_positive_bbp_block.iloc[0]["close"]
+        end_price = longest_positive_bbp_block.iloc[-1]["close"]
+        trend_price_difference_bps = (end_price - start_price) / start_price * 10000
 
         # TODO: remove
         self.logger().info(f"longest_positive_bbp_block: {longest_positive_bbp_block}")
@@ -358,7 +361,10 @@ class Overhill(ControllerBase):
         preceding_rows = self.processed_data["features"].iloc[-intervals_to_consider:-2]
 
         longest_negative_bbp_block = self._find_longest_negative_bbp_block(preceding_rows)
-        trend_price_difference_bps = (longest_negative_bbp_block.iloc[-1]["close"] - longest_negative_bbp_block.iloc[0]["close"]) * 10000
+
+        start_price = longest_negative_bbp_block.iloc[0]["close"]
+        end_price = longest_negative_bbp_block.iloc[-1]["close"]
+        trend_price_difference_bps = (end_price - start_price) / start_price * 10000
 
         # TODO: remove
         self.logger().info(f"longest_negative_bbp_block: {longest_negative_bbp_block}")
