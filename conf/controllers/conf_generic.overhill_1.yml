@@ -19,7 +19,7 @@ candles_interval: 1m
 candles_length: 24
 trend_begin_length: 8
 trend_end_length: 6
-trend_begin_min_price_diff_bps: 50
+trend_begin_min_price_diff_bps: 30
 trend_end_min_price_diff_bps: 0
 trend_bbp_threshold: 0.1
 delta_with_best_bid_or_ask_bps: 300

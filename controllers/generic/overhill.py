@@ -46,7 +46,7 @@ class OverhillConfig(ControllerConfigBase):
     trend_begin_length: int = Field(8, client_data=ClientFieldData(is_updatable=True))
     trend_end_length: int = Field(6, client_data=ClientFieldData(is_updatable=True))
 
-    trend_begin_min_price_diff_bps: int = Field(50, client_data=ClientFieldData(is_updatable=True))
+    trend_begin_min_price_diff_bps: int = Field(30, client_data=ClientFieldData(is_updatable=True))  # TODO: 50
     trend_end_min_price_diff_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
 
     trend_bbp_threshold: float = Field(0.1, client_data=ClientFieldData(is_updatable=True))
