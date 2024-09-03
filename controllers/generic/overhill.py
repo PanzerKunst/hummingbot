@@ -46,11 +46,11 @@ class OverhillConfig(ControllerConfigBase):
     trend_begin_length: int = Field(7, client_data=ClientFieldData(is_updatable=True))
     trend_end_length: int = Field(5, client_data=ClientFieldData(is_updatable=True))
 
-    trend_begin_min_price_diff_bps: int = Field(80, client_data=ClientFieldData(is_updatable=True))  # TODO
+    trend_begin_min_price_diff_bps: int = Field(50, client_data=ClientFieldData(is_updatable=True))  # TODO
     trend_end_min_price_diff_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
 
     trend_bbp_threshold: float = Field(0.1, client_data=ClientFieldData(is_updatable=True))
-    delta_with_best_bid_or_ask_bps: int = Field(10, client_data=ClientFieldData(is_updatable=True))
+    delta_with_best_bid_or_ask_bps: int = Field(5, client_data=ClientFieldData(is_updatable=True))  # TODO
 
     @property
     def triple_barrier_config(self) -> TripleBarrierConfig:
@@ -119,14 +119,14 @@ class Overhill(ControllerBase):
         create_actions = []
 
         mid_price = self.get_mid_price()
-        unfilled_sell_executors, unfilled_buy_executors = self.get_unfilled_executors_by_side()
+        active_sell_executors, active_buy_executors = self.get_active_executors_by_side()
 
-        if self.can_create_executor(unfilled_sell_executors, TradeType.SELL):
+        if self.can_create_executor(active_sell_executors, TradeType.SELL):
             sell_price = self.adjust_sell_price(mid_price)
             sell_executor_config = self.get_executor_config(TradeType.SELL, sell_price)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=sell_executor_config))
 
-        if self.can_create_executor(unfilled_buy_executors, TradeType.BUY):
+        if self.can_create_executor(active_buy_executors, TradeType.BUY):
             buy_price = self.adjust_buy_price(mid_price)
             buy_executor_config = self.get_executor_config(TradeType.BUY, buy_price)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=buy_executor_config))
@@ -176,8 +176,8 @@ class Overhill(ControllerBase):
     # Custom functions potentially interesting for other controllers
     #
 
-    def can_create_executor(self, unfilled_executors: List[ExecutorInfo], side: TradeType) -> bool:
-        if self.get_position_quote_amount() == 0 or len(unfilled_executors) > 0:
+    def can_create_executor(self, active_executors: List[ExecutorInfo], side: TradeType) -> bool:
+        if self.get_position_quote_amount() == 0 or len(active_executors) > 0:
             return False
 
         latest_bbp = self.get_latest_normalized_bbp()
@@ -223,14 +223,22 @@ class Overhill(ControllerBase):
             leverage=self.config.leverage
         )
 
-    def get_unfilled_executors_by_side(self) -> Tuple[List[ExecutorInfo], List[ExecutorInfo]]:
-        unfilled_executors = self.filter_executors(
+    def get_active_executors_by_side(self) -> Tuple[List[ExecutorInfo], List[ExecutorInfo]]:
+        active_executors = self.filter_executors(
             executors=self.executors_info,
-            filter_func=lambda e: e.connector_name == self.config.connector_name and e.is_active and not e.is_trading
+            filter_func=lambda e: e.connector_name == self.config.connector_name and e.is_active
         )
 
-        unfilled_sell_executors = [e for e in unfilled_executors if e.side == TradeType.SELL]
-        unfilled_buy_executors = [e for e in unfilled_executors if e.side == TradeType.BUY]
+        active_sell_executors = [e for e in active_executors if e.side == TradeType.SELL]
+        active_buy_executors = [e for e in active_executors if e.side == TradeType.BUY]
+
+        return active_sell_executors, active_buy_executors
+
+    def get_unfilled_executors_by_side(self) -> Tuple[List[ExecutorInfo], List[ExecutorInfo]]:
+        active_sell_executors, active_buy_executors = self.get_active_executors_by_side()
+
+        unfilled_sell_executors = [e for e in active_sell_executors if not e.is_trading]
+        unfilled_buy_executors = [e for e in active_buy_executors if not e.is_trading]
 
         return unfilled_sell_executors, unfilled_buy_executors
 
