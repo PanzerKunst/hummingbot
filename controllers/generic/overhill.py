@@ -33,13 +33,13 @@ class OverhillConfig(ControllerConfigBase):
     filled_order_expiration_min: int = 1000
 
     # Technical analysis
-    bbands_length: int = 12
+    bbands_length: int = Field(6, client_data=ClientFieldData(is_updatable=True))
     bbands_std_dev: float = 2.0
 
     # Candles
     candles_connector: str = "binance"
     candles_interval: str = "1m"
-    candles_length: int = bbands_length * 2
+    candles_length: int = 24
     candles_config: List[CandlesConfig] = []  # Initialized in the constructor
 
     # Trading algo
@@ -335,9 +335,7 @@ class Overhill(ControllerBase):
         if latest_bbp > -self.config.trend_bbp_threshold:
             return False
 
-        intervals_to_consider: int = self._get_intervals_to_consider(trend_length)
-        preceding_rows = self.processed_data["features"].iloc[-intervals_to_consider:-2]
-
+        preceding_rows = self.processed_data["features"].iloc[:-2]
         longest_positive_bbp_block = self._find_longest_positive_bbp_block(preceding_rows)
 
         if len(longest_positive_bbp_block) == 0:
@@ -348,7 +346,7 @@ class Overhill(ControllerBase):
         trend_price_difference_bps = (end_price - start_price) / start_price * 10000
 
         # TODO: remove
-        self.logger().info(f"longest_positive_bbp_block: {longest_positive_bbp_block}")
+        self.logger().info(f"longest_positive_bbp_block:\n{longest_positive_bbp_block}")
         self.logger().info(f"trend_price_difference_bps: {trend_price_difference_bps}")
 
         return (
@@ -360,8 +358,7 @@ class Overhill(ControllerBase):
         if latest_bbp < self.config.trend_bbp_threshold:
             return False
 
-        intervals_to_consider: int = self._get_intervals_to_consider(trend_length)
-        preceding_rows = self.processed_data["features"].iloc[-intervals_to_consider:-2]
+        preceding_rows = self.processed_data["features"].iloc[:-2]
 
         longest_negative_bbp_block = self._find_longest_negative_bbp_block(preceding_rows)
 
@@ -373,7 +370,7 @@ class Overhill(ControllerBase):
         trend_price_difference_bps = (end_price - start_price) / start_price * 10000
 
         # TODO: remove
-        self.logger().info(f"longest_negative_bbp_block: {longest_negative_bbp_block}")
+        self.logger().info(f"longest_negative_bbp_block:\n{longest_negative_bbp_block}")
         self.logger().info(f"trend_price_difference_bps: {trend_price_difference_bps}")
 
         return (
@@ -414,7 +411,3 @@ class Overhill(ControllerBase):
         groups = (negative_mask != negative_mask.shift()).cumsum()
         last_group = groups[negative_mask].max()
         return df[groups == last_group]
-
-    @staticmethod
-    def _get_intervals_to_consider(trend_length: int) -> int:
-        return trend_length + 8
