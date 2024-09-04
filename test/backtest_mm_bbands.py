@@ -15,7 +15,7 @@ from controllers.generic.mm_bbands_backtesting import MmBbandsBacktesting  # noq
 
 async def backtest():
     backtesting_engine = MmBbandsBacktesting()
-    config = backtesting_engine.get_controller_config_instance_from_yml("conf_generic.mm_bbands_1.yml")
+    config = backtesting_engine.get_controller_config_instance_from_yml("conf_generic.mm_bbands_ETH.yml")
 
     start_time = datetime(2024, 8, 27).timestamp()
     end_time = datetime(2024, 9, 4).timestamp()
