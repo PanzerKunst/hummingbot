@@ -238,12 +238,9 @@ class Overhill(ControllerBase):
         return unfilled_sell_executors, unfilled_buy_executors
 
     def get_trading_executors_on_side(self, side: TradeType) -> List[ExecutorInfo]:
-        trading_executors = self.filter_executors(
-            executors=self.executors_info,
-            filter_func=lambda e: e.connector_name == self.config.connector_name and e.is_active and e.is_trading
-        )
-
-        return [e for e in trading_executors if e.side == side]
+        active_sell_executors, active_buy_executors = self.get_active_executors_by_side()
+        active_executors_for_side = active_sell_executors if side == TradeType.SELL else active_buy_executors
+        return [e for e in active_executors_for_side if e.is_trading]
 
     def get_last_terminated_executor_by_side(self) -> Tuple[Optional[ExecutorInfo], Optional[ExecutorInfo]]:
         terminated_executors = self.filter_executors(
