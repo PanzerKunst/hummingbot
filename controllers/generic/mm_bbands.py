@@ -3,7 +3,9 @@ from typing import Dict, List, Optional, Set, Tuple
 
 import pandas as pd
 import pandas_ta as ta  # noqa: F401
+from pydantic import Field
 
+from hummingbot.client.config.config_data_types import ClientFieldData
 from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.data_type.common import OrderType, PositionMode, PriceType, TradeType
@@ -23,33 +25,33 @@ class MmBbandsConfig(ControllerConfigBase):
 
     leverage: int = 20
     position_mode: PositionMode = PositionMode.HEDGE
-    total_amount_quote: int = 20
+    total_amount_quote: int = Field(20, client_data=ClientFieldData(is_updatable=True))
     # cooldown_time_min: int = 3 Unused at the moment
-    unfilled_order_expiration_min: int = 10
+    unfilled_order_expiration_min: int = Field(10, client_data=ClientFieldData(is_updatable=True))
 
     # Triple Barrier
-    stop_loss_pct: float = 0.9
-    take_profit_pct: float = 0.6
-    filled_order_expiration_min: int = 1000
+    stop_loss_pct: float = Field(0.9, client_data=ClientFieldData(is_updatable=True))
+    take_profit_pct: float = Field(0.6, client_data=ClientFieldData(is_updatable=True))
+    filled_order_expiration_min: int = Field(1000, client_data=ClientFieldData(is_updatable=True))
 
     # TODO: dymanic SL, TP?
 
     # Technical analysis
-    bbands_length_for_trend: int = 12
-    bbands_std_dev_for_trend: float = 2.0
-    bbands_length_for_volatility: int = 2
-    bbands_std_dev_for_volatility: float = 3.0
-    high_volatility_threshold: float = 1.0
+    bbands_length_for_trend: int = Field(12, client_data=ClientFieldData(is_updatable=True))
+    bbands_std_dev_for_trend: float = Field(2.0, client_data=ClientFieldData(is_updatable=True))
+    bbands_length_for_volatility: int = Field(2, client_data=ClientFieldData(is_updatable=True))
+    bbands_std_dev_for_volatility: float = Field(3.0, client_data=ClientFieldData(is_updatable=True))
+    high_volatility_threshold: float = Field(1.0, client_data=ClientFieldData(is_updatable=True))
 
     # Candles
     candles_connector: str = "okx_perpetual"
     candles_interval: str = "1m"
-    candles_length: int = bbands_length_for_trend * 2
+    candles_length: int = 24
     candles_config: List[CandlesConfig] = []  # Initialized in the constructor
 
     # Maker orders settings
-    default_spread_pct: float = 0.7
-    price_adjustment_volatility_threshold: float = 0.5
+    default_spread_pct: float = Field(0.7, client_data=ClientFieldData(is_updatable=True))
+    price_adjustment_volatility_threshold: float = Field(0.5, client_data=ClientFieldData(is_updatable=True))
 
     @property
     def triple_barrier_config(self) -> TripleBarrierConfig:
