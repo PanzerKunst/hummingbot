@@ -18,7 +18,7 @@ async def backtest():
     config = backtesting_engine.get_controller_config_instance_from_yml("conf_generic.overhill_1.yml")
 
     start_time = datetime(2024, 8, 1).timestamp()
-    end_time = datetime(2024, 8, 3).timestamp()
+    end_time = datetime(2024, 8, 15).timestamp()
 
     backtesting_results = await backtesting_engine.run_backtesting(
         controller_config=config,
