@@ -164,7 +164,6 @@ class Overhill(ControllerBase):
         columns_to_display = [
             "timestamp_iso",
             "close",
-            "bbp",
             "normalized_bbp"
         ]
 
