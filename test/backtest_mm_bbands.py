@@ -18,7 +18,7 @@ async def backtest():
     config = backtesting_engine.get_controller_config_instance_from_yml("conf_generic.mm_bbands_1.yml")
 
     start_time = datetime(2024, 8, 27).timestamp()
-    end_time = datetime(2024, 9, 28).timestamp()
+    end_time = datetime(2024, 9, 4).timestamp()
 
     backtesting_results = await backtesting_engine.run_backtesting(
         controller_config=config,
