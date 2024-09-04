@@ -1,16 +1,16 @@
 id: oePNxNXqRNkXBD8397uozUvph2unKvBfkVxeDgoDTM8
 controller_name: generic_pk
 controller_type: generic
-total_amount_quote: 70
+total_amount_quote: 20
 manual_kill_switch: null
 candles_config: []
 connector_name: okx_perpetual
-trading_pair: AAVE-USDT
+trading_pair: DOGS-USDT
 leverage: 20
 position_mode: HEDGE
 unfilled_order_expiration_min: 10
-stop_loss_pct: 0.6
-take_profit_pct: 0.4
+stop_loss_pct: 0.9
+take_profit_pct: 0.6
 filled_order_expiration_min: 1000
 bbands_length_for_trend: 12
 bbands_std_dev_for_trend: 2.0
@@ -20,5 +20,5 @@ high_volatility_threshold: 1.0
 candles_connector: okx_perpetual
 candles_interval: 1m
 candles_length: 24
-default_spread_pct: 0.5
+default_spread_pct: 0.7
 price_adjustment_volatility_threshold: 0.5

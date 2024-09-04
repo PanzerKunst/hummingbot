@@ -19,17 +19,17 @@ from scripts.utility.my_utils import has_order_expired
 class GenericPkConfig(ControllerConfigBase):
     controller_name: str = "generic_pk"
     connector_name: str = "okx_perpetual"  # Do not rename attribute - used by BacktestingEngineBase
-    trading_pair: str = "AAVE-USDT"  # Do not rename attribute - used by BacktestingEngineBase
+    trading_pair: str = "DOGS-USDT"  # Do not rename attribute - used by BacktestingEngineBase
 
     leverage: int = 20
     position_mode: PositionMode = PositionMode.HEDGE
-    total_amount_quote: int = 70
+    total_amount_quote: int = 20
     # cooldown_time_min: int = 3 Unused at the moment
     unfilled_order_expiration_min: int = 10
 
     # Triple Barrier
-    stop_loss_pct: float = 0.6
-    take_profit_pct: float = 0.4
+    stop_loss_pct: float = 0.9
+    take_profit_pct: float = 0.6
     filled_order_expiration_min: int = 1000
 
     # TODO: dymanic SL, TP?
@@ -48,7 +48,7 @@ class GenericPkConfig(ControllerConfigBase):
     candles_config: List[CandlesConfig] = []  # Initialized in the constructor
 
     # Maker orders settings
-    default_spread_pct: float = 0.5
+    default_spread_pct: float = 0.7
     price_adjustment_volatility_threshold: float = 0.5
 
     @property
@@ -74,10 +74,11 @@ class GenericPkConfig(ControllerConfigBase):
 
 
 class GenericPk(ControllerBase):
-    sl_executor_buy: Optional[ExecutorInfo] = None
     sl_executor_sell: Optional[ExecutorInfo] = None
+    sl_executor_buy: Optional[ExecutorInfo] = None
 
     def __init__(self, config: GenericPkConfig, *args, **kwargs):
+        super().__init__(config, *args, **kwargs)
         self.config = config
 
         if len(self.config.candles_config) == 0:
@@ -88,8 +89,6 @@ class GenericPk(ControllerBase):
                 max_records=self.config.candles_length
             )]
 
-        super().__init__(config, *args, **kwargs)
-
     async def update_processed_data(self):
         candles_config = self.config.candles_config[0]
 
@@ -99,16 +98,16 @@ class GenericPk(ControllerBase):
                                                               max_records=candles_config.max_records)
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
 
-        # Add indicators
         candles_df.ta.bbands(length=self.config.bbands_length_for_trend, std=self.config.bbands_std_dev_for_trend, append=True)
-        candles_df["normalized_bbp"] = candles_df[f"BBP_{self.config.bbands_length_for_trend}_{self.config.bbands_std_dev_for_trend}"].apply(self.get_normalized_bbp)
+        candles_df.rename(columns={f"BBP_{self.config.bbands_length_for_trend}_{self.config.bbands_std_dev_for_trend}": "bbp"}, inplace=True)
+        candles_df["normalized_bbp"] = candles_df["bbp"].apply(self.get_normalized_bbp)
 
         bbands_for_volatility = candles_df.ta.bbands(length=self.config.bbands_length_for_volatility, std=self.config.bbands_std_dev_for_volatility)
         candles_df["bbb_for_volatility"] = bbands_for_volatility[f"BBB_{self.config.bbands_length_for_volatility}_{self.config.bbands_std_dev_for_volatility}"]
 
         self.processed_data["features"] = candles_df
 
-        self.check_for_stop_loss()
+        self.check_trading_executors()
 
     def determine_executor_actions(self) -> List[ExecutorAction]:
         actions = []
@@ -120,20 +119,16 @@ class GenericPk(ControllerBase):
         create_actions = []
 
         mid_price = self.get_mid_price()
-        latest_bbb = self.get_latest_bbb()
 
-        unfilled_executors = self.get_active_executors(True)
-        unfilled_sell_executors = [e for e in unfilled_executors if e.side == TradeType.SELL]
+        unfilled_sell_executors, unfilled_buy_executors = self.get_unfilled_executors_by_side()
 
         if self.can_create_executor(unfilled_sell_executors):
-            sell_price = self.adjust_sell_price(mid_price, latest_bbb)
+            sell_price = self.adjust_sell_price(mid_price)
             sell_executor_config = self.get_executor_config(TradeType.SELL, sell_price)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=sell_executor_config))
 
-        unfilled_buy_executors = [e for e in unfilled_executors if e.side == TradeType.BUY]
-
         if self.can_create_executor(unfilled_buy_executors):
-            buy_price = self.adjust_buy_price(mid_price, latest_bbb)
+            buy_price = self.adjust_buy_price(mid_price)
             buy_executor_config = self.get_executor_config(TradeType.BUY, buy_price)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=buy_executor_config))
 
@@ -147,7 +142,9 @@ class GenericPk(ControllerBase):
         if is_high_volatility:
             self.logger().info("##### is_high_volatility -> Stopping unfilled executors #####")
 
-        for unfilled_executor in self.get_active_executors(True):
+        unfilled_sell_executors, unfilled_buy_executors = self.get_unfilled_executors_by_side()
+
+        for unfilled_executor in unfilled_sell_executors + unfilled_buy_executors:
             has_expired = has_order_expired(unfilled_executor, self.config.unfilled_order_expiration_min * 60, self.market_data_provider.time())
             if has_expired or is_high_volatility:
                 stop_actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=unfilled_executor.id))
@@ -163,7 +160,6 @@ class GenericPk(ControllerBase):
         columns_to_display = [
             "timestamp_iso",
             "close",
-            f"BBP_{self.config.bbands_length_for_trend}_{self.config.bbands_std_dev_for_trend}",
             "normalized_bbp",
             "bbb_for_volatility"
         ]
@@ -174,23 +170,56 @@ class GenericPk(ControllerBase):
     # Custom functions potentially interesting for other controllers
     #
 
-    def get_active_executors(self, is_non_trading_only: bool = False) -> List[ExecutorInfo]:
-        filter_func = (
-            lambda e: e.connector_name == self.config.connector_name and e.is_active and not e.is_trading
-        ) if is_non_trading_only else (
-            lambda e: e.connector_name == self.config.connector_name and e.is_active
-        )
-
-        return self.filter_executors(
-            executors=self.executors_info,
-            filter_func=filter_func
-        )
-
     def can_create_executor(self, unfilled_executors: List[ExecutorInfo]) -> bool:
         if self.get_position_quote_amount() == 0 or self.is_high_volatility() or len(unfilled_executors) > 0:
             return False
 
         return True
+
+    def get_active_executors_by_side(self) -> Tuple[List[ExecutorInfo], List[ExecutorInfo]]:
+        active_executors = self.filter_executors(
+            executors=self.executors_info,
+            filter_func=lambda e: e.connector_name == self.config.connector_name and e.is_active
+        )
+
+        active_sell_executors = [e for e in active_executors if e.side == TradeType.SELL]
+        active_buy_executors = [e for e in active_executors if e.side == TradeType.BUY]
+
+        return active_sell_executors, active_buy_executors
+
+    def get_unfilled_executors_by_side(self) -> Tuple[List[ExecutorInfo], List[ExecutorInfo]]:
+        active_sell_executors, active_buy_executors = self.get_active_executors_by_side()
+
+        unfilled_sell_executors = [e for e in active_sell_executors if not e.is_trading]
+        unfilled_buy_executors = [e for e in active_buy_executors if not e.is_trading]
+
+        return unfilled_sell_executors, unfilled_buy_executors
+
+    def get_trading_executors_on_side(self, side: TradeType) -> List[ExecutorInfo]:
+        active_sell_executors, active_buy_executors = self.get_active_executors_by_side()
+        active_executors_for_side = active_sell_executors if side == TradeType.SELL else active_buy_executors
+        return [e for e in active_executors_for_side if e.is_trading]
+
+    def get_last_terminated_executor_by_side(self) -> Tuple[Optional[ExecutorInfo], Optional[ExecutorInfo]]:
+        terminated_executors = self.filter_executors(
+            executors=self.executors_info,
+            filter_func=lambda e: e.connector_name == self.config.connector_name and e.is_done
+        )
+
+        last_sell_executor: Optional[ExecutorInfo] = None
+        last_buy_executor: Optional[ExecutorInfo] = None
+
+        for executor in reversed(terminated_executors):
+            if last_sell_executor is None and executor.side == TradeType.SELL:
+                last_sell_executor = executor
+            if last_buy_executor is None and executor.side == TradeType.BUY:
+                last_buy_executor = executor
+
+            # If both are found, no need to continue the loop
+            if last_sell_executor and last_buy_executor:
+                break
+
+        return last_sell_executor, last_buy_executor
 
     def get_trade_connector(self) -> Optional[ConnectorBase]:
         try:
@@ -227,36 +256,12 @@ class GenericPk(ControllerBase):
             leverage=self.config.leverage
         )
 
-    def get_trading_executors_on_side(self, side: TradeType) -> List[ExecutorInfo]:
-        active_executors = self.get_active_executors()
-        return [e for e in active_executors if e.is_trading and e.side == side]
-
-    def get_last_terminated_executor_by_side(self) -> Tuple[Optional[ExecutorInfo], Optional[ExecutorInfo]]:
-        terminated_executors = self.filter_executors(
-            executors=self.executors_info,
-            filter_func=lambda e: e.connector_name == self.config.connector_name and e.is_done
-        )
-
-        last_sell_executor: Optional[ExecutorInfo] = None
-        last_buy_executor: Optional[ExecutorInfo] = None
-
-        for executor in reversed(terminated_executors):
-            if last_sell_executor is None and executor.side == TradeType.SELL:
-                last_sell_executor = executor
-            if last_buy_executor is None and executor.side == TradeType.BUY:
-                last_buy_executor = executor
-
-            # If both are found, no need to continue the loop
-            if last_sell_executor and last_buy_executor:
-                break
-
-        return last_sell_executor, last_buy_executor
-
-    def adjust_sell_price(self, mid_price: Decimal, latest_bbb: float) -> Decimal:
+    def adjust_sell_price(self, mid_price: Decimal) -> Decimal:
         default_adjustment = self.config.default_spread_pct / 100
 
         volatility_adjustment: float = 0.0
 
+        latest_bbb = self.get_latest_bbb()
         if latest_bbb > self.config.price_adjustment_volatility_threshold:
             above_threshold = latest_bbb - self.config.price_adjustment_volatility_threshold
             volatility_adjustment += above_threshold * 0.02
@@ -270,7 +275,7 @@ class GenericPk(ControllerBase):
                 self.logger().info(f"Adding SELL position while negative filled position of pnl_pct {trading_executor.net_pnl_pct}")
                 trend_adjustment_pct += 1
 
-        if self.has_sl_occurred_on_sell_and_price_trending_up():
+        if self.has_sl_occurred_on_side(TradeType.SELL) and self.is_still_trending_up():
             self.logger().info("self.has_sl_occurred_on_sell_and_price_trending_up, adding 1% to trend_adjustment_pct")
             trend_adjustment_pct += 1
 
@@ -290,11 +295,12 @@ class GenericPk(ControllerBase):
 
         return ref_price
 
-    def adjust_buy_price(self, mid_price: Decimal, latest_bbb: float) -> Decimal:
+    def adjust_buy_price(self, mid_price: Decimal) -> Decimal:
         default_adjustment = self.config.default_spread_pct / 100
 
         volatility_adjustment: float = 0.0
 
+        latest_bbb = self.get_latest_bbb()
         if latest_bbb > self.config.price_adjustment_volatility_threshold:
             above_threshold = latest_bbb - self.config.price_adjustment_volatility_threshold
             volatility_adjustment += above_threshold * 0.02
@@ -308,7 +314,7 @@ class GenericPk(ControllerBase):
                 self.logger().info(f"Adding BUY position while negative filled position of pnl_pct {trading_executor.net_pnl_pct}")
                 trend_adjustment_pct += 1
 
-        if self.has_sl_occurred_on_buy_and_price_trending_down():
+        if self.has_sl_occurred_on_side(TradeType.BUY) and self.is_still_trending_down():
             self.logger().info("self.has_sl_occurred_on_buy_and_price_trending_down, adding 1% to trend_adjustment_pct")
             trend_adjustment_pct += 1
 
@@ -354,10 +360,15 @@ class GenericPk(ControllerBase):
     def is_still_trending_down(self) -> bool:
         return self.get_latest_normalized_bbp() < 0.2
 
-    def check_for_stop_loss(self):
-        last_buy_executor, last_sell_executor = self.get_last_terminated_executor_by_side()
-        self._check_for_stop_loss_on_sell(last_sell_executor)
-        self._check_for_stop_loss_on_buy(last_buy_executor)
+    def has_sl_occurred_on_side(self, side: TradeType) -> bool:
+        has_sl_occurred_on_sell: bool = self.sl_executor_sell is not None
+        has_sl_occurred_on_buy: bool = self.sl_executor_buy is not None
+        return has_sl_occurred_on_sell if side == TradeType.SELL else has_sl_occurred_on_buy
+
+    def check_trading_executors(self):
+        terminated_sell_executor, terminated_buy_executor = self.get_last_terminated_executor_by_side()
+        self._check_for_stop_loss_on_sell(terminated_sell_executor)
+        self._check_for_stop_loss_on_buy(terminated_buy_executor)
 
     def _check_for_stop_loss_on_sell(self, last_executor: Optional[ExecutorInfo]):
         if last_executor is None:
@@ -400,11 +411,3 @@ class GenericPk(ControllerBase):
             self.logger().info(
                 "##### We passed the middle of the road again (has_sl_occurred_on_buy and not is_trending_down). Resetting self.sl_executor #####")
             self.sl_executor_buy = None
-
-    def has_sl_occurred_on_sell_and_price_trending_up(self) -> bool:
-        has_sl_occurred_on_sell: bool = self.sl_executor_sell is not None
-        return has_sl_occurred_on_sell and self.is_still_trending_up()
-
-    def has_sl_occurred_on_buy_and_price_trending_down(self) -> bool:
-        has_sl_occurred_on_buy: bool = self.sl_executor_buy is not None
-        return has_sl_occurred_on_buy and self.is_still_trending_down()
