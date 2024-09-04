@@ -19,12 +19,12 @@ from scripts.utility.my_utils import has_order_expired
 
 class OverhillConfig(ControllerConfigBase):
     controller_name: str = "overhill"
-    connector_name: str = "kucoin_perpetual"  # Do not rename attribute - used by BacktestingEngineBase
+    connector_name: str = "okx_perpetual"  # Do not rename attribute - used by BacktestingEngineBase
     trading_pair: str = "ONE-USDT"  # Do not rename attribute - used by BacktestingEngineBase
 
     leverage: int = 20
     position_mode: PositionMode = PositionMode.HEDGE
-    total_amount_quote: int = Field(90, client_data=ClientFieldData(is_updatable=True))
+    total_amount_quote: int = Field(70, client_data=ClientFieldData(is_updatable=True))
     unfilled_order_expiration_min: int = 1
 
     # Triple Barrier
@@ -46,10 +46,10 @@ class OverhillConfig(ControllerConfigBase):
     trend_begin_length: int = Field(7, client_data=ClientFieldData(is_updatable=True))
     trend_end_length: int = Field(5, client_data=ClientFieldData(is_updatable=True))
 
-    trend_begin_min_price_diff_bps: int = Field(50, client_data=ClientFieldData(is_updatable=True))  # TODO
-    trend_end_min_price_diff_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
+    trend_begin_min_price_diff_bps: int = Field(100, client_data=ClientFieldData(is_updatable=True))
+    trend_end_min_price_diff_bps: int = Field(50, client_data=ClientFieldData(is_updatable=True))
 
-    trend_bbp_threshold: float = Field(0.1, client_data=ClientFieldData(is_updatable=True))
+    trend_bbp_threshold: float = Field(0.05, client_data=ClientFieldData(is_updatable=True))
     delta_with_best_bid_or_ask_bps: int = Field(1, client_data=ClientFieldData(is_updatable=True))
 
     @property
@@ -117,17 +117,17 @@ class Overhill(ControllerBase):
 
     def create_actions_proposal(self) -> List[ExecutorAction]:
         create_actions = []
-
-        mid_price = self.get_mid_price()
         active_sell_executors, active_buy_executors = self.get_active_executors_by_side()
 
         if self.can_create_executor(active_sell_executors, TradeType.SELL):
-            sell_price = self.adjust_sell_price(mid_price)
+            best_ask_price = self.get_best_ask()
+            sell_price = self.adjust_sell_price(best_ask_price)
             sell_executor_config = self.get_executor_config(TradeType.SELL, sell_price)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=sell_executor_config))
 
         if self.can_create_executor(active_buy_executors, TradeType.BUY):
-            buy_price = self.adjust_buy_price(mid_price)
+            best_bid_price = self.get_best_bid()
+            buy_price = self.adjust_buy_price(best_bid_price)
             buy_executor_config = self.get_executor_config(TradeType.BUY, buy_price)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=buy_executor_config))
 
@@ -143,16 +143,14 @@ class Overhill(ControllerBase):
             if has_expired:
                 stop_actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=unfilled_executor.id))
 
-        latest_bbp = self.get_latest_normalized_bbp()
-
         trading_sell_executors = self.get_trading_executors_on_side(TradeType.SELL)
         for trading_executor in trading_sell_executors:
-            if self.has_finished_a_hill_trend(latest_bbp):
+            if self.has_finished_a_hill_trend():
                 stop_actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=trading_executor.id))
 
         trading_buy_executors = self.get_trading_executors_on_side(TradeType.BUY)
         for trading_executor in trading_buy_executors:
-            if self.has_finished_a_valley_trend(latest_bbp):
+            if self.has_finished_a_valley_trend():
                 stop_actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=trading_executor.id))
 
         return stop_actions
@@ -180,13 +178,11 @@ class Overhill(ControllerBase):
         if self.get_position_quote_amount() == 0 or len(active_executors) > 0:
             return False
 
-        latest_bbp = self.get_latest_normalized_bbp()
-
         if side == TradeType.SELL:
-            return self.has_passed_a_hill_trend(latest_bbp, self.config.trend_begin_length, self.config.trend_begin_min_price_diff_bps)
+            return self.has_passed_a_hill_trend(self.config.trend_begin_length, self.config.trend_begin_min_price_diff_bps)
 
         if side == TradeType.BUY:
-            return self.has_passed_a_valley_trend(latest_bbp, self.config.trend_begin_length, self.config.trend_begin_min_price_diff_bps)
+            return self.has_passed_a_valley_trend(self.config.trend_begin_length, self.config.trend_begin_min_price_diff_bps)
 
     def get_trade_connector(self) -> Optional[ConnectorBase]:
         try:
@@ -326,21 +322,17 @@ class Overhill(ControllerBase):
     def get_normalized_bbp(bbp: float) -> float:
         return bbp - 0.5
 
-    # TODO: remove
-    # def get_latest_normalized_bbp(self, realtime_or_complete: str) -> float:
-    #     if realtime_or_complete not in ["real-time", "complete"]:
-    #         self.logger().error("get_latest_normalized_bbp() called with invalid argument")
-    #         HummingbotApplication.main_application().stop()
-    #         return -1.0
-    #
-    #     index = -1 if realtime_or_complete == "real-time" else -2
-    #     return self.processed_data["features"]["normalized_bbp"].iloc[index]
-
     def get_latest_normalized_bbp(self) -> float:
         return self.processed_data["features"]["normalized_bbp"].iloc[-2]
 
-    def has_passed_a_hill_trend(self, latest_bbp: float, trend_length: int, min_price_diff_bps: int) -> bool:
-        if latest_bbp > -self.config.trend_bbp_threshold:
+    def get_previous_normalized_bbp(self) -> float:
+        return self.processed_data["features"]["normalized_bbp"].iloc[-3]
+
+    def has_passed_a_hill_trend(self, trend_length: int, min_price_diff_bps: int) -> bool:
+        if (
+            self.get_latest_normalized_bbp() > -self.config.trend_bbp_threshold or
+            self.get_previous_normalized_bbp() < 0  # We're too late already
+        ):
             return False
 
         preceding_rows = self.processed_data["features"].iloc[:-2]
@@ -358,8 +350,11 @@ class Overhill(ControllerBase):
             trend_price_difference_bps > min_price_diff_bps
         )
 
-    def has_passed_a_valley_trend(self, latest_bbp: float, trend_length: int, min_price_diff_bps: int) -> bool:
-        if latest_bbp < self.config.trend_bbp_threshold:
+    def has_passed_a_valley_trend(self, trend_length: int, min_price_diff_bps: int) -> bool:
+        if (
+            self.get_latest_normalized_bbp() < self.config.trend_bbp_threshold or
+            self.get_previous_normalized_bbp() > 0  # We're too late already
+        ):
             return False
 
         preceding_rows = self.processed_data["features"].iloc[:-2]
@@ -378,11 +373,11 @@ class Overhill(ControllerBase):
             trend_price_difference_bps < -min_price_diff_bps
         )
 
-    def has_finished_a_valley_trend(self, latest_bbp: float) -> bool:
-        return self.has_passed_a_hill_trend(latest_bbp, self.config.trend_end_length, self.config.trend_end_min_price_diff_bps)
+    def has_finished_a_valley_trend(self) -> bool:
+        return self.has_passed_a_hill_trend(self.config.trend_end_length, self.config.trend_end_min_price_diff_bps)
 
-    def has_finished_a_hill_trend(self, latest_bbp: float) -> bool:
-        return self.has_passed_a_valley_trend(latest_bbp, self.config.trend_end_length, self.config.trend_end_min_price_diff_bps)
+    def has_finished_a_hill_trend(self) -> bool:
+        return self.has_passed_a_valley_trend(self.config.trend_end_length, self.config.trend_end_min_price_diff_bps)
 
     @staticmethod
     def _find_longest_positive_bbp_block(df: pd.DataFrame) -> pd.DataFrame:
