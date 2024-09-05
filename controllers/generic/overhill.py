@@ -24,7 +24,7 @@ class OverhillConfig(ControllerConfigBase):
 
     leverage: int = 20
     position_mode: PositionMode = PositionMode.HEDGE
-    total_amount_quote: int = Field(100, client_data=ClientFieldData(is_updatable=True))
+    total_amount_quote: int = Field(40, client_data=ClientFieldData(is_updatable=True))
     unfilled_order_expiration_min: int = 1
 
     # Triple Barrier
@@ -194,8 +194,7 @@ class Overhill(ControllerBase):
 
     def get_position_quote_amount(self) -> Decimal:
         # If balance = 100 USDT with leverage 20x, the quote position should be 500
-        # TODO return Decimal(self.config.total_amount_quote * self.config.leverage / 4)
-        return Decimal(self.config.total_amount_quote * self.config.leverage / 20)
+        return Decimal(self.config.total_amount_quote * self.config.leverage / 4)
 
     def get_best_ask(self) -> Decimal:
         return self._get_best_ask_or_bid(PriceType.BestAsk)

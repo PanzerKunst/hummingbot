@@ -1,7 +1,7 @@
 id: GY23P9qdcBE2xPTfQJMCK3g8PNE8GLT86jqNZ5iTngnV
 controller_name: overhill
 controller_type: generic
-total_amount_quote: 100
+total_amount_quote: 40
 manual_kill_switch: null
 candles_config: []
 connector_name: okx_perpetual
