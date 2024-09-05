@@ -262,23 +262,23 @@ class Overhill(ControllerBase):
 
         return last_sell_executor, last_buy_executor
 
-    def adjust_sell_price(self, mid_price: Decimal) -> Decimal:
+    def adjust_sell_price(self, best_ask: Decimal) -> Decimal:
         total_adjustment = self.config.delta_with_best_bid_or_ask_bps / 10000
 
-        ref_price = mid_price * Decimal(1 + total_adjustment)
+        ref_price = best_ask * Decimal(1 + total_adjustment)
 
-        self.logger().info(f"Adjusting SELL price. mid:{mid_price}")
-        self.logger().info(f"Adjusting SELL price. total_adj:{total_adjustment}, ref_price:{ref_price}")
+        self.logger().info(f"{self.config.trading_pair} Adjusting SELL price. best_ask:{best_ask}")
+        self.logger().info(f"{self.config.trading_pair} Adjusting SELL price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
         return ref_price
 
-    def adjust_buy_price(self, mid_price: Decimal) -> Decimal:
+    def adjust_buy_price(self, best_bid: Decimal) -> Decimal:
         total_adjustment = self.config.delta_with_best_bid_or_ask_bps / 10000
 
-        ref_price = mid_price * Decimal(1 - total_adjustment)
+        ref_price = best_bid * Decimal(1 - total_adjustment)
 
-        self.logger().info(f"Adjusting BUY price. mid:{mid_price}")
-        self.logger().info(f"Adjusting BUY price. total_adj:{total_adjustment}, ref_price:{ref_price}")
+        self.logger().info(f"{self.config.trading_pair} Adjusting BUY price. best_bid:{best_bid}")
+        self.logger().info(f"{self.config.trading_pair} Adjusting BUY price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
         return ref_price
 
@@ -340,6 +340,11 @@ class Overhill(ControllerBase):
         end_price = longest_positive_bbp_block.iloc[-1]["close"]
         trend_price_difference_bps = (end_price - start_price) / start_price * 10000
 
+        # TODO: remove
+        if len(longest_positive_bbp_block) > trend_length:
+            self.logger().info(f"{self.config.trading_pair} len(longest_positive_bbp_block) > trend_length. len:{len(longest_positive_bbp_block)}")
+            self.logger().info(f"{self.config.trading_pair} trend_price_difference_bps:{trend_price_difference_bps}")
+
         return (
             len(longest_positive_bbp_block) > trend_length and
             trend_price_difference_bps > min_price_diff_bps
@@ -362,6 +367,11 @@ class Overhill(ControllerBase):
         start_price = longest_negative_bbp_block.iloc[0]["close"]
         end_price = longest_negative_bbp_block.iloc[-1]["close"]
         trend_price_difference_bps = (end_price - start_price) / start_price * 10000
+
+        # TODO: remove
+        if len(longest_negative_bbp_block) > trend_length:
+            self.logger().info(f"{self.config.trading_pair} len(longest_negative_bbp_block) > trend_length. len:{len(longest_negative_bbp_block)}")
+            self.logger().info(f"{self.config.trading_pair} trend_price_difference_bps:{trend_price_difference_bps}")
 
         return (
             len(longest_negative_bbp_block) > trend_length and
