@@ -5,7 +5,7 @@
 
 const conf = `
 id: oePNxNXqRNkXBD8397uozUvph2unKvBfkVxeDgoDTM8
-controller_name: generic_pk
+controller_name: mm_bbands
 controller_type: generic
 total_amount_quote: 20
 manual_kill_switch: null
@@ -17,7 +17,7 @@ position_mode: HEDGE
 unfilled_order_expiration_min: 10
 stop_loss_pct: 0.9
 take_profit_pct: 0.6
-filled_order_expiration_min: 1000
+filled_order_expiration_min: 120
 bbands_length_for_trend: 12
 bbands_std_dev_for_trend: 2.0
 bbands_length_for_volatility: 2

@@ -142,7 +142,7 @@ class MmBbands(ControllerBase):
         is_high_volatility: bool = self.is_high_volatility()
 
         if is_high_volatility:
-            self.logger().info("##### is_high_volatility -> Stopping unfilled executors #####")
+            self.logger().info(f"##### {self.config.trading_pair} is_high_volatility -> Stopping unfilled executors #####")
 
         unfilled_sell_executors, unfilled_buy_executors = self.get_unfilled_executors_by_side()
 
@@ -274,26 +274,26 @@ class MmBbands(ControllerBase):
         for trading_executor in self.get_trading_executors_on_side(TradeType.SELL):
             pnl_pct = trading_executor.net_pnl_pct * 100
             if pnl_pct < -0.2:
-                self.logger().info(f"Adding SELL position while negative filled position of pnl_pct {trading_executor.net_pnl_pct}")
+                self.logger().info(f"{self.config.trading_pair} Adding SELL position while negative filled position of pnl_pct {trading_executor.net_pnl_pct}")
                 trend_adjustment_pct += 1
 
         if self.has_sl_occurred_on_side(TradeType.SELL) and self.is_still_trending_up():
-            self.logger().info("self.has_sl_occurred_on_sell_and_price_trending_up, adding 1% to trend_adjustment_pct")
+            self.logger().info(f"{self.config.trading_pair} self.has_sl_occurred_on_sell_and_price_trending_up, adding 1% to trend_adjustment_pct")
             trend_adjustment_pct += 1
 
         # If we're adding a new position while having a filled one on the same side, we double the adjustments
         if len(self.get_trading_executors_on_side(TradeType.SELL)) > 0:
-            self.logger().info("Adding a position while having a filled one on the same side - increasing the adjustments")
+            self.logger().info(f"{self.config.trading_pair} Adding a position while having a filled one on the same side - increasing the adjustments")
             volatility_adjustment += 0.01
-            trend_adjustment_pct += 0.01
+            trend_adjustment_pct += 1
 
         total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100
 
         ref_price = mid_price * Decimal(1 + total_adjustment)
 
-        self.logger().info(f"Adjusting SELL price. mid:{mid_price}, latest_bbb:{latest_bbb}")
-        self.logger().info(f"Adjusting SELL price. def_adj:{default_adjustment}, volatility_adjustment:{volatility_adjustment}, trend_adjustment_pct:{trend_adjustment_pct}")
-        self.logger().info(f"Adjusting SELL price. total_adj:{total_adjustment}, ref_price:{ref_price}")
+        self.logger().info(f"{self.config.trading_pair} Adjusting SELL price. mid:{mid_price}, latest_bbb:{latest_bbb}")
+        self.logger().info(f"{self.config.trading_pair} Adjusting SELL price. def_adj:{default_adjustment}, volatility_adjustment:{volatility_adjustment}, trend_adjustment_pct:{trend_adjustment_pct}")
+        self.logger().info(f"{self.config.trading_pair} Adjusting SELL price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
         return ref_price
 
@@ -313,26 +313,26 @@ class MmBbands(ControllerBase):
         for trading_executor in self.get_trading_executors_on_side(TradeType.BUY):
             pnl_pct = trading_executor.net_pnl_pct * 100
             if pnl_pct < -0.2:
-                self.logger().info(f"Adding BUY position while negative filled position of pnl_pct {trading_executor.net_pnl_pct}")
+                self.logger().info(f"{self.config.trading_pair} Adding BUY position while negative filled position of pnl_pct {trading_executor.net_pnl_pct}")
                 trend_adjustment_pct += 1
 
         if self.has_sl_occurred_on_side(TradeType.BUY) and self.is_still_trending_down():
-            self.logger().info("self.has_sl_occurred_on_buy_and_price_trending_down, adding 1% to trend_adjustment_pct")
+            self.logger().info(f"{self.config.trading_pair} self.has_sl_occurred_on_buy_and_price_trending_down, adding 1% to trend_adjustment_pct")
             trend_adjustment_pct += 1
 
         # If we're adding a new position while having a filled one on the same side, we double the adjustments
         if len(self.get_trading_executors_on_side(TradeType.BUY)) > 0:
-            self.logger().info("Adding a position while having a filled one on the same side - increasing the adjustments")
+            self.logger().info(f"{self.config.trading_pair} Adding a position while having a filled one on the same side - increasing the adjustments")
             volatility_adjustment += 0.01
-            trend_adjustment_pct += 0.01
+            trend_adjustment_pct += 1
 
         total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100
 
         ref_price = mid_price * Decimal(1 - total_adjustment)
 
-        self.logger().info(f"Adjusting BUY price. mid:{mid_price}, latest_bbb:{latest_bbb}")
-        self.logger().info(f"Adjusting BUY price. def_adj:{default_adjustment}, volatility_adjustment:{volatility_adjustment}, trend_adjustment_pct:{trend_adjustment_pct}")
-        self.logger().info(f"Adjusting BUY price. total_adj:{total_adjustment}, ref_price:{ref_price}")
+        self.logger().info(f"{self.config.trading_pair} Adjusting BUY price. mid:{mid_price}, latest_bbb:{latest_bbb}")
+        self.logger().info(f"{self.config.trading_pair} Adjusting BUY price. def_adj:{default_adjustment}, volatility_adjustment:{volatility_adjustment}, trend_adjustment_pct:{trend_adjustment_pct}")
+        self.logger().info(f"{self.config.trading_pair} Adjusting BUY price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
         return ref_price
 
@@ -379,18 +379,18 @@ class MmBbands(ControllerBase):
         close_type = last_executor.close_type
 
         if close_type == CloseType.TAKE_PROFIT:
-            self.logger().info("##### last_sell_executor is TAKE_PROFIT #####")
+            self.logger().info(f"##### {self.config.trading_pair} last_sell_executor is TAKE_PROFIT #####")
             self.sl_executor_sell = None
             return
 
         if self.sl_executor_sell is None and close_type == CloseType.STOP_LOSS:
-            self.logger().info("##### last_sell_executor is_stop_loss #####")
+            self.logger().info(f"##### {self.config.trading_pair} last_sell_executor is_stop_loss #####")
             self.sl_executor_sell = last_executor
             return
 
         if self.sl_executor_sell is not None and not self.is_still_trending_up():
             self.logger().info(
-                "##### We passed the middle of the road again (has_sl_occurred_on_sell and not is_trending_up). Resetting self.sl_executor #####")
+                f"##### {self.config.trading_pair} We passed the middle of the road again (has_sl_occurred_on_sell and not is_trending_up). Resetting self.sl_executor #####")
             self.sl_executor_sell = None
 
     def _check_for_stop_loss_on_buy(self, last_executor: Optional[ExecutorInfo]):
@@ -400,16 +400,16 @@ class MmBbands(ControllerBase):
         close_type = last_executor.close_type
 
         if close_type == CloseType.TAKE_PROFIT:
-            self.logger().info("##### last_buy_executor is TAKE_PROFIT #####")
+            self.logger().info(f"##### {self.config.trading_pair} last_buy_executor is TAKE_PROFIT #####")
             self.sl_executor_buy = None
             return
 
         if self.sl_executor_buy is None and close_type == CloseType.STOP_LOSS:
-            self.logger().info("##### last_buy_executor is_stop_loss #####")
+            self.logger().info(f"##### {self.config.trading_pair} last_buy_executor is_stop_loss #####")
             self.sl_executor_buy = last_executor
             return
 
         if self.sl_executor_buy is not None and not self.is_still_trending_down():
             self.logger().info(
-                "##### We passed the middle of the road again (has_sl_occurred_on_buy and not is_trending_down). Resetting self.sl_executor #####")
+                f"##### {self.config.trading_pair} We passed the middle of the road again (has_sl_occurred_on_buy and not is_trending_down). Resetting self.sl_executor #####")
             self.sl_executor_buy = None

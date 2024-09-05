@@ -11,12 +11,12 @@ position_mode: HEDGE
 unfilled_order_expiration_min: 10
 stop_loss_pct: 0.9
 take_profit_pct: 0.6
-filled_order_expiration_min: 1000
+filled_order_expiration_min: 120
 bbands_length_for_trend: 12
 bbands_std_dev_for_trend: 2.0
 bbands_length_for_volatility: 2
 bbands_std_dev_for_volatility: 3.0
-high_volatility_threshold: 1.0
+high_volatility_threshold: 3.0
 candles_connector: okx_perpetual
 candles_interval: 1m
 candles_length: 24
