@@ -58,7 +58,7 @@ class PositionExecutorSimulator(ExecutorSimulatorBase):
         # Determine the earliest close event
         first_tp_timestamp = df_filtered[df_filtered['net_pnl_pct'] > tp]['timestamp'].min() if tp else None
         if config.triple_barrier_config.stop_loss:
-            sl = Decimal(config.triple_barrier_config.stop_loss)
+            sl = float(config.triple_barrier_config.stop_loss)
             sl_price = entry_price * (1 - sl * side_multiplier)
             sl_condition = df_filtered['low'] <= sl_price if config.side == TradeType.BUY else df_filtered['high'] >= sl_price
         first_sl_timestamp = df_filtered[sl_condition]['timestamp'].min() if sl else None
