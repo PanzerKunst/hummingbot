@@ -1,7 +1,7 @@
 id: GY23P9qdcBE2xPTfQJMCK3g8PNE8GLT86jqNZ5iTngnV
 controller_name: overhill
 controller_type: generic
-total_amount_quote: 70
+total_amount_quote: 100
 manual_kill_switch: null
 candles_config: []
 connector_name: okx_perpetual
@@ -18,8 +18,8 @@ candles_connector: binance
 candles_interval: 1m
 candles_length: 24
 trend_begin_length: 7
-trend_end_length: 5
+trend_end_length: 4
 trend_begin_min_price_diff_bps: 100
 trend_end_min_price_diff_bps: 50
 trend_bbp_threshold: 0.05
-delta_with_best_bid_or_ask_bps: 1
+delta_with_best_bid_or_ask_bps: 0

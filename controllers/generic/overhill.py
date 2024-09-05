@@ -24,7 +24,7 @@ class OverhillConfig(ControllerConfigBase):
 
     leverage: int = 20
     position_mode: PositionMode = PositionMode.HEDGE
-    total_amount_quote: int = Field(70, client_data=ClientFieldData(is_updatable=True))
+    total_amount_quote: int = Field(100, client_data=ClientFieldData(is_updatable=True))
     unfilled_order_expiration_min: int = 1
 
     # Triple Barrier
@@ -44,13 +44,13 @@ class OverhillConfig(ControllerConfigBase):
 
     # Trading algo
     trend_begin_length: int = Field(7, client_data=ClientFieldData(is_updatable=True))
-    trend_end_length: int = Field(5, client_data=ClientFieldData(is_updatable=True))
+    trend_end_length: int = Field(4, client_data=ClientFieldData(is_updatable=True))
 
     trend_begin_min_price_diff_bps: int = Field(100, client_data=ClientFieldData(is_updatable=True))
     trend_end_min_price_diff_bps: int = Field(50, client_data=ClientFieldData(is_updatable=True))
 
     trend_bbp_threshold: float = Field(0.05, client_data=ClientFieldData(is_updatable=True))
-    delta_with_best_bid_or_ask_bps: int = Field(1, client_data=ClientFieldData(is_updatable=True))
+    delta_with_best_bid_or_ask_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
 
     @property
     def triple_barrier_config(self) -> TripleBarrierConfig:
