@@ -14,10 +14,11 @@ connector_name: okx_perpetual
 trading_pair: AAVE-USDT
 leverage: 20
 position_mode: HEDGE
+cooldown_time_min: 3
 unfilled_order_expiration_min: 10
-stop_loss_pct: 0.6
-take_profit_pct: 0.4
-filled_order_expiration_min: 1000
+stop_loss_pct: 0.5
+take_profit_pct: 0.3
+filled_order_expiration_min: 90
 bbands_length_for_trend: 12
 bbands_std_dev_for_trend: 2.0
 bbands_length_for_volatility: 2
@@ -26,27 +27,27 @@ high_volatility_threshold: 1.0
 candles_connector: okx_perpetual
 candles_interval: 1m
 candles_length: 24
-default_spread_pct: 0.5
+default_spread_pct: 0.2
 price_adjustment_volatility_threshold: 0.5
 `
 
 const result = {
-    'net_pnl': -0.006184221563929799,
-    'net_pnl_quote': -0.12368443127859598,
-    'total_executors': 1943,
-    'total_executors_with_position': 65,
-    'total_volume': 2599.786027590415,
-    'total_long': 31,
-    'total_short': 34,
-    'close_types': {'EARLY_STOP': 1876, 'STOP_LOSS': 26, 'TAKE_PROFIT': 39, 'TIME_LIMIT': 2},
-    'accuracy_long': 0.6129032258064516,
-    'accuracy_short': 0.5882352941176471,
-    'total_positions': 65,
-    'accuracy': 0.6,
-    'max_drawdown_usd': -1.3610530985663063,
-    'max_drawdown_pct': -0.06775120338439891,
-    'sharpe_ratio': -0.2075058649301959,
-    'profit_factor': 0.969174592135079,
-    'win_signals': 39,
-    'loss_signals': 26
+    'net_pnl': -0.10496709091215171,
+    'net_pnl_quote': -2.099341818243034,
+    'total_executors': 1986,
+    'total_executors_with_position': 170,
+    'total_volume': 6802.420516976788,
+    'total_long': 81,
+    'total_short': 89,
+    'close_types': {'EARLY_STOP': 1814, 'STOP_LOSS': 76, 'TAKE_PROFIT': 94, 'TIME_LIMIT': 2},
+    'accuracy_long': 0.48148148148148145,
+    'accuracy_short': 0.6179775280898876,
+    'total_positions': 170,
+    'accuracy': 0.5529411764705883,
+    'max_drawdown_usd': -2.368063310687428,
+    'max_drawdown_pct': -0.11912869677077466,
+    'sharpe_ratio': -1.5025003775542476,
+    'profit_factor': 0.7765408864908323,
+    'win_signals': 94,
+    'loss_signals': 76
 }

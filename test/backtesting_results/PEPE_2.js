@@ -14,10 +14,11 @@ connector_name: okx_perpetual
 trading_pair: PEPE-USDT
 leverage: 20
 position_mode: HEDGE
+cooldown_time_min: 3
 unfilled_order_expiration_min: 10
-stop_loss_pct: 0.6
-take_profit_pct: 0.4
-filled_order_expiration_min: 1000
+stop_loss_pct: 0.9
+take_profit_pct: 0.6
+filled_order_expiration_min: 90
 bbands_length_for_trend: 12
 bbands_std_dev_for_trend: 2.0
 bbands_length_for_volatility: 2
@@ -26,27 +27,27 @@ high_volatility_threshold: 1.0
 candles_connector: okx_perpetual
 candles_interval: 1m
 candles_length: 24
-default_spread_pct: 0.5
+default_spread_pct: 0.2
 price_adjustment_volatility_threshold: 0.5
 `
 
 const result = {
-    'net_pnl': -0.13525367780933006,
-    'net_pnl_quote': -2.7050735561866013,
-    'total_executors': 2024,
-    'total_executors_with_position': 249,
-    'total_volume': 9958.73719307657,
-    'total_long': 133,
-    'total_short': 116,
-    'close_types': {'EARLY_STOP': 1773, 'STOP_LOSS': 108, 'TAKE_PROFIT': 141, 'TIME_LIMIT': 2},
-    'accuracy_long': 0.5413533834586466,
-    'accuracy_short': 0.5948275862068966,
-    'total_positions': 249,
-    'accuracy': 0.5662650602409639,
-    'max_drawdown_usd': -3.9946343622809835,
-    'max_drawdown_pct': -0.1988788746340035,
-    'sharpe_ratio': -1.5991389015323672,
-    'profit_factor': 0.8323408151471522,
-    'win_signals': 141,
-    'loss_signals': 108
+    'net_pnl': -0.09913975805994413,
+    'net_pnl_quote': -1.9827951611988825,
+    'total_executors': 2151,
+    'total_executors_with_position': 383,
+    'total_volume': 15318.311723904551,
+    'total_long': 194,
+    'total_short': 189,
+    'close_types': {'EARLY_STOP': 1766, 'STOP_LOSS': 126, 'TAKE_PROFIT': 188, 'TIME_LIMIT': 71},
+    'accuracy_long': 0.5309278350515464,
+    'accuracy_short': 0.582010582010582,
+    'total_positions': 383,
+    'accuracy': 0.556135770234987,
+    'max_drawdown_usd': -3.009601987805311,
+    'max_drawdown_pct': -0.14942624997520956,
+    'sharpe_ratio': -0.2086129351622208,
+    'profit_factor': 0.9341622242089643,
+    'win_signals': 213,
+    'loss_signals': 170
 }

@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 
@@ -26,6 +27,10 @@ def has_order_expired(executor: ExecutorInfo, time_limit: int, current_timestamp
     """
     delta = current_timestamp - executor.timestamp
     return delta > time_limit
+
+
+def timestamp_to_iso(timestamp: float) -> str:
+    return datetime.fromtimestamp(timestamp).isoformat()
 
 
 class Trend(Enum):

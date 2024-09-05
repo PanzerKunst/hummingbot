@@ -15,7 +15,7 @@ from hummingbot.strategy_v2.executors.position_executor.data_types import Positi
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, ExecutorAction, StopExecutorAction
 from hummingbot.strategy_v2.models.executors import CloseType
 from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
-from scripts.utility.my_utils import has_order_expired
+from scripts.utility.my_utils import has_order_expired, timestamp_to_iso
 
 
 class MmBbandsConfig(ControllerConfigBase):
@@ -26,7 +26,7 @@ class MmBbandsConfig(ControllerConfigBase):
     leverage: int = 20
     position_mode: PositionMode = PositionMode.HEDGE
     total_amount_quote: int = Field(20, client_data=ClientFieldData(is_updatable=True))
-    # cooldown_time_min: int = 3 Unused at the moment
+    cooldown_time_min: int = Field(3, client_data=ClientFieldData(is_updatable=True))
     unfilled_order_expiration_min: int = Field(10, client_data=ClientFieldData(is_updatable=True))
 
     # Triple Barrier
@@ -76,8 +76,10 @@ class MmBbandsConfig(ControllerConfigBase):
 
 
 class MmBbands(ControllerBase):
-    sl_executor_sell: Optional[ExecutorInfo] = None
-    sl_executor_buy: Optional[ExecutorInfo] = None
+    last_terminated_sell_executor: Optional[ExecutorInfo] = None
+    last_terminated_sell_executor_timestamp: float = 0.0
+    last_terminated_buy_executor: Optional[ExecutorInfo] = None
+    last_terminated_buy_executor_timestamp: float = 0.0
 
     def __init__(self, config: MmBbandsConfig, *args, **kwargs):
         super().__init__(config, *args, **kwargs)
@@ -124,12 +126,12 @@ class MmBbands(ControllerBase):
 
         unfilled_sell_executors, unfilled_buy_executors = self.get_unfilled_executors_by_side()
 
-        if self.can_create_executor(unfilled_sell_executors):
+        if self.can_create_executor(unfilled_sell_executors, TradeType.SELL):
             sell_price = self.adjust_sell_price(mid_price)
             sell_executor_config = self.get_executor_config(TradeType.SELL, sell_price)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=sell_executor_config))
 
-        if self.can_create_executor(unfilled_buy_executors):
+        if self.can_create_executor(unfilled_buy_executors, TradeType.BUY):
             buy_price = self.adjust_buy_price(mid_price)
             buy_executor_config = self.get_executor_config(TradeType.BUY, buy_price)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=buy_executor_config))
@@ -172,8 +174,17 @@ class MmBbands(ControllerBase):
     # Custom functions potentially interesting for other controllers
     #
 
-    def can_create_executor(self, unfilled_executors: List[ExecutorInfo]) -> bool:
+    def can_create_executor(self, unfilled_executors: List[ExecutorInfo], side: TradeType) -> bool:
         if self.get_position_quote_amount() == 0 or self.is_high_volatility() or len(unfilled_executors) > 0:
+            return False
+
+        last_terminated_timestamp: float = self.last_terminated_sell_executor_timestamp if side == TradeType.SELL else self.last_terminated_buy_executor_timestamp
+
+        # TODO: remove
+        self.logger().info(f"{self.config.trading_pair} {side} timestamp_to_iso:{timestamp_to_iso(last_terminated_timestamp)}, current:{timestamp_to_iso(self.market_data_provider.time())}")
+
+        if last_terminated_timestamp + self.config.cooldown_time_min * 60 > self.market_data_provider.time():
+            self.logger().info(f"{self.config.trading_pair} cooldown not passed yet")
             return False
 
         return True
@@ -363,53 +374,51 @@ class MmBbands(ControllerBase):
         return self.get_latest_normalized_bbp() < 0.2
 
     def has_sl_occurred_on_side(self, side: TradeType) -> bool:
-        has_sl_occurred_on_sell: bool = self.sl_executor_sell is not None
-        has_sl_occurred_on_buy: bool = self.sl_executor_buy is not None
-        return has_sl_occurred_on_sell if side == TradeType.SELL else has_sl_occurred_on_buy
+        return self._is_last_sell_executor_sl() if side == TradeType.SELL else self._is_last_buy_executor_sl()
 
     def check_trading_executors(self):
         terminated_sell_executor, terminated_buy_executor = self.get_last_terminated_executor_by_side()
-        self._check_for_stop_loss_on_sell(terminated_sell_executor)
-        self._check_for_stop_loss_on_buy(terminated_buy_executor)
 
-    def _check_for_stop_loss_on_sell(self, last_executor: Optional[ExecutorInfo]):
-        if last_executor is None:
+        if terminated_sell_executor is not None:
+            self._check_for_stop_loss_on_sell(terminated_sell_executor)
+
+        if terminated_buy_executor is not None:
+            self._check_for_stop_loss_on_buy(terminated_buy_executor)
+
+    def _check_for_stop_loss_on_sell(self, last_terminated_executor: Optional[ExecutorInfo]):
+        # if self._is_last_sell_executor_sl() and not self.is_still_trending_up():
+        #     self.logger().info(
+        #         f"##### {self.config.trading_pair} We passed the middle of the road again (has_sl_occurred_on_sell and not is_trending_up). Resetting self.last_terminated_buy_executor #####")
+        #     self.last_terminated_sell_executor = None
+        #     return
+
+        if self.last_terminated_sell_executor is not None and self.last_terminated_sell_executor == last_terminated_executor.id:
             return
 
-        close_type = last_executor.close_type
+        close_type = last_terminated_executor.close_type
 
-        if close_type == CloseType.TAKE_PROFIT:
-            self.logger().info(f"##### {self.config.trading_pair} last_sell_executor is TAKE_PROFIT #####")
-            self.sl_executor_sell = None
+        if close_type not in (CloseType.TIME_LIMIT, CloseType.TAKE_PROFIT, CloseType.STOP_LOSS):
             return
 
-        if self.sl_executor_sell is None and close_type == CloseType.STOP_LOSS:
-            self.logger().info(f"##### {self.config.trading_pair} last_sell_executor is_stop_loss #####")
-            self.sl_executor_sell = last_executor
+        self.logger().info(f"##### {self.config.trading_pair} last_sell_executor is {close_type} #####")
+        self.last_terminated_sell_executor = last_terminated_executor
+        self.last_terminated_sell_executor_timestamp = self.market_data_provider.time()
+
+    def _check_for_stop_loss_on_buy(self, last_terminated_executor: Optional[ExecutorInfo]):
+        if self.last_terminated_buy_executor is not None and self.last_terminated_buy_executor == last_terminated_executor.id:
             return
 
-        if self.sl_executor_sell is not None and not self.is_still_trending_up():
-            self.logger().info(
-                f"##### {self.config.trading_pair} We passed the middle of the road again (has_sl_occurred_on_sell and not is_trending_up). Resetting self.sl_executor #####")
-            self.sl_executor_sell = None
+        close_type = last_terminated_executor.close_type
 
-    def _check_for_stop_loss_on_buy(self, last_executor: Optional[ExecutorInfo]):
-        if last_executor is None:
+        if close_type not in (CloseType.TIME_LIMIT, CloseType.TAKE_PROFIT, CloseType.STOP_LOSS):
             return
 
-        close_type = last_executor.close_type
+        self.logger().info(f"##### {self.config.trading_pair} last_buy_executor is {close_type} #####")
+        self.last_terminated_buy_executor = last_terminated_executor
+        self.last_terminated_buy_executor_timestamp = self.market_data_provider.time()
 
-        if close_type == CloseType.TAKE_PROFIT:
-            self.logger().info(f"##### {self.config.trading_pair} last_buy_executor is TAKE_PROFIT #####")
-            self.sl_executor_buy = None
-            return
+    def _is_last_sell_executor_sl(self) -> bool:
+        return self.last_terminated_sell_executor is not None and self.last_terminated_sell_executor.close_type == CloseType.STOP_LOSS
 
-        if self.sl_executor_buy is None and close_type == CloseType.STOP_LOSS:
-            self.logger().info(f"##### {self.config.trading_pair} last_buy_executor is_stop_loss #####")
-            self.sl_executor_buy = last_executor
-            return
-
-        if self.sl_executor_buy is not None and not self.is_still_trending_down():
-            self.logger().info(
-                f"##### {self.config.trading_pair} We passed the middle of the road again (has_sl_occurred_on_buy and not is_trending_down). Resetting self.sl_executor #####")
-            self.sl_executor_buy = None
+    def _is_last_buy_executor_sl(self) -> bool:
+        return self.last_terminated_buy_executor is not None and self.last_terminated_buy_executor.close_type == CloseType.STOP_LOSS

@@ -8,10 +8,11 @@ connector_name: okx_perpetual
 trading_pair: PEPE-USDT
 leverage: 20
 position_mode: HEDGE
+cooldown_time_min: 3
 unfilled_order_expiration_min: 10
-stop_loss_pct: 0.6
+stop_loss_pct: 0.7
 take_profit_pct: 0.4
-filled_order_expiration_min: 1000
+filled_order_expiration_min: 90
 bbands_length_for_trend: 12
 bbands_std_dev_for_trend: 2.0
 bbands_length_for_volatility: 2
@@ -20,5 +21,5 @@ high_volatility_threshold: 1.0
 candles_connector: okx_perpetual
 candles_interval: 1m
 candles_length: 24
-default_spread_pct: 0.5
+default_spread_pct: 0.3
 price_adjustment_volatility_threshold: 0.5
