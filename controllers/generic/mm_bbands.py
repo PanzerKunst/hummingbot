@@ -272,38 +272,38 @@ class MmBbands(ControllerBase):
     def adjust_sell_price(self, mid_price: Decimal) -> Decimal:
         default_adjustment = self.config.default_spread_pct / 100
 
-        volatility_adjustment: float = 0.0
+        volatility_adjustment_pct: float = 0.0
 
-        latest_bbb = self.get_latest_bbb()
-        if latest_bbb > self.config.price_adjustment_volatility_threshold:
-            above_threshold = latest_bbb - self.config.price_adjustment_volatility_threshold
-            volatility_adjustment += above_threshold * 0.02
+        avg_last_three_bbb = self.get_avg_last_tree_bbb()
+        if avg_last_three_bbb > self.config.price_adjustment_volatility_threshold:
+            above_threshold = avg_last_three_bbb - self.config.price_adjustment_volatility_threshold
+            volatility_adjustment_pct += above_threshold * 2
 
         trend_adjustment_pct: float = 0.0
 
-        # If there is a trading SELL position with negative PnL, we add 1% to the adjustment
+        # If there is a trading SELL position with negative PnL, we add to the adjustment
         for trading_executor in self.get_trading_executors_on_side(TradeType.SELL):
             pnl_pct = trading_executor.net_pnl_pct * 100
             if pnl_pct < -0.2:
                 self.logger().info(f"{self.config.trading_pair} Adding SELL position while negative filled position of pnl_pct {trading_executor.net_pnl_pct}")
-                trend_adjustment_pct += 1
+                trend_adjustment_pct += 0.7
 
         if self.has_sl_occurred_on_side(TradeType.SELL) and self.is_still_trending_up():
-            self.logger().info(f"{self.config.trading_pair} self.has_sl_occurred_on_sell_and_price_trending_up, adding 1% to trend_adjustment_pct")
+            self.logger().info(f"{self.config.trading_pair} self.has_sl_occurred_on_sell_and_price_trending_up, increasing trend_adjustment_pct")
             trend_adjustment_pct += 1
 
         # If we're adding a new position while having a filled one on the same side, we double the adjustments
         if len(self.get_trading_executors_on_side(TradeType.SELL)) > 0:
             self.logger().info(f"{self.config.trading_pair} Adding a position while having a filled one on the same side - increasing the adjustments")
-            volatility_adjustment += 0.01
-            trend_adjustment_pct += 1
+            volatility_adjustment_pct += 0.5
+            trend_adjustment_pct += 0.5
 
-        total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100
+        total_adjustment = default_adjustment + volatility_adjustment_pct / 100 + trend_adjustment_pct / 100
 
         ref_price = mid_price * Decimal(1 + total_adjustment)
 
-        self.logger().info(f"{self.config.trading_pair} Adjusting SELL price. mid:{mid_price}, latest_bbb:{latest_bbb}")
-        self.logger().info(f"{self.config.trading_pair} Adjusting SELL price. def_adj:{default_adjustment}, volatility_adjustment:{volatility_adjustment}, trend_adjustment_pct:{trend_adjustment_pct}")
+        self.logger().info(f"{self.config.trading_pair} Adjusting SELL price. mid:{mid_price}, avg_last_three_bbb:{avg_last_three_bbb}")
+        self.logger().info(f"{self.config.trading_pair} Adjusting SELL price. def_adj:{default_adjustment}, volatility_adjustment_pct:{volatility_adjustment_pct}, trend_adjustment_pct:{trend_adjustment_pct}")
         self.logger().info(f"{self.config.trading_pair} Adjusting SELL price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
         return ref_price
@@ -311,38 +311,38 @@ class MmBbands(ControllerBase):
     def adjust_buy_price(self, mid_price: Decimal) -> Decimal:
         default_adjustment = self.config.default_spread_pct / 100
 
-        volatility_adjustment: float = 0.0
+        volatility_adjustment_pct: float = 0.0
 
-        latest_bbb = self.get_latest_bbb()
-        if latest_bbb > self.config.price_adjustment_volatility_threshold:
-            above_threshold = latest_bbb - self.config.price_adjustment_volatility_threshold
-            volatility_adjustment += above_threshold * 0.02
+        avg_last_three_bbb = self.get_avg_last_tree_bbb()
+        if avg_last_three_bbb > self.config.price_adjustment_volatility_threshold:
+            above_threshold = avg_last_three_bbb - self.config.price_adjustment_volatility_threshold
+            volatility_adjustment_pct += above_threshold * 2
 
         trend_adjustment_pct: float = 0.0
 
-        # If there is a trading BUY position with negative PnL, we add 1% to the adjustment
+        # If there is a trading BUY position with negative PnL, we add to the adjustment
         for trading_executor in self.get_trading_executors_on_side(TradeType.BUY):
             pnl_pct = trading_executor.net_pnl_pct * 100
             if pnl_pct < -0.2:
                 self.logger().info(f"{self.config.trading_pair} Adding BUY position while negative filled position of pnl_pct {trading_executor.net_pnl_pct}")
-                trend_adjustment_pct += 1
+                trend_adjustment_pct += 0.7
 
         if self.has_sl_occurred_on_side(TradeType.BUY) and self.is_still_trending_down():
-            self.logger().info(f"{self.config.trading_pair} self.has_sl_occurred_on_buy_and_price_trending_down, adding 1% to trend_adjustment_pct")
+            self.logger().info(f"{self.config.trading_pair} self.has_sl_occurred_on_buy_and_price_trending_down, increasing trend_adjustment_pct")
             trend_adjustment_pct += 1
 
         # If we're adding a new position while having a filled one on the same side, we double the adjustments
         if len(self.get_trading_executors_on_side(TradeType.BUY)) > 0:
             self.logger().info(f"{self.config.trading_pair} Adding a position while having a filled one on the same side - increasing the adjustments")
-            volatility_adjustment += 0.01
-            trend_adjustment_pct += 1
+            volatility_adjustment_pct += 0.5
+            trend_adjustment_pct += 0.5
 
-        total_adjustment = default_adjustment + volatility_adjustment + trend_adjustment_pct / 100
+        total_adjustment = default_adjustment + volatility_adjustment_pct / 100 + trend_adjustment_pct / 100
 
         ref_price = mid_price * Decimal(1 - total_adjustment)
 
-        self.logger().info(f"{self.config.trading_pair} Adjusting BUY price. mid:{mid_price}, latest_bbb:{latest_bbb}")
-        self.logger().info(f"{self.config.trading_pair} Adjusting BUY price. def_adj:{default_adjustment}, volatility_adjustment:{volatility_adjustment}, trend_adjustment_pct:{trend_adjustment_pct}")
+        self.logger().info(f"{self.config.trading_pair} Adjusting BUY price. mid:{mid_price}, avg_last_three_bbb:{avg_last_three_bbb}")
+        self.logger().info(f"{self.config.trading_pair} Adjusting BUY price. def_adj:{default_adjustment}, volatility_adjustment_pct:{volatility_adjustment_pct}, trend_adjustment_pct:{trend_adjustment_pct}")
         self.logger().info(f"{self.config.trading_pair} Adjusting BUY price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
         return ref_price
@@ -363,6 +363,13 @@ class MmBbands(ControllerBase):
         bbb_previous_full_minute = bbb_series.iloc[-2]
         bbb_current_incomplete_minute = bbb_series.iloc[-1]
         return max(bbb_previous_full_minute, bbb_current_incomplete_minute)
+
+    def get_avg_last_tree_bbb(self) -> float:
+        bbb_series: pd.Series = self.processed_data["features"]["bbb_for_volatility"]
+        bbb_last_full_minute = bbb_series.iloc[-2]
+        bbb_before_that = bbb_series.iloc[-3]
+        bbb_even_before_that = bbb_series.iloc[-4]
+        return (bbb_last_full_minute + bbb_before_that + bbb_even_before_that) / 3
 
     def is_high_volatility(self) -> bool:
         return self.get_latest_bbb() > self.config.high_volatility_threshold

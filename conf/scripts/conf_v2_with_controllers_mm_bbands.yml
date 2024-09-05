@@ -1,8 +1,8 @@
 markets: {}
 candles_config: []
 controllers_config:
-- conf_generic.mm_bbands_DOGS.yml
 - conf_generic.mm_bbands_PEPE.yml
-config_update_interval: 60
+- conf_generic.mm_bbands_DOGS.yml
+config_update_interval: 10
 script_file_name: v2_with_controllers.py
 time_to_cash_out: null

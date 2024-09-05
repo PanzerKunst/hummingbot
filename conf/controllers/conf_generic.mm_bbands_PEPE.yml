@@ -22,4 +22,4 @@ candles_connector: okx_perpetual
 candles_interval: 1m
 candles_length: 24
 default_spread_pct: 0.3
-price_adjustment_volatility_threshold: 0.5
+price_adjustment_volatility_threshold: 0.3
