@@ -319,14 +319,8 @@ class Overhill(ControllerBase):
     def get_latest_normalized_bbp(self) -> float:
         return self.processed_data["features"]["normalized_bbp"].iloc[-2]
 
-    def get_previous_normalized_bbp(self) -> float:
-        return self.processed_data["features"]["normalized_bbp"].iloc[-3]
-
     def has_passed_a_hill_trend(self, trend_length: int, min_price_diff_bps: int) -> bool:
-        if (
-            self.get_latest_normalized_bbp() > -self.config.trend_bbp_threshold or
-            self.get_previous_normalized_bbp() < 0  # We're too late already
-        ):
+        if self.get_latest_normalized_bbp() > -self.config.trend_bbp_threshold:
             return False
 
         preceding_rows = self.processed_data["features"].iloc[:-2]
@@ -350,10 +344,7 @@ class Overhill(ControllerBase):
         )
 
     def has_passed_a_valley_trend(self, trend_length: int, min_price_diff_bps: int) -> bool:
-        if (
-            self.get_latest_normalized_bbp() < self.config.trend_bbp_threshold or
-            self.get_previous_normalized_bbp() > 0  # We're too late already
-        ):
+        if self.get_latest_normalized_bbp() < self.config.trend_bbp_threshold:
             return False
 
         preceding_rows = self.processed_data["features"].iloc[:-2]
