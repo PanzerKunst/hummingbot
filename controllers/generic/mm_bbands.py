@@ -407,7 +407,6 @@ class MmBbands(ControllerBase):
         if close_type not in (CloseType.TIME_LIMIT, CloseType.TAKE_PROFIT, CloseType.STOP_LOSS):
             return
 
-        self.logger().info(f"##### {self.config.trading_pair} last_sell_executor is {close_type} #####")
         self.last_terminated_sell_executor = last_terminated_executor
         self.last_terminated_sell_executor_timestamp = self.market_data_provider.time()
 
@@ -420,7 +419,6 @@ class MmBbands(ControllerBase):
         if close_type not in (CloseType.TIME_LIMIT, CloseType.TAKE_PROFIT, CloseType.STOP_LOSS):
             return
 
-        self.logger().info(f"##### {self.config.trading_pair} last_buy_executor is {close_type} #####")
         self.last_terminated_buy_executor = last_terminated_executor
         self.last_terminated_buy_executor_timestamp = self.market_data_provider.time()
 
