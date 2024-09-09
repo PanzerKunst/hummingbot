@@ -356,7 +356,14 @@ class MmBbands(ControllerBase):
         return bbp - 0.5
 
     def get_latest_normalized_bbp(self) -> float:
-        return self.processed_data["features"]["normalized_bbp"].iloc[-1]
+        bbp_series: pd.Series = self.processed_data["features"]["normalized_bbp"]
+        bbp_previous_full_minute = bbp_series.iloc[-2]
+        bbp_current_incomplete_minute = bbp_series.iloc[-1]
+
+        return (
+            max(bbp_previous_full_minute, bbp_current_incomplete_minute) if bbp_previous_full_minute > 0
+            else min(bbp_previous_full_minute, bbp_current_incomplete_minute)
+        )
 
     def get_latest_bbb(self) -> float:
         bbb_series: pd.Series = self.processed_data["features"]["bbb_for_volatility"]
@@ -393,12 +400,6 @@ class MmBbands(ControllerBase):
             self._check_for_stop_loss_on_buy(terminated_buy_executor)
 
     def _check_for_stop_loss_on_sell(self, last_terminated_executor: Optional[ExecutorInfo]):
-        # if self._is_last_sell_executor_sl() and not self.is_still_trending_up():
-        #     self.logger().info(
-        #         f"##### {self.config.trading_pair} We passed the middle of the road again (has_sl_occurred_on_sell and not is_trending_up). Resetting self.last_terminated_buy_executor #####")
-        #     self.last_terminated_sell_executor = None
-        #     return
-
         if self.last_terminated_sell_executor is not None and self.last_terminated_sell_executor == last_terminated_executor.id:
             return
 
