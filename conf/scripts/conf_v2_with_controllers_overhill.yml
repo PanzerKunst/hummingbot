@@ -1,8 +1,6 @@
 markets: {}
 candles_config: []
 controllers_config:
-- conf_generic.overhill_DOGS.yml
-- conf_generic.overhill_PEPE.yml
 - conf_generic.overhill_ORDI.yml
 config_update_interval: 10
 script_file_name: v2_with_controllers.py
