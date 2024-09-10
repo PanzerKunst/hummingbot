@@ -1,7 +1,7 @@
 id: conf_generic.overhill_DOGS
 controller_name: overhill
 controller_type: generic
-total_amount_quote: 20
+total_amount_quote: 5
 manual_kill_switch: null
 candles_config: []
 connector_name: okx_perpetual
