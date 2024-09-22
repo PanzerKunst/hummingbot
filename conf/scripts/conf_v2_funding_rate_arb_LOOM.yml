@@ -11,7 +11,7 @@ connectors:
 - gate_io_perpetual
 tokens:
 - LOOM
-position_size_quote: 50
+position_size_quote: 10
 profitability_to_take_profit: 0.01
 funding_rate_diff_stop_loss: -0.01
 trade_profitability_condition_to_enter: true
