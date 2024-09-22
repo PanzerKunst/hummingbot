@@ -4,7 +4,7 @@ controllers_config: []
 config_update_interval: 10
 script_file_name: v2_funding_rate_arb.py
 leverage: 5
-min_funding_rate_profitability: 0.07
+min_funding_rate_profitability: 0.007
 connectors:
 - kucoin_perpetual
 - hyperliquid_perpetual
