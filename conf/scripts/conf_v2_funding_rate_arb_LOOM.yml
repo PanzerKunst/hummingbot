@@ -1,0 +1,17 @@
+markets: {}
+candles_config: []
+controllers_config: []
+config_update_interval: 10
+script_file_name: v2_funding_rate_arb.py
+leverage: 5
+min_funding_rate_profitability: 0.07
+connectors:
+- kucoin_perpetual
+- hyperliquid_perpetual
+- gate_io_perpetual
+tokens:
+- LOOM
+position_size_quote: 50
+profitability_to_take_profit: 0.01
+funding_rate_diff_stop_loss: -0.01
+trade_profitability_condition_to_enter: true

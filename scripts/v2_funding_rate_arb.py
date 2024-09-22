@@ -9,7 +9,7 @@ from hummingbot.client.config.config_data_types import ClientFieldData
 from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.clock import Clock
-from hummingbot.core.data_type.common import OrderType, PositionAction, PositionMode, PriceType, TradeType
+from hummingbot.core.data_type.common import OrderType, PositionMode, PriceType, TradeType
 from hummingbot.core.event.events import FundingPaymentCompletedEvent
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base, StrategyV2ConfigBase
@@ -160,32 +160,37 @@ class FundingRateArbitrage(StrategyV2Base):
             quote_volume=self.config.position_size_quote,
             is_buy=side != TradeType.BUY,
         ).result_price)
-        estimated_fees_connector_1 = self.connectors[connector_1].get_fee(
-            base_currency=trading_pair_1.split("-")[0],
-            quote_currency=trading_pair_1.split("-")[1],
-            order_type=OrderType.MARKET,
-            order_side=TradeType.BUY,
-            amount=self.config.position_size_quote / connector_1_price,
-            price=connector_1_price,
-            is_maker=False,
-            position_action=PositionAction.OPEN
-        ).percent
-        estimated_fees_connector_2 = self.connectors[connector_2].get_fee(
-            base_currency=trading_pair_2.split("-")[0],
-            quote_currency=trading_pair_2.split("-")[1],
-            order_type=OrderType.MARKET,
-            order_side=TradeType.BUY,
-            amount=self.config.position_size_quote / connector_2_price,
-            price=connector_2_price,
-            is_maker=False,
-            position_action=PositionAction.OPEN
-        ).percent
+
+        # Commented out because incompatible call with gate_io_perpetual triggers an error
+        # estimated_fees_connector_1 = self.connectors[connector_1].get_fee(
+        #     base_currency=trading_pair_1.split("-")[0],
+        #     quote_currency=trading_pair_1.split("-")[1],
+        #     order_type=OrderType.MARKET,
+        #     order_side=TradeType.BUY,
+        #     amount=self.config.position_size_quote / connector_1_price,
+        #     price=connector_1_price,
+        #     is_maker=False,
+        #     position_action=PositionAction.OPEN
+        # ).percent
+        # estimated_fees_connector_2 = self.connectors[connector_2].get_fee(
+        #     base_currency=trading_pair_2.split("-")[0],
+        #     quote_currency=trading_pair_2.split("-")[1],
+        #     order_type=OrderType.MARKET,
+        #     order_side=TradeType.BUY,
+        #     amount=self.config.position_size_quote / connector_2_price,
+        #     price=connector_2_price,
+        #     is_maker=False,
+        #     position_action=PositionAction.OPEN
+        # ).percent
+
+        # estimated_fees_connector_hyperliquid = Decimal(0.00025)
+        estimated_fees_connector_2 = Decimal(0.0006)
 
         if side == TradeType.BUY:
             estimated_trade_pnl_pct = (connector_2_price - connector_1_price) / connector_1_price
         else:
             estimated_trade_pnl_pct = (connector_1_price - connector_2_price) / connector_2_price
-        return estimated_trade_pnl_pct - estimated_fees_connector_1 - estimated_fees_connector_2
+        return estimated_trade_pnl_pct - estimated_fees_connector_2 - estimated_fees_connector_2
 
     def get_most_profitable_combination(self, funding_info_report: Dict):
         best_combination = None
