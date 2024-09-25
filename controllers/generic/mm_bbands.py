@@ -26,22 +26,20 @@ class MmBbandsConfig(ControllerConfigBase):
     leverage: int = 20
     position_mode: PositionMode = PositionMode.HEDGE
     total_amount_quote: int = Field(5, client_data=ClientFieldData(is_updatable=True))
-    cooldown_time_min: int = Field(3, client_data=ClientFieldData(is_updatable=True))
+    cooldown_time_min: int = Field(0, client_data=ClientFieldData(is_updatable=True))
     unfilled_order_expiration_min: int = Field(10, client_data=ClientFieldData(is_updatable=True))
 
     # Triple Barrier
-    stop_loss_pct: float = Field(0.8, client_data=ClientFieldData(is_updatable=True))
-    take_profit_pct: float = Field(0.8, client_data=ClientFieldData(is_updatable=True))
-    filled_order_expiration_min: int = Field(90, client_data=ClientFieldData(is_updatable=True))
-
-    # TODO: dymanic SL, TP?
+    stop_loss_pct: float = Field(0.7, client_data=ClientFieldData(is_updatable=True))
+    take_profit_pct: float = Field(0.7, client_data=ClientFieldData(is_updatable=True))
+    filled_order_expiration_min: int = Field(10, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
     bbands_length_for_trend: int = Field(12, client_data=ClientFieldData(is_updatable=True))
     bbands_std_dev_for_trend: float = Field(2.0, client_data=ClientFieldData(is_updatable=True))
     bbands_length_for_volatility: int = Field(2, client_data=ClientFieldData(is_updatable=True))
     bbands_std_dev_for_volatility: float = Field(3.0, client_data=ClientFieldData(is_updatable=True))
-    high_volatility_threshold: float = Field(1.5, client_data=ClientFieldData(is_updatable=True))
+    high_volatility_threshold: float = Field(2.0, client_data=ClientFieldData(is_updatable=True))
 
     # Candles
     candles_connector: str = "okx_perpetual"
@@ -52,18 +50,6 @@ class MmBbandsConfig(ControllerConfigBase):
     # Maker orders settings
     default_spread_pct: float = Field(0.7, client_data=ClientFieldData(is_updatable=True))
     price_adjustment_volatility_threshold: float = Field(0.0, client_data=ClientFieldData(is_updatable=True))
-
-    @property
-    def triple_barrier_config(self) -> TripleBarrierConfig:
-        return TripleBarrierConfig(
-            stop_loss=self.stop_loss_pct / 100,
-            take_profit=self.take_profit_pct / 100,
-            time_limit=self.filled_order_expiration_min * 60,
-            open_order_type=OrderType.LIMIT,
-            take_profit_order_type=OrderType.LIMIT,
-            stop_loss_order_type=OrderType.MARKET,  # Only market orders are supported for time_limit and stop_loss
-            time_limit_order_type=OrderType.MARKET  # Only market orders are supported for time_limit and stop_loss
-        )
 
     def update_markets(self, markets: Dict[str, Set[str]]) -> Dict[str, Set[str]]:
         if self.connector_name not in markets:
@@ -128,13 +114,13 @@ class MmBbands(ControllerBase):
         unfilled_sell_executors, unfilled_buy_executors = self.get_unfilled_executors_by_side()
 
         if self.can_create_executor(unfilled_sell_executors, TradeType.SELL):
-            sell_price = self.adjust_sell_price(mid_price)
-            sell_executor_config = self.get_executor_config(TradeType.SELL, sell_price)
+            sell_price, adjustment = self.adjust_sell_price(mid_price)
+            sell_executor_config = self.get_executor_config(TradeType.SELL, sell_price, adjustment)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=sell_executor_config))
 
         if self.can_create_executor(unfilled_buy_executors, TradeType.BUY):
-            buy_price = self.adjust_buy_price(mid_price)
-            buy_executor_config = self.get_executor_config(TradeType.BUY, buy_price)
+            buy_price, adjustment = self.adjust_buy_price(mid_price)
+            buy_executor_config = self.get_executor_config(TradeType.BUY, buy_price, adjustment)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=buy_executor_config))
 
         return create_actions
@@ -257,7 +243,9 @@ class MmBbands(ControllerBase):
     def _get_best_ask_or_bid(self, price_type: PriceType) -> Decimal:
         return self.market_data_provider.get_price_by_type(self.config.connector_name, self.config.trading_pair, price_type)
 
-    def get_executor_config(self, side: TradeType, ref_price: Decimal) -> PositionExecutorConfig:
+    def get_executor_config(self, side: TradeType, ref_price: Decimal, adjustment: float) -> PositionExecutorConfig:
+        triple_barrier_config = self.get_triple_barrier_config(adjustment)
+
         return PositionExecutorConfig(
             timestamp=self.market_data_provider.time(),
             connector_name=self.config.connector_name,
@@ -265,11 +253,22 @@ class MmBbands(ControllerBase):
             side=side,
             entry_price=ref_price,
             amount=self.get_position_quote_amount() / ref_price,
-            triple_barrier_config=self.config.triple_barrier_config,
+            triple_barrier_config=triple_barrier_config,
             leverage=self.config.leverage
         )
 
-    def adjust_sell_price(self, mid_price: Decimal) -> Decimal:
+    def get_triple_barrier_config(self, adjustment: float) -> TripleBarrierConfig:
+        return TripleBarrierConfig(
+            stop_loss=self.config.stop_loss_pct / 100 * (1 + adjustment),
+            take_profit=self.config.take_profit_pct / 100 * (1 + adjustment),
+            time_limit=self.config.filled_order_expiration_min * 60,
+            open_order_type=OrderType.LIMIT,
+            take_profit_order_type=OrderType.LIMIT,
+            stop_loss_order_type=OrderType.MARKET,  # Only market orders are supported for time_limit and stop_loss
+            time_limit_order_type=OrderType.MARKET  # Only market orders are supported for time_limit and stop_loss
+        )
+
+    def adjust_sell_price(self, mid_price: Decimal) -> Tuple[Decimal, float]:
         default_adjustment = self.config.default_spread_pct / 100
 
         volatility_adjustment_pct: float = 0.0
@@ -306,9 +305,9 @@ class MmBbands(ControllerBase):
         self.logger().info(f"{self.config.trading_pair} Adjusting SELL price. def_adj:{default_adjustment}, volatility_adjustment_pct:{volatility_adjustment_pct}, trend_adjustment_pct:{trend_adjustment_pct}")
         self.logger().info(f"{self.config.trading_pair} Adjusting SELL price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
-        return ref_price
+        return ref_price, total_adjustment
 
-    def adjust_buy_price(self, mid_price: Decimal) -> Decimal:
+    def adjust_buy_price(self, mid_price: Decimal) -> Tuple[Decimal, float]:
         default_adjustment = self.config.default_spread_pct / 100
 
         volatility_adjustment_pct: float = 0.0
@@ -345,7 +344,7 @@ class MmBbands(ControllerBase):
         self.logger().info(f"{self.config.trading_pair} Adjusting BUY price. def_adj:{default_adjustment}, volatility_adjustment_pct:{volatility_adjustment_pct}, trend_adjustment_pct:{trend_adjustment_pct}")
         self.logger().info(f"{self.config.trading_pair} Adjusting BUY price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
-        return ref_price
+        return ref_price, total_adjustment
 
     #
     # Custom functions specific to this controller
