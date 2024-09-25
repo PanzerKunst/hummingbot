@@ -35,7 +35,7 @@ class MmBbandsConfig(ControllerConfigBase):
     filled_order_expiration_min: int = Field(10, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
-    bbands_length_for_trend: int = Field(12, client_data=ClientFieldData(is_updatable=True))
+    bbands_length_for_trend: int = Field(6, client_data=ClientFieldData(is_updatable=True))
     bbands_std_dev_for_trend: float = Field(2.0, client_data=ClientFieldData(is_updatable=True))
     bbands_length_for_volatility: int = Field(2, client_data=ClientFieldData(is_updatable=True))
     bbands_std_dev_for_volatility: float = Field(3.0, client_data=ClientFieldData(is_updatable=True))
