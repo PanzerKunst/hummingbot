@@ -44,7 +44,7 @@ class MmBbandsConfig(ControllerConfigBase):
     # Candles
     candles_connector: str = "okx_perpetual"
     candles_interval: str = "1m"
-    candles_length: int = 12
+    candles_length: int = 24
     candles_config: List[CandlesConfig] = []  # Initialized in the constructor
 
     # Maker orders settings
@@ -134,6 +134,16 @@ class MmBbands(ControllerBase):
             self.logger().info(f"##### {self.config.trading_pair} is_high_volatility -> Stopping unfilled executors #####")
 
         unfilled_sell_executors, unfilled_buy_executors = self.get_unfilled_executors_by_side()
+
+        # TODO: remove
+        self.logger().info("stop_actions_proposal > unfilled_sell_executors:")
+        for unfilled_sell_executor in unfilled_sell_executors:
+            self.logger().info(f"unfilled_sell_executor:{unfilled_sell_executor}")
+
+        # TODO: remove
+        self.logger().info("stop_actions_proposal > unfilled_buy_executors:")
+        for unfilled_buy_executor in unfilled_buy_executors:
+            self.logger().info(f"unfilled_buy_executor:{unfilled_buy_executor}")
 
         for unfilled_executor in unfilled_sell_executors + unfilled_buy_executors:
             has_expired = has_order_expired(unfilled_executor, self.config.unfilled_order_expiration_min * 60, self.market_data_provider.time())
