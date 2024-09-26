@@ -30,16 +30,16 @@ class MmBbandsConfig(ControllerConfigBase):
     unfilled_order_expiration_min: int = Field(10, client_data=ClientFieldData(is_updatable=True))
 
     # Triple Barrier
-    stop_loss_pct: float = Field(0.7, client_data=ClientFieldData(is_updatable=True))
-    take_profit_pct: float = Field(0.7, client_data=ClientFieldData(is_updatable=True))
+    stop_loss_pct: Decimal = Field(0.7, client_data=ClientFieldData(is_updatable=True))
+    take_profit_pct: Decimal = Field(0.7, client_data=ClientFieldData(is_updatable=True))
     filled_order_expiration_min: int = Field(10, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
     bbands_length_for_trend: int = Field(6, client_data=ClientFieldData(is_updatable=True))
-    bbands_std_dev_for_trend: float = Field(2.0, client_data=ClientFieldData(is_updatable=True))
+    bbands_std_dev_for_trend: Decimal = Field(2.0, client_data=ClientFieldData(is_updatable=True))
     bbands_length_for_volatility: int = Field(2, client_data=ClientFieldData(is_updatable=True))
-    bbands_std_dev_for_volatility: float = Field(3.0, client_data=ClientFieldData(is_updatable=True))
-    high_volatility_threshold: float = Field(2.0, client_data=ClientFieldData(is_updatable=True))
+    bbands_std_dev_for_volatility: Decimal = Field(3.0, client_data=ClientFieldData(is_updatable=True))
+    high_volatility_threshold: Decimal = Field(2.0, client_data=ClientFieldData(is_updatable=True))
 
     # Candles
     candles_connector: str = "okx_perpetual"
@@ -48,8 +48,8 @@ class MmBbandsConfig(ControllerConfigBase):
     candles_config: List[CandlesConfig] = []  # Initialized in the constructor
 
     # Maker orders settings
-    default_spread_pct: float = Field(0.7, client_data=ClientFieldData(is_updatable=True))
-    price_adjustment_volatility_threshold: float = Field(0.0, client_data=ClientFieldData(is_updatable=True))
+    default_spread_pct: Decimal = Field(0.7, client_data=ClientFieldData(is_updatable=True))
+    price_adjustment_volatility_threshold: Decimal = Field(0.0, client_data=ClientFieldData(is_updatable=True))
 
     def update_markets(self, markets: Dict[str, Set[str]]) -> Dict[str, Set[str]]:
         if self.connector_name not in markets:
@@ -168,10 +168,10 @@ class MmBbands(ControllerBase):
         last_terminated_timestamp: float = self.last_terminated_sell_executor_timestamp if side == TradeType.SELL else self.last_terminated_buy_executor_timestamp
 
         # TODO: remove
-        self.logger().info(f"{self.config.trading_pair} {side} timestamp_to_iso:{timestamp_to_iso(last_terminated_timestamp)}, current:{timestamp_to_iso(self.market_data_provider.time())}")
+        self.logger().info(f"{side} timestamp_to_iso:{timestamp_to_iso(last_terminated_timestamp)}, current:{timestamp_to_iso(self.market_data_provider.time())}")
 
         if last_terminated_timestamp + self.config.cooldown_time_min * 60 > self.market_data_provider.time():
-            self.logger().info(f"{self.config.trading_pair} cooldown not passed yet")
+            self.logger().info("Cooldown not passed yet")
             return False
 
         return True
@@ -243,7 +243,7 @@ class MmBbands(ControllerBase):
     def _get_best_ask_or_bid(self, price_type: PriceType) -> Decimal:
         return self.market_data_provider.get_price_by_type(self.config.connector_name, self.config.trading_pair, price_type)
 
-    def get_executor_config(self, side: TradeType, ref_price: Decimal, adjustment: float) -> PositionExecutorConfig:
+    def get_executor_config(self, side: TradeType, ref_price: Decimal, adjustment: Decimal) -> PositionExecutorConfig:
         triple_barrier_config = self.get_triple_barrier_config(adjustment)
 
         return PositionExecutorConfig(
@@ -257,7 +257,7 @@ class MmBbands(ControllerBase):
             leverage=self.config.leverage
         )
 
-    def get_triple_barrier_config(self, adjustment: float) -> TripleBarrierConfig:
+    def get_triple_barrier_config(self, adjustment: Decimal) -> TripleBarrierConfig:
         return TripleBarrierConfig(
             stop_loss=self.config.stop_loss_pct / 100 * (1 + adjustment),
             take_profit=self.config.take_profit_pct / 100 * (1 + adjustment),
@@ -268,81 +268,79 @@ class MmBbands(ControllerBase):
             time_limit_order_type=OrderType.MARKET  # Only market orders are supported for time_limit and stop_loss
         )
 
-    def adjust_sell_price(self, mid_price: Decimal) -> Tuple[Decimal, float]:
-        default_adjustment = self.config.default_spread_pct / 100
-
-        volatility_adjustment_pct: float = 0.0
+    def adjust_sell_price(self, mid_price: Decimal) -> Tuple[Decimal, Decimal]:
+        volatility_adjustment_pct: Decimal = Decimal(0)
 
         avg_last_three_bbb = self.get_avg_last_tree_bbb()
         if avg_last_three_bbb > self.config.price_adjustment_volatility_threshold:
             above_threshold = avg_last_three_bbb - self.config.price_adjustment_volatility_threshold
-            volatility_adjustment_pct += above_threshold * 0.5
+            volatility_adjustment_pct += above_threshold * Decimal(0.5)
 
-        trend_adjustment_pct: float = 0.0
+        trend_adjustment_pct: Decimal = Decimal(0)
 
         # If there is a trading SELL position with negative PnL, we add to the adjustment
         for trading_executor in self.get_trading_executors_on_side(TradeType.SELL):
             pnl_pct = trading_executor.net_pnl_pct * 100
             if pnl_pct < 0:
-                self.logger().info(f"{self.config.trading_pair} Adding SELL position while negative filled position of pnl_pct {trading_executor.net_pnl_pct}")
+                self.logger().info(f"Adding SELL position while negative filled position of pnl_pct {trading_executor.net_pnl_pct}")
                 trend_adjustment_pct += -pnl_pct * 2
 
         if self.has_sl_occurred_on_side(TradeType.SELL) and self.is_still_trending_up():
-            self.logger().info(f"{self.config.trading_pair} self.has_sl_occurred_on_sell_and_price_trending_up, increasing trend_adjustment_pct")
-            trend_adjustment_pct += 0.3
+            self.logger().info("self.has_sl_occurred_on_sell_and_price_trending_up, increasing trend_adjustment_pct")
+            trend_adjustment_pct += self.config.default_spread_pct * Decimal(0.5)
 
         # If we're adding a new position while having a filled one on the same side, we increase the adjustments
         if len(self.get_trading_executors_on_side(TradeType.SELL)) > 0:
-            self.logger().info(f"{self.config.trading_pair} Adding a position while having a filled one on the same side - increasing the adjustments")
-            volatility_adjustment_pct += self.config.default_spread_pct * 0.5
-            trend_adjustment_pct += self.config.default_spread_pct * 0.5
+            self.logger().info("Adding a position while having a filled one on the same side - increasing the adjustments")
+            volatility_adjustment_pct += self.config.default_spread_pct * Decimal(0.5)
+            trend_adjustment_pct += self.config.default_spread_pct * Decimal(0.5)
 
+        default_adjustment = self.config.default_spread_pct / 100
         total_adjustment = default_adjustment + volatility_adjustment_pct / 100 + trend_adjustment_pct / 100
 
         ref_price = mid_price * Decimal(1 + total_adjustment)
 
-        self.logger().info(f"{self.config.trading_pair} Adjusting SELL price. mid:{mid_price}, avg_last_three_bbb:{avg_last_three_bbb}")
-        self.logger().info(f"{self.config.trading_pair} Adjusting SELL price. def_adj:{default_adjustment}, volatility_adjustment_pct:{volatility_adjustment_pct}, trend_adjustment_pct:{trend_adjustment_pct}")
-        self.logger().info(f"{self.config.trading_pair} Adjusting SELL price. total_adj:{total_adjustment}, ref_price:{ref_price}")
+        self.logger().info(f"Adjusting SELL price. mid:{mid_price}, avg_last_three_bbb:{avg_last_three_bbb}")
+        self.logger().info(f"Adjusting SELL price. def_adj:{default_adjustment}, volatility_adjustment_pct:{volatility_adjustment_pct}, trend_adjustment_pct:{trend_adjustment_pct}")
+        self.logger().info(f"Adjusting SELL price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
         return ref_price, total_adjustment
 
-    def adjust_buy_price(self, mid_price: Decimal) -> Tuple[Decimal, float]:
-        default_adjustment = self.config.default_spread_pct / 100
-
-        volatility_adjustment_pct: float = 0.0
+    def adjust_buy_price(self, mid_price: Decimal) -> Tuple[Decimal, Decimal]:
+        volatility_adjustment_pct: Decimal = Decimal(0)
 
         avg_last_three_bbb = self.get_avg_last_tree_bbb()
         if avg_last_three_bbb > self.config.price_adjustment_volatility_threshold:
             above_threshold = avg_last_three_bbb - self.config.price_adjustment_volatility_threshold
-            volatility_adjustment_pct += above_threshold * 0.5
+            volatility_adjustment_pct += above_threshold * Decimal(0.5)
 
-        trend_adjustment_pct: float = 0.0
+        trend_adjustment_pct: Decimal = Decimal(0)
 
         # If there is a trading BUY position with negative PnL, we add to the adjustment
         for trading_executor in self.get_trading_executors_on_side(TradeType.BUY):
             pnl_pct = trading_executor.net_pnl_pct * 100
             if pnl_pct < 0:
-                self.logger().info(f"{self.config.trading_pair} Adding BUY position while negative filled position of pnl_pct {trading_executor.net_pnl_pct}")
+                self.logger().info(f"Adding BUY position while negative filled position of pnl_pct {trading_executor.net_pnl_pct}")
                 trend_adjustment_pct += -pnl_pct * 2
 
         if self.has_sl_occurred_on_side(TradeType.BUY) and self.is_still_trending_down():
-            self.logger().info(f"{self.config.trading_pair} self.has_sl_occurred_on_buy_and_price_trending_down, increasing trend_adjustment_pct")
-            trend_adjustment_pct += 0.3
+            self.logger().info("self.has_sl_occurred_on_buy_and_price_trending_down, increasing trend_adjustment_pct")
+            trend_adjustment_pct += self.config.default_spread_pct * Decimal(0.5)
 
         # If we're adding a new position while having a filled one on the same side, we increase the adjustments
         if len(self.get_trading_executors_on_side(TradeType.BUY)) > 0:
-            self.logger().info(f"{self.config.trading_pair} Adding a position while having a filled one on the same side - increasing the adjustments")
-            volatility_adjustment_pct += self.config.default_spread_pct * 0.5
-            trend_adjustment_pct += self.config.default_spread_pct * 0.5
+            self.logger().info("Adding a position while having a filled one on the same side - increasing the adjustments")
+            volatility_adjustment_pct += self.config.default_spread_pct * Decimal(0.5)
+            trend_adjustment_pct += self.config.default_spread_pct * Decimal(0.5)
 
+        default_adjustment = self.config.default_spread_pct / 100
         total_adjustment = default_adjustment + volatility_adjustment_pct / 100 + trend_adjustment_pct / 100
 
         ref_price = mid_price * Decimal(1 - total_adjustment)
 
-        self.logger().info(f"{self.config.trading_pair} Adjusting BUY price. mid:{mid_price}, avg_last_three_bbb:{avg_last_three_bbb}")
-        self.logger().info(f"{self.config.trading_pair} Adjusting BUY price. def_adj:{default_adjustment}, volatility_adjustment_pct:{volatility_adjustment_pct}, trend_adjustment_pct:{trend_adjustment_pct}")
-        self.logger().info(f"{self.config.trading_pair} Adjusting BUY price. total_adj:{total_adjustment}, ref_price:{ref_price}")
+        self.logger().info(f"Adjusting BUY price. mid:{mid_price}, avg_last_three_bbb:{avg_last_three_bbb}")
+        self.logger().info(f"Adjusting BUY price. def_adj:{default_adjustment}, volatility_adjustment_pct:{volatility_adjustment_pct}, trend_adjustment_pct:{trend_adjustment_pct}")
+        self.logger().info(f"Adjusting BUY price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
         return ref_price, total_adjustment
 
@@ -351,30 +349,30 @@ class MmBbands(ControllerBase):
     #
 
     @staticmethod
-    def get_normalized_bbp(bbp: float) -> float:
-        return bbp - 0.5
+    def get_normalized_bbp(bbp: float) -> Decimal:
+        return Decimal(bbp - 0.5)
 
-    def get_latest_normalized_bbp(self) -> float:
+    def get_latest_normalized_bbp(self) -> Decimal:
         bbp_series: pd.Series = self.processed_data["features"]["normalized_bbp"]
-        bbp_previous_full_minute = bbp_series.iloc[-2]
-        bbp_current_incomplete_minute = bbp_series.iloc[-1]
+        bbp_previous_full_minute = Decimal(bbp_series.iloc[-2])
+        bbp_current_incomplete_minute = Decimal(bbp_series.iloc[-1])
 
         return (
             max(bbp_previous_full_minute, bbp_current_incomplete_minute) if bbp_previous_full_minute > 0
             else min(bbp_previous_full_minute, bbp_current_incomplete_minute)
         )
 
-    def get_latest_bbb(self) -> float:
+    def get_latest_bbb(self) -> Decimal:
         bbb_series: pd.Series = self.processed_data["features"]["bbb_for_volatility"]
-        bbb_previous_full_minute = bbb_series.iloc[-2]
-        bbb_current_incomplete_minute = bbb_series.iloc[-1]
+        bbb_previous_full_minute = Decimal(bbb_series.iloc[-2])
+        bbb_current_incomplete_minute = Decimal(bbb_series.iloc[-1])
         return max(bbb_previous_full_minute, bbb_current_incomplete_minute)
 
-    def get_avg_last_tree_bbb(self) -> float:
+    def get_avg_last_tree_bbb(self) -> Decimal:
         bbb_series: pd.Series = self.processed_data["features"]["bbb_for_volatility"]
-        bbb_last_full_minute = bbb_series.iloc[-2]
-        bbb_before_that = bbb_series.iloc[-3]
-        bbb_even_before_that = bbb_series.iloc[-4]
+        bbb_last_full_minute = Decimal(bbb_series.iloc[-2])
+        bbb_before_that = Decimal(bbb_series.iloc[-3])
+        bbb_even_before_that = Decimal(bbb_series.iloc[-4])
         return (bbb_last_full_minute + bbb_before_that + bbb_even_before_that) / 3
 
     def is_high_volatility(self) -> bool:
