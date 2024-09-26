@@ -30,8 +30,8 @@ class MmBbandsConfig(ControllerConfigBase):
     unfilled_order_expiration_min: int = Field(7, client_data=ClientFieldData(is_updatable=True))
 
     # Triple Barrier
-    stop_loss_pct: Decimal = Field(0.5, client_data=ClientFieldData(is_updatable=True))
-    take_profit_pct: Decimal = Field(0.5, client_data=ClientFieldData(is_updatable=True))
+    stop_loss_pct: Decimal = Field(1.0, client_data=ClientFieldData(is_updatable=True))
+    take_profit_pct: Decimal = Field(1.0, client_data=ClientFieldData(is_updatable=True))
     filled_order_expiration_min: int = Field(10, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
@@ -245,9 +245,7 @@ class MmBbands(ControllerBase):
 
     def get_executor_config(self, side: TradeType, ref_price: Decimal, adjustment: Decimal) -> PositionExecutorConfig:
         triple_barrier_config = self.get_triple_barrier_config(adjustment)
-
-        # TODO: remove
-        self.logger().info(f"Returning an executor with stop loss:{triple_barrier_config.stop_loss} | take profit:{triple_barrier_config.take_profit}")
+        self.logger().info(f"Creating an executor with stop loss:{triple_barrier_config.stop_loss} | take profit:{triple_barrier_config.take_profit}")
 
         return PositionExecutorConfig(
             timestamp=self.market_data_provider.time(),
@@ -262,8 +260,8 @@ class MmBbands(ControllerBase):
 
     def get_triple_barrier_config(self, adjustment: Decimal) -> TripleBarrierConfig:
         return TripleBarrierConfig(
-            stop_loss=self.config.stop_loss_pct / 100 * (1 + adjustment * 2),
-            take_profit=self.config.take_profit_pct / 100 * (1 + adjustment * 2),
+            stop_loss=self.config.stop_loss_pct / 100 * (1 + adjustment * 4),
+            take_profit=self.config.take_profit_pct / 100 * (1 + adjustment * 4),
             time_limit=self.config.filled_order_expiration_min * 60,
             open_order_type=OrderType.LIMIT,
             take_profit_order_type=OrderType.LIMIT,

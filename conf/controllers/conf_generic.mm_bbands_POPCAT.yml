@@ -10,8 +10,8 @@ leverage: 20
 position_mode: HEDGE
 cooldown_time_min: 1
 unfilled_order_expiration_min: 7
-stop_loss_pct: 0.5
-take_profit_pct: 0.5
+stop_loss_pct: 1.0
+take_profit_pct: 1.0
 filled_order_expiration_min: 10
 bbands_length_for_trend: 6
 bbands_std_dev_for_trend: 2.0
