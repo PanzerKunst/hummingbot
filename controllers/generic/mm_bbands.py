@@ -104,6 +104,17 @@ class MmBbands(ControllerBase):
         actions = []
         actions.extend(self.create_actions_proposal())
         actions.extend(self.stop_actions_proposal())
+
+        # TODO: remove
+        trading_sell_executors = self.get_trading_executors_on_side(TradeType.SELL)
+        self.logger().info("trading_sell_executors:")
+        for trading_sell_executor in trading_sell_executors:
+            self.logger().info(f"trading_sell_executor:{trading_sell_executor}")
+        trading_buy_executors = self.get_trading_executors_on_side(TradeType.SELL)
+        self.logger().info("trading_buy_executors:")
+        for trading_buy_executor in trading_buy_executors:
+            self.logger().info(f"trading_buy_executor:{trading_buy_executor}")
+
         return actions
 
     def create_actions_proposal(self) -> List[ExecutorAction]:
