@@ -172,7 +172,7 @@ class MmBbands(ControllerBase):
     #
 
     def can_create_executor(self, unfilled_executors: List[ExecutorInfo], side: TradeType) -> bool:
-        if self.get_position_quote_amount(side) == 0 or len(unfilled_executors) > 0:
+        if self.get_position_quote_amount(side) == 0 or self.is_high_volatility() or len(unfilled_executors) > 0:
             return False
 
         last_terminated_timestamp: float = self.last_terminated_sell_executor_timestamp if side == TradeType.SELL else self.last_terminated_buy_executor_timestamp
