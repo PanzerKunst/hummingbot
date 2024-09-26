@@ -39,7 +39,7 @@ class MmBbandsConfig(ControllerConfigBase):
     bbands_std_dev_for_trend: Decimal = Field(2.0, client_data=ClientFieldData(is_updatable=True))
     bbands_length_for_volatility: int = Field(2, client_data=ClientFieldData(is_updatable=True))
     bbands_std_dev_for_volatility: Decimal = Field(3.0, client_data=ClientFieldData(is_updatable=True))
-    high_volatility_threshold: Decimal = Field(2.0, client_data=ClientFieldData(is_updatable=True))
+    high_volatility_threshold: Decimal = Field(1.5, client_data=ClientFieldData(is_updatable=True))
 
     # Candles
     candles_connector: str = "okx_perpetual"
@@ -162,7 +162,7 @@ class MmBbands(ControllerBase):
     #
 
     def can_create_executor(self, unfilled_executors: List[ExecutorInfo], side: TradeType) -> bool:
-        if self.get_position_quote_amount(side) == 0 or self.is_high_volatility() or len(unfilled_executors) > 0:
+        if self.get_position_quote_amount(side) == 0 or len(unfilled_executors) > 0:
             return False
 
         last_terminated_timestamp: float = self.last_terminated_sell_executor_timestamp if side == TradeType.SELL else self.last_terminated_buy_executor_timestamp

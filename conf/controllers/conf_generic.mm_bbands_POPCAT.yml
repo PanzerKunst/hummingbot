@@ -17,7 +17,7 @@ bbands_length_for_trend: 6
 bbands_std_dev_for_trend: 2.0
 bbands_length_for_volatility: 2
 bbands_std_dev_for_volatility: 3.0
-high_volatility_threshold: 2.0
+high_volatility_threshold: 1.5
 candles_connector: okx_perpetual
 candles_interval: 1m
 candles_length: 12
