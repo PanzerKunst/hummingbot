@@ -39,7 +39,7 @@ class MmBbandsConfig(ControllerConfigBase):
     bbands_std_dev_for_trend: Decimal = Field(2.0, client_data=ClientFieldData(is_updatable=True))
     bbands_length_for_volatility: int = Field(2, client_data=ClientFieldData(is_updatable=True))
     bbands_std_dev_for_volatility: Decimal = Field(3.0, client_data=ClientFieldData(is_updatable=True))
-    high_volatility_threshold: Decimal = Field(1.5, client_data=ClientFieldData(is_updatable=True))
+    high_volatility_threshold: Decimal = Field(5.0, client_data=ClientFieldData(is_updatable=True))
 
     # Candles
     candles_connector: str = "okx_perpetual"
