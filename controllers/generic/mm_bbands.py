@@ -27,11 +27,11 @@ class MmBbandsConfig(ControllerConfigBase):
     position_mode: PositionMode = PositionMode.HEDGE
     total_amount_quote: int = Field(5, client_data=ClientFieldData(is_updatable=True))
     cooldown_time_min: int = Field(0, client_data=ClientFieldData(is_updatable=True))
-    unfilled_order_expiration_min: int = Field(10, client_data=ClientFieldData(is_updatable=True))
+    unfilled_order_expiration_min: int = Field(7, client_data=ClientFieldData(is_updatable=True))
 
     # Triple Barrier
-    stop_loss_pct: Decimal = Field(0.7, client_data=ClientFieldData(is_updatable=True))
-    take_profit_pct: Decimal = Field(0.7, client_data=ClientFieldData(is_updatable=True))
+    stop_loss_pct: Decimal = Field(0.5, client_data=ClientFieldData(is_updatable=True))
+    take_profit_pct: Decimal = Field(0.5, client_data=ClientFieldData(is_updatable=True))
     filled_order_expiration_min: int = Field(10, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
@@ -44,11 +44,11 @@ class MmBbandsConfig(ControllerConfigBase):
     # Candles
     candles_connector: str = "okx_perpetual"
     candles_interval: str = "1m"
-    candles_length: int = 24
+    candles_length: int = 12
     candles_config: List[CandlesConfig] = []  # Initialized in the constructor
 
     # Maker orders settings
-    default_spread_pct: Decimal = Field(0.7, client_data=ClientFieldData(is_updatable=True))
+    default_spread_pct: Decimal = Field(0.5, client_data=ClientFieldData(is_updatable=True))
     price_adjustment_volatility_threshold: Decimal = Field(0.0, client_data=ClientFieldData(is_updatable=True))
 
     def update_markets(self, markets: Dict[str, Set[str]]) -> Dict[str, Set[str]]:
@@ -259,8 +259,8 @@ class MmBbands(ControllerBase):
 
     def get_triple_barrier_config(self, adjustment: Decimal) -> TripleBarrierConfig:
         return TripleBarrierConfig(
-            stop_loss=self.config.stop_loss_pct / 100 * (1 + adjustment),
-            take_profit=self.config.take_profit_pct / 100 * (1 + adjustment),
+            stop_loss=self.config.stop_loss_pct / 100 * (1 + adjustment * 2),
+            take_profit=self.config.take_profit_pct / 100 * (1 + adjustment * 2),
             time_limit=self.config.filled_order_expiration_min * 60,
             open_order_type=OrderType.LIMIT,
             take_profit_order_type=OrderType.LIMIT,
