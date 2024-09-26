@@ -26,7 +26,7 @@ class MmBbandsConfig(ControllerConfigBase):
     leverage: int = 20
     position_mode: PositionMode = PositionMode.HEDGE
     total_amount_quote: int = Field(5, client_data=ClientFieldData(is_updatable=True))
-    cooldown_time_min: int = Field(0, client_data=ClientFieldData(is_updatable=True))
+    cooldown_time_min: int = Field(1, client_data=ClientFieldData(is_updatable=True))
     unfilled_order_expiration_min: int = Field(7, client_data=ClientFieldData(is_updatable=True))
 
     # Triple Barrier
@@ -245,6 +245,9 @@ class MmBbands(ControllerBase):
 
     def get_executor_config(self, side: TradeType, ref_price: Decimal, adjustment: Decimal) -> PositionExecutorConfig:
         triple_barrier_config = self.get_triple_barrier_config(adjustment)
+
+        # TODO: remove
+        self.logger().info(f"Returning an executor with stop loss:{triple_barrier_config.stop_loss} | take profit:{triple_barrier_config.take_profit}")
 
         return PositionExecutorConfig(
             timestamp=self.market_data_provider.time(),
