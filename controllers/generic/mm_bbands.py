@@ -22,16 +22,16 @@ class MmBbandsConfig(ControllerConfigBase):
     controller_name: str = "mm_bbands"
     connector_name: str = "okx_perpetual"  # Do not rename attribute - used by BacktestingEngineBase
     trading_pair: str = "POPCAT-USDT"  # Do not rename attribute - used by BacktestingEngineBase
+    total_amount_quote: int = Field(5, client_data=ClientFieldData(is_updatable=True))
 
     leverage: int = 20
     position_mode: PositionMode = PositionMode.HEDGE
-    total_amount_quote: int = Field(5, client_data=ClientFieldData(is_updatable=True))
     cooldown_time_min: int = Field(1, client_data=ClientFieldData(is_updatable=True))
     unfilled_order_expiration_min: int = Field(7, client_data=ClientFieldData(is_updatable=True))
 
     # Triple Barrier
-    stop_loss_pct: Decimal = Field(1.0, client_data=ClientFieldData(is_updatable=True))
-    take_profit_pct: Decimal = Field(1.0, client_data=ClientFieldData(is_updatable=True))
+    stop_loss_pct: Decimal = Field(0.7, client_data=ClientFieldData(is_updatable=True))
+    take_profit_pct: Decimal = Field(0.7, client_data=ClientFieldData(is_updatable=True))
     filled_order_expiration_min: int = Field(10, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
@@ -114,13 +114,13 @@ class MmBbands(ControllerBase):
         unfilled_sell_executors, unfilled_buy_executors = self.get_unfilled_executors_by_side()
 
         if self.can_create_executor(unfilled_sell_executors, TradeType.SELL):
-            sell_price, adjustment = self.adjust_sell_price(mid_price)
-            sell_executor_config = self.get_executor_config(TradeType.SELL, sell_price, adjustment)
+            sell_price, volatility_adjustment_pct = self.adjust_sell_price(mid_price)
+            sell_executor_config = self.get_executor_config(TradeType.SELL, sell_price, volatility_adjustment_pct)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=sell_executor_config))
 
         if self.can_create_executor(unfilled_buy_executors, TradeType.BUY):
-            buy_price, adjustment = self.adjust_buy_price(mid_price)
-            buy_executor_config = self.get_executor_config(TradeType.BUY, buy_price, adjustment)
+            buy_price, volatility_adjustment_pct = self.adjust_buy_price(mid_price)
+            buy_executor_config = self.get_executor_config(TradeType.BUY, buy_price, volatility_adjustment_pct)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=buy_executor_config))
 
         return create_actions
@@ -162,7 +162,7 @@ class MmBbands(ControllerBase):
     #
 
     def can_create_executor(self, unfilled_executors: List[ExecutorInfo], side: TradeType) -> bool:
-        if self.get_position_quote_amount() == 0 or self.is_high_volatility() or len(unfilled_executors) > 0:
+        if self.get_position_quote_amount(side) == 0 or self.is_high_volatility() or len(unfilled_executors) > 0:
             return False
 
         last_terminated_timestamp: float = self.last_terminated_sell_executor_timestamp if side == TradeType.SELL else self.last_terminated_buy_executor_timestamp
@@ -230,9 +230,14 @@ class MmBbands(ControllerBase):
     def get_mid_price(self):
         return self.market_data_provider.get_price_by_type(self.config.connector_name, self.config.trading_pair, PriceType.MidPrice)
 
-    def get_position_quote_amount(self) -> Decimal:
+    def get_position_quote_amount(self, side: TradeType) -> Decimal:
+        amount_quote = Decimal(self.config.total_amount_quote)
+
+        if side == TradeType.SELL:
+            amount_quote = amount_quote * Decimal(0.67)  # Less, because closing a Short position on SL costs significantly more
+
         # If balance = 100 USDT with leverage 20x, the quote position should be 500
-        return Decimal(self.config.total_amount_quote * self.config.leverage / 4)
+        return amount_quote * self.config.leverage / 4
 
     def get_best_ask(self) -> Decimal:
         return self._get_best_ask_or_bid(PriceType.BestAsk)
@@ -243,8 +248,8 @@ class MmBbands(ControllerBase):
     def _get_best_ask_or_bid(self, price_type: PriceType) -> Decimal:
         return self.market_data_provider.get_price_by_type(self.config.connector_name, self.config.trading_pair, price_type)
 
-    def get_executor_config(self, side: TradeType, ref_price: Decimal, adjustment: Decimal) -> PositionExecutorConfig:
-        triple_barrier_config = self.get_triple_barrier_config(adjustment)
+    def get_executor_config(self, side: TradeType, ref_price: Decimal, volatility_adjustment_pct: Decimal) -> PositionExecutorConfig:
+        triple_barrier_config = self.get_triple_barrier_config(volatility_adjustment_pct / 100, side)
         self.logger().info(f"Creating an executor with stop loss:{triple_barrier_config.stop_loss} | take profit:{triple_barrier_config.take_profit}")
 
         return PositionExecutorConfig(
@@ -253,15 +258,17 @@ class MmBbands(ControllerBase):
             trading_pair=self.config.trading_pair,
             side=side,
             entry_price=ref_price,
-            amount=self.get_position_quote_amount() / ref_price,
+            amount=self.get_position_quote_amount(side) / ref_price,
             triple_barrier_config=triple_barrier_config,
             leverage=self.config.leverage
         )
 
-    def get_triple_barrier_config(self, adjustment: Decimal) -> TripleBarrierConfig:
+    def get_triple_barrier_config(self, volatility_adjustment: Decimal, side: TradeType) -> TripleBarrierConfig:
+        take_profit_pct: Decimal = self.config.take_profit_pct if side == TradeType.BUY else self.config.take_profit_pct * Decimal(1.33)
+
         return TripleBarrierConfig(
-            stop_loss=self.config.stop_loss_pct / 100 * (1 + adjustment * 4),
-            take_profit=self.config.take_profit_pct / 100 * (1 + adjustment * 4),
+            stop_loss=self.config.stop_loss_pct / 100 * (1 + volatility_adjustment * 4),
+            take_profit=take_profit_pct / 100 * (1 + volatility_adjustment * 4),
             time_limit=self.config.filled_order_expiration_min * 60,
             open_order_type=OrderType.LIMIT,
             take_profit_order_type=OrderType.LIMIT,
@@ -305,7 +312,7 @@ class MmBbands(ControllerBase):
         self.logger().info(f"Adjusting SELL price. def_adj:{default_adjustment}, volatility_adjustment_pct:{volatility_adjustment_pct}, trend_adjustment_pct:{trend_adjustment_pct}")
         self.logger().info(f"Adjusting SELL price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
-        return ref_price, total_adjustment
+        return ref_price, volatility_adjustment_pct
 
     def adjust_buy_price(self, mid_price: Decimal) -> Tuple[Decimal, Decimal]:
         volatility_adjustment_pct: Decimal = Decimal(0)
@@ -343,7 +350,7 @@ class MmBbands(ControllerBase):
         self.logger().info(f"Adjusting BUY price. def_adj:{default_adjustment}, volatility_adjustment_pct:{volatility_adjustment_pct}, trend_adjustment_pct:{trend_adjustment_pct}")
         self.logger().info(f"Adjusting BUY price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
-        return ref_price, total_adjustment
+        return ref_price, volatility_adjustment_pct
 
     #
     # Custom functions specific to this controller
