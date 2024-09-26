@@ -110,7 +110,7 @@ class MmBbands(ControllerBase):
         self.logger().info("trading_sell_executors:")
         for trading_sell_executor in trading_sell_executors:
             self.logger().info(f"trading_sell_executor:{trading_sell_executor}")
-        trading_buy_executors = self.get_trading_executors_on_side(TradeType.SELL)
+        trading_buy_executors = self.get_trading_executors_on_side(TradeType.BUY)
         self.logger().info("trading_buy_executors:")
         for trading_buy_executor in trading_buy_executors:
             self.logger().info(f"trading_buy_executor:{trading_buy_executor}")
