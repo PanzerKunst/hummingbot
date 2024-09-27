@@ -119,6 +119,7 @@ class Merlin(StrategyV2Base):
 
                 # TODO: remove
                 self.logger().info(f"{delta_bps:.2f} > self.config.min_ask_bid_price_delta_to_open_bps")
+                self.logger().info(f"{best_ask_connector_name}, {best_ask_price}, {best_bid_connector_name}, {best_bid_price}")
                 self.logger().info(f"len(all_active_executors):{len(all_active_executors)}")
 
                 if self.can_create_executor(all_active_executors):
@@ -146,16 +147,10 @@ class Merlin(StrategyV2Base):
             active_sell_executors, active_buy_executors = self.get_active_executors_by_side(connector_name)
 
             if len(active_sell_executors) > 0:
-                # TODO: remove
-                self.logger().info(f"len(active_sell_executors) > 0: {len(active_sell_executors)}")
-
                 active_sell_executor = active_sell_executors[0]
                 connector_name_where_shorting = connector_name
 
             if len(active_buy_executors) > 0:
-                # TODO: remove
-                self.logger().info(f"len(active_buy_executors) > 0: {len(active_buy_executors)}")
-
                 active_buy_executor = active_buy_executors[0]
                 connector_name_where_longing = connector_name
 
