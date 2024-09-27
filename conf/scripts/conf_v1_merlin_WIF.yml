@@ -2,7 +2,7 @@ markets: {}
 candles_config: []
 controllers_config: []
 config_update_interval: 10
-script_file_name: v2_merlin.py
+script_file_name: v1_merlin.py
 connectors_and_pairs:
   gate_io_perpetual:
   - WIF-USDT
