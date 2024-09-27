@@ -14,7 +14,6 @@ from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base, StrategyV2ConfigBase
 from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig, TripleBarrierConfig
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
-from hummingbot.strategy_v2.models.executors import CloseType
 from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
 
 
@@ -78,6 +77,11 @@ class Merlin(StrategyV2Base):
         super().__init__(connectors, config)
         self.config = config
 
+        self.last_terminated_executor_timestamp: float = 0.0
+
+        self.best_asks_and_bids: Dict[str, Tuple[Decimal, Decimal]] = {}
+        self.best_arbitrage = None
+
     def start(self, clock: Clock, timestamp: float) -> None:
         self._last_timestamp = timestamp
         self.apply_initial_setting()
@@ -90,16 +94,9 @@ class Merlin(StrategyV2Base):
                 for trading_pair in self.market_data_provider.get_trading_pairs(connector_name):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
-        self.last_terminated_sell_executors: Dict[str, Optional[Tuple[ExecutorInfo, float]]] = {}  # str: connector_name | float = timestamp
-        self.last_terminated_buy_executors: Dict[str, Optional[Tuple[ExecutorInfo, float]]] = {}
-
-        self.best_asks_and_bids: Dict[str, Tuple[Decimal, Decimal]] = {}
-        self.best_arbitrage = None
-
     def create_actions_proposal(self) -> List[CreateExecutorAction]:
         create_actions = []
 
-        self.check_trading_executors()
         self.update_best_asks_and_bids()
 
         # Loop through the connectors, and find where:
@@ -124,11 +121,11 @@ class Merlin(StrategyV2Base):
                 self.logger().info(f"{delta_bps:.2f} > self.config.min_ask_bid_price_delta_to_open_bps")
                 self.logger().info(f"len(all_active_executors):{len(all_active_executors)}")
 
-                if self.can_create_executor(all_active_executors, TradeType.SELL, best_bid_connector_name):
+                if self.can_create_executor(all_active_executors):
                     sell_executor_config = self.get_executor_config(best_bid_connector_name, TradeType.SELL, best_bid_price)
                     create_actions.append(CreateExecutorAction(executor_config=sell_executor_config))
 
-                if self.can_create_executor(all_active_executors, TradeType.BUY, best_ask_connector_name):
+                if self.can_create_executor(all_active_executors):
                     buy_executor_config = self.get_executor_config(best_ask_connector_name, TradeType.BUY, best_ask_price)
                     create_actions.append(CreateExecutorAction(executor_config=buy_executor_config))
 
@@ -193,6 +190,9 @@ class Merlin(StrategyV2Base):
                     StopExecutorAction(executor_id=active_buy_executor.id)
                 ])
 
+        if len(stop_actions) > 0:
+            self.last_terminated_executor_timestamp = self.market_data_provider.time()
+
         return stop_actions
 
     def format_status(self) -> str:
@@ -227,27 +227,11 @@ class Merlin(StrategyV2Base):
     # Custom functions potentially interesting for other controllers
     #
 
-    def can_create_executor(self, active_executors: List[ExecutorInfo], side: TradeType, connector_name: str) -> bool:
+    def can_create_executor(self, active_executors: List[ExecutorInfo]) -> bool:
         if self.get_position_quote_amount() == 0 or len(active_executors) > 0:
             return False
 
-        last_terminated_sell_executor_and_timestamp = self.last_terminated_sell_executors.get(connector_name)
-
-        last_terminated_sell_timestamp: float = (
-            0.0 if not last_terminated_sell_executor_and_timestamp
-            else last_terminated_sell_executor_and_timestamp[1]
-        )
-
-        last_terminated_buy_executor_and_timestamp = self.last_terminated_buy_executors.get(connector_name)
-
-        last_terminated_buy_timestamp: float = (
-            0.0 if not last_terminated_buy_executor_and_timestamp
-            else last_terminated_buy_executor_and_timestamp[1]
-        )
-
-        last_terminated_timestamp: float = last_terminated_sell_timestamp if side == TradeType.SELL else last_terminated_buy_timestamp
-
-        if last_terminated_timestamp + self.config.cooldown_time_min * 60 > self.market_data_provider.time():
+        if self.last_terminated_executor_timestamp + self.config.cooldown_time_min * 60 > self.market_data_provider.time():
             self.logger().info("Cooldown not passed yet")
             return False
 
@@ -330,87 +314,6 @@ class Merlin(StrategyV2Base):
 
         return all_sell_executors, all_buy_executors
 
-    def get_last_terminated_executor_by_side(self, connector_name: str) -> Tuple[Optional[ExecutorInfo], Optional[ExecutorInfo]]:
-        terminated_executors = self.filter_executors(
-            executors=self.get_all_executors(),
-            filter_func=lambda e: e.connector_name == connector_name and e.is_done
-        )
-
-        last_sell_executor: Optional[ExecutorInfo] = None
-        last_buy_executor: Optional[ExecutorInfo] = None
-
-        for executor in reversed(terminated_executors):
-            if not last_sell_executor and executor.side == TradeType.SELL:
-                last_sell_executor = executor
-            if not last_buy_executor and executor.side == TradeType.BUY:
-                last_buy_executor = executor
-
-            # If both are found, no need to continue the loop
-            if last_sell_executor and last_buy_executor:
-                break
-
-        return last_sell_executor, last_buy_executor
-
-    def check_trading_executors(self):
-        for connector_name, _ in self.config.connectors_and_pairs.items():
-            terminated_sell_executor, terminated_buy_executor = self.get_last_terminated_executor_by_side(connector_name)
-
-            if terminated_sell_executor:
-                self._check_terminated_sell_executor(terminated_sell_executor, connector_name)
-
-            if terminated_buy_executor:
-                self._check_terminated_buy_executor(terminated_buy_executor, connector_name)
-
-    def _check_terminated_sell_executor(self, last_terminated_executor: ExecutorInfo, connector_name: str):
-        previous_terminated_executor_and_timestamp = self.last_terminated_sell_executors.get(connector_name)
-
-        if previous_terminated_executor_and_timestamp:
-            previous_terminated_executor, _ = previous_terminated_executor_and_timestamp
-            if previous_terminated_executor.id == last_terminated_executor.id:
-                return
-
-        close_type = last_terminated_executor.close_type
-
-        if close_type not in (CloseType.TIME_LIMIT, CloseType.TAKE_PROFIT, CloseType.STOP_LOSS):
-            return
-
-        self.last_terminated_sell_executors[connector_name] = last_terminated_executor, self.market_data_provider.time()
-
-    def _check_terminated_buy_executor(self, last_terminated_executor: ExecutorInfo, connector_name: str):
-        previous_terminated_executor_and_timestamp = self.last_terminated_buy_executors.get(connector_name)
-
-        if previous_terminated_executor_and_timestamp:
-            previous_terminated_executor, _ = previous_terminated_executor_and_timestamp
-            if previous_terminated_executor.id == last_terminated_executor.id:
-                return
-
-        close_type = last_terminated_executor.close_type
-
-        if close_type not in (CloseType.TIME_LIMIT, CloseType.TAKE_PROFIT, CloseType.STOP_LOSS):
-            return
-
-        self.last_terminated_buy_executors[connector_name] = last_terminated_executor, self.market_data_provider.time()
-
-    def _is_last_sell_executor_sl(self, connector_name: str) -> bool:
-        last_terminated_executor_and_timestamp = self.last_terminated_sell_executors.get(connector_name)
-
-        if not last_terminated_executor_and_timestamp:
-            return False
-
-        executor, _ = last_terminated_executor_and_timestamp
-
-        return executor.close_type == CloseType.STOP_LOSS
-
-    def _is_last_buy_executor_sl(self, connector_name: str) -> bool:
-        last_terminated_executor_and_timestamp = self.last_terminated_buy_executors.get(connector_name)
-
-        if not last_terminated_executor_and_timestamp:
-            return False
-
-        executor, _ = last_terminated_executor_and_timestamp
-
-        return executor.close_type == CloseType.STOP_LOSS
-
     #
     # Custom functions specific to this controller
     #
@@ -450,4 +353,3 @@ class Merlin(StrategyV2Base):
     def get_mid_price_custom(self, connector_name: str) -> Decimal:
         best_ask, best_bid = self.best_asks_and_bids.get(connector_name)
         return (best_ask + best_bid) * Decimal(0.5)
-
