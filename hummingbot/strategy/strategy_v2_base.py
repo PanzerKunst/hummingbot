@@ -384,7 +384,7 @@ class StrategyV2Base(ScriptStrategyBase):
                 # In memory executors info
                 executors_df = self.executors_info_to_df(executors_list)
                 executors_df["age"] = self.current_timestamp - executors_df["timestamp"]
-                extra_info.extend([format_df_for_printout(executors_df[columns_to_show], table_format="psql")])
+                extra_info.extend([format_df_for_printout(executors_df[columns_to_show].head(5), table_format="psql")])
 
             # Generate performance report for each controller
             performance_report = self.executor_orchestrator.generate_performance_report(controller_id)
