@@ -265,15 +265,6 @@ class Merlin(StrategyV2Base):
         # TODO: remove
         self.logger().info(f"did_fill_order | self.tracked_orders: {self.tracked_orders}")
 
-    # Doesn't seem to get triggered
-    # def did_cancel_order(self, cancelled_event: OrderCancelledEvent):
-    #     for tracked_order in self.tracked_orders:
-    #         if tracked_order.order_id == cancelled_event.order_id:
-    #             tracked_order.cancelled_at = cancelled_event.timestamp
-    #             break
-    #
-    #     self.logger().info(f"did_cancel_order | self.tracked_orders: {self.tracked_orders}")
-
     # def get_mid_price(self, connector_name):
     #     trading_pair, _ = self.config.connectors_and_pairs.get(connector_name)
     #     return self.market_data_provider.get_price_by_type(connector_name, trading_pair, PriceType.MidPrice)
@@ -341,7 +332,8 @@ class Merlin(StrategyV2Base):
                 trading_pair=trading_pair,
                 side=TradeType.SELL,
                 order_id=order_id,
-                position=PositionAction.OPEN.value
+                position=PositionAction.OPEN.value,
+                amount=amount
             ))
 
         else:
@@ -352,7 +344,8 @@ class Merlin(StrategyV2Base):
                 trading_pair=trading_pair,
                 side=TradeType.BUY,
                 order_id=order_id,
-                position=PositionAction.OPEN.value
+                position=PositionAction.OPEN.value,
+                amount = amount
             ))
 
         # TODO: remove
@@ -361,12 +354,31 @@ class Merlin(StrategyV2Base):
     def cancel_tracked_order(self, tracked_order: TrackedOrderDetails):
         connector_name = tracked_order.connector_name
         trading_pair = tracked_order.trading_pair
-        order_id = tracked_order.order_id
+        amount = tracked_order.amount
 
         # TODO: remove
         self.logger().info(f"cancel_order | tracked_order: {tracked_order}")
 
-        self.cancel(connector_name, trading_pair, order_id)
+        # self.cancel(connector_name, trading_pair, order_id)  This only works for unfilled orders
+
+        if tracked_order.side == TradeType.SELL:
+            self.buy(
+                connector_name,
+                trading_pair,
+                amount,
+                OrderType.MARKET,
+                Decimal("NaN"),
+                PositionAction.CLOSE
+            )
+        else:
+            self.buy(
+                connector_name,
+                trading_pair,
+                amount,
+                OrderType.MARKET,
+                Decimal("NaN"),
+                PositionAction.CLOSE
+            )
 
         for order in self.tracked_orders:
             if order.order_id == tracked_order.order_id:

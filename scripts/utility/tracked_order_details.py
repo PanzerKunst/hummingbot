@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from decimal import Decimal
 from typing import Optional
 
 from hummingbot.core.data_type.common import TradeType
@@ -11,6 +12,7 @@ class TrackedOrderDetails:
     side: TradeType
     order_id: str
     position: str
+    amount: Decimal
     exchange_order_id: Optional[str] = None
     created_at: Optional[float] = None
     filled_at: Optional[float] = None
