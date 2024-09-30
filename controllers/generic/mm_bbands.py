@@ -32,7 +32,7 @@ class MmBbandsConfig(ControllerConfigBase):
     # Triple Barrier
     stop_loss_pct: Decimal = Field(0.7, client_data=ClientFieldData(is_updatable=True))
     take_profit_pct: Decimal = Field(0.7, client_data=ClientFieldData(is_updatable=True))
-    filled_order_expiration_min: int = Field(10, client_data=ClientFieldData(is_updatable=True))
+    filled_order_expiration_min: int = Field(1000, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
     bbands_length_for_trend: int = Field(6, client_data=ClientFieldData(is_updatable=True))

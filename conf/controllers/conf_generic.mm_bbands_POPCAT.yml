@@ -12,7 +12,7 @@ cooldown_time_min: 1
 unfilled_order_expiration_min: 7
 stop_loss_pct: 0.7
 take_profit_pct: 0.7
-filled_order_expiration_min: 10
+filled_order_expiration_min: 1000
 bbands_length_for_trend: 6
 bbands_std_dev_for_trend: 2.0
 bbands_length_for_volatility: 2
