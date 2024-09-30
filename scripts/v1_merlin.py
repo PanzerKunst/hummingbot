@@ -172,8 +172,8 @@ class Merlin(StrategyV2Base):
             self.logger().info(f"mid_price_delta_bps for closing: {mid_price_delta_bps:.2f}")
 
             if mid_price_delta_bps < self.config.max_mid_price_delta_to_close_bps:
-                self.cancel_order(active_sell_order)
-                self.cancel_order(active_buy_order)
+                self.cancel_tracked_order(active_sell_order)
+                self.cancel_tracked_order(active_buy_order)
 
                 # TODO: remove
                 self.logger().info(f"Canceled both orders | self.tracked_orders: {self.tracked_orders}")
@@ -364,7 +364,7 @@ class Merlin(StrategyV2Base):
         # TODO: remove
         self.logger().info(f"create_order | self.tracked_orders: {self.tracked_orders}")
 
-    def cancel_order(self, tracked_order: TrackedOrderDetails):
+    def cancel_tracked_order(self, tracked_order: TrackedOrderDetails):
         connector_name = tracked_order.connector_name
         trading_pair = tracked_order.trading_pair
         order_id = tracked_order.order_id
