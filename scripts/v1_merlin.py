@@ -28,10 +28,10 @@ class MerlinConfig(StrategyV2ConfigBase):
     connectors_and_pairs: Dict[str, Tuple[str, Decimal]] = {
         # connector_name: (trading_pair, price_adjustment_for_normalization)
         # "bitget_perpetual": "WIF-USDT",  Fails to connect
-        "gate_io_perpetual": ("WIF-USDT", Decimal(0.002)),
+        "gate_io_perpetual": ("WIF-USDT", Decimal(0)),
         # "hyperliquid_perpetual": ("WIF-USD", Decimal(-0.0025)),  Balance zero for now
-        "kucoin_perpetual": ("WIF-USDT", Decimal(0.0)),
-        "okx_perpetual": ("WIF-USDT", Decimal(0.0))
+        "kucoin_perpetual": ("WIF-USDT", Decimal(-0.001)),
+        "okx_perpetual": ("WIF-USDT", Decimal(0))
     }
 
     leverage: int = 20  # Max 5 on Hyperliquid
@@ -42,10 +42,10 @@ class MerlinConfig(StrategyV2ConfigBase):
     # Triple Barrier
     stop_loss_pct: float = Field(0.5, client_data=ClientFieldData(is_updatable=True))
     take_profit_pct: float = Field(10.0, client_data=ClientFieldData(is_updatable=True))
-    filled_order_expiration_min: int = Field(1, client_data=ClientFieldData(is_updatable=True))
+    filled_order_expiration_min: int = Field(1000, client_data=ClientFieldData(is_updatable=True))
 
     # Trading algo
-    min_ask_bid_price_delta_to_open_bps: int = Field(12, client_data=ClientFieldData(is_updatable=True))  # 0.2% TODO: 20
+    min_ask_bid_price_delta_to_open_bps: int = Field(5, client_data=ClientFieldData(is_updatable=True))  # 0.2% TODO: 20
     max_mid_price_delta_to_close_bps: int = Field(2, client_data=ClientFieldData(is_updatable=True))  # 0.02%
 
     @property
@@ -175,6 +175,9 @@ class Merlin(StrategyV2Base):
                 self.cancel_order(active_sell_order)
                 self.cancel_order(active_buy_order)
 
+                # TODO: remove
+                self.logger().info(f"Canceled both orders | self.tracked_orders: {self.tracked_orders}")
+
         return []
 
     def format_status(self) -> str:
@@ -277,9 +280,9 @@ class Merlin(StrategyV2Base):
         # TODO: remove
         self.logger().info(f"did_cancel_order | self.tracked_orders: {self.tracked_orders}")
 
-    def get_mid_price(self, connector_name):
-        trading_pair, _ = self.config.connectors_and_pairs.get(connector_name)
-        return self.market_data_provider.get_price_by_type(connector_name, trading_pair, PriceType.MidPrice)
+    # def get_mid_price(self, connector_name):
+    #     trading_pair, _ = self.config.connectors_and_pairs.get(connector_name)
+    #     return self.market_data_provider.get_price_by_type(connector_name, trading_pair, PriceType.MidPrice)
 
     def get_position_quote_amount(self) -> Decimal:
         # If balance = 100 USDT with leverage 20x, the quote position should be 500
@@ -365,6 +368,9 @@ class Merlin(StrategyV2Base):
         connector_name = tracked_order.connector_name
         trading_pair = tracked_order.trading_pair
         order_id = tracked_order.order_id
+
+        # TODO: remove
+        self.logger().info(f"cancel_order | tracked_order: {tracked_order}")
 
         self.cancel(connector_name, trading_pair, order_id)
 
