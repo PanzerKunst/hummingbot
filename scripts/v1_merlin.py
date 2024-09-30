@@ -78,6 +78,9 @@ class Merlin(StrategyV2Base):
         super().__init__(connectors, config)
         self.config = config
 
+        self.is_a_sell_order_being_created = False
+        self.is_a_buy_order_being_created = False
+
         self.tracked_orders: List[TrackedOrderDetails] = []
 
         self.best_asks_and_bids: Dict[str, Tuple[Decimal, Decimal]] = {}
@@ -121,11 +124,11 @@ class Merlin(StrategyV2Base):
                 self.logger().info(f"{best_ask_connector_name}, {best_ask_price}, {best_bid_connector_name}, {best_bid_price}")
                 self.logger().info(f"len(active_orders):{len(active_orders)}")
 
-                if self.can_create_order(active_sell_orders):
+                if self.can_create_order(active_sell_orders, TradeType.SELL):
                     sell_executor_config = self.get_executor_config(best_bid_connector_name, TradeType.SELL, best_bid_price)
                     self.create_order(sell_executor_config)
 
-                if self.can_create_order(active_buy_orders):
+                if self.can_create_order(active_buy_orders, TradeType.BUY):
                     buy_executor_config = self.get_executor_config(best_ask_connector_name, TradeType.BUY, best_ask_price)
                     self.create_order(buy_executor_config)
 
@@ -143,7 +146,8 @@ class Merlin(StrategyV2Base):
             self.logger().error(f"ERROR: len(active_sell_orders) > 0 and len(active_buy_orders) == 0 | active_sell_order.filled_at: {active_sell_order.filled_at}")
 
             if active_sell_order.filled_at:
-                self.close_tracked_order(active_sell_order)
+                mid_price_where_shorting = self.get_mid_price_custom(active_sell_order.connector_name)
+                self.close_tracked_order(active_sell_order, mid_price_where_shorting)
 
         if len(active_buy_orders) > 0 and len(active_sell_orders) == 0:
             active_buy_order = active_buy_orders[0]
@@ -152,7 +156,8 @@ class Merlin(StrategyV2Base):
             self.logger().error(f"ERROR: len(active_buy_orders) > 0 and len(active_sell_orders) == 0 | active_buy_order.filled_at: {active_buy_order.filled_at}")
 
             if active_buy_order.filled_at:
-                self.close_tracked_order(active_buy_order)
+                mid_price_where_longing = self.get_mid_price_custom(active_buy_order.connector_name)
+                self.close_tracked_order(active_buy_order, mid_price_where_longing)
 
         if len(active_sell_orders) > 0 and len(active_buy_orders) > 0:
             active_sell_order = active_sell_orders[0]
@@ -206,8 +211,16 @@ class Merlin(StrategyV2Base):
     # Custom functions potentially interesting for other controllers
     #
 
-    def can_create_order(self, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
+    def can_create_order(self, active_tracked_orders: List[TrackedOrderDetails], side: TradeType) -> bool:
         if self.get_position_quote_amount() == 0 or len(active_tracked_orders) > 0:
+            return False
+
+        if side == TradeType.SELL and self.is_a_sell_order_being_created:
+            self.logger().info(f"Another SELL order is being created, avoiding a duplicate")
+            return False
+
+        if side == TradeType.BUY and self.is_a_buy_order_being_created:
+            self.logger().info(f"Another BUY order is being created, avoiding a duplicate")
             return False
 
         last_canceled_order = self.find_last_cancelled_tracked_order()
@@ -325,6 +338,8 @@ class Merlin(StrategyV2Base):
         entry_price = executor_config.entry_price
 
         if executor_config.side == TradeType.SELL:
+            self.is_a_sell_order_being_created = True
+
             order_id = self.sell(connector_name, trading_pair, amount, OrderType.MARKET, entry_price)
 
             self.tracked_orders.append(TrackedOrderDetails(
@@ -336,7 +351,11 @@ class Merlin(StrategyV2Base):
                 amount=amount
             ))
 
+            self.is_a_sell_order_being_created = False
+
         else:
+            self.is_a_buy_order_being_created = True
+
             order_id = self.buy(connector_name, trading_pair, amount, OrderType.MARKET, entry_price)
 
             self.tracked_orders.append(TrackedOrderDetails(
@@ -347,6 +366,8 @@ class Merlin(StrategyV2Base):
                 position=PositionAction.OPEN.value,
                 amount = amount
             ))
+
+            self.is_a_buy_order_being_created = False
 
         # TODO: remove
         self.logger().info(f"create_order | self.tracked_orders: {self.tracked_orders}")
