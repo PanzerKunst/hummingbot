@@ -143,7 +143,7 @@ class Merlin(StrategyV2Base):
             self.logger().error(f"ERROR: len(active_sell_orders) > 0 and len(active_buy_orders) == 0 | active_sell_order.filled_at: {active_sell_order.filled_at}")
 
             if active_sell_order.filled_at:
-                self.cancel_tracked_order(active_sell_order)
+                self.close_tracked_order(active_sell_order)
 
         if len(active_buy_orders) > 0 and len(active_sell_orders) == 0:
             active_buy_order = active_buy_orders[0]
@@ -152,7 +152,7 @@ class Merlin(StrategyV2Base):
             self.logger().error(f"ERROR: len(active_buy_orders) > 0 and len(active_sell_orders) == 0 | active_buy_order.filled_at: {active_buy_order.filled_at}")
 
             if active_buy_order.filled_at:
-                self.cancel_tracked_order(active_buy_order)
+                self.close_tracked_order(active_buy_order)
 
         if len(active_sell_orders) > 0 and len(active_buy_orders) > 0:
             active_sell_order = active_sell_orders[0]
@@ -166,8 +166,8 @@ class Merlin(StrategyV2Base):
             self.logger().info(f"mid_price_delta_bps for closing: {mid_price_delta_bps:.2f}")
 
             if mid_price_delta_bps < self.config.max_mid_price_delta_to_close_bps:
-                self.cancel_tracked_order(active_sell_order)
-                self.cancel_tracked_order(active_buy_order)
+                self.close_tracked_order(active_sell_order, mid_price_where_shorting)
+                self.close_tracked_order(active_buy_order, mid_price_where_longing)
 
                 # TODO: remove
                 self.logger().info(f"Canceled both orders | self.tracked_orders: {self.tracked_orders}")
@@ -351,7 +351,8 @@ class Merlin(StrategyV2Base):
         # TODO: remove
         self.logger().info(f"create_order | self.tracked_orders: {self.tracked_orders}")
 
-    def cancel_tracked_order(self, tracked_order: TrackedOrderDetails):
+    # `self.cancel()` only works for unfilled orders
+    def close_tracked_order(self, tracked_order: TrackedOrderDetails, current_price: Decimal):
         connector_name = tracked_order.connector_name
         trading_pair = tracked_order.trading_pair
         amount = tracked_order.amount
@@ -359,15 +360,13 @@ class Merlin(StrategyV2Base):
         # TODO: remove
         self.logger().info(f"cancel_order | tracked_order: {tracked_order}")
 
-        # self.cancel(connector_name, trading_pair, order_id)  This only works for unfilled orders
-
         if tracked_order.side == TradeType.SELL:
             self.buy(
                 connector_name,
                 trading_pair,
                 amount,
                 OrderType.MARKET,
-                Decimal("NaN"),
+                current_price,
                 PositionAction.CLOSE
             )
         else:
@@ -376,7 +375,7 @@ class Merlin(StrategyV2Base):
                 trading_pair,
                 amount,
                 OrderType.MARKET,
-                Decimal("NaN"),
+                current_price,
                 PositionAction.CLOSE
             )
 
