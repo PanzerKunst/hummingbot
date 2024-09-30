@@ -370,7 +370,7 @@ class Merlin(StrategyV2Base):
                 PositionAction.CLOSE
             )
         else:
-            self.buy(
+            self.sell(
                 connector_name,
                 trading_pair,
                 amount,
