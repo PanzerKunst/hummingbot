@@ -45,7 +45,7 @@ class MerlinConfig(StrategyV2ConfigBase):
     filled_order_expiration_min: int = Field(1000, client_data=ClientFieldData(is_updatable=True))
 
     # Trading algo
-    min_ask_bid_price_delta_to_open_bps: int = Field(5, client_data=ClientFieldData(is_updatable=True))  # 0.2% TODO: 20
+    min_ask_bid_price_delta_to_open_bps: int = Field(20, client_data=ClientFieldData(is_updatable=True))  # 0.2%
     max_mid_price_delta_to_close_bps: int = Field(2, client_data=ClientFieldData(is_updatable=True))  # 0.02%
 
     @property
