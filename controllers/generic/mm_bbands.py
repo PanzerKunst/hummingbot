@@ -40,11 +40,12 @@ class MmBbandsConfig(ControllerConfigBase):
     bbands_length_for_volatility: int = Field(2, client_data=ClientFieldData(is_updatable=True))
     bbands_std_dev_for_volatility: Decimal = Field(3.0, client_data=ClientFieldData(is_updatable=True))
     high_volatility_threshold: Decimal = Field(5.0, client_data=ClientFieldData(is_updatable=True))
+    rsi_length: int = Field(12, client_data=ClientFieldData(is_updatable=True))
 
     # Candles
     candles_connector: str = "okx_perpetual"
     candles_interval: str = "1m"
-    candles_length: int = 12
+    candles_length: int = 24
     candles_config: List[CandlesConfig] = []  # Initialized in the constructor
 
     # Maker orders settings
@@ -72,8 +73,6 @@ class MmBbands(ControllerBase):
         super().__init__(config, *args, **kwargs)
         self.config = config
 
-        self.get_trade_connector().set_position_mode(config.position_mode)
-
         if len(self.config.candles_config) == 0:
             self.config.candles_config = [CandlesConfig(
                 connector=self.config.candles_connector,
@@ -91,12 +90,15 @@ class MmBbands(ControllerBase):
                                                               max_records=candles_config.max_records)
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
 
-        candles_df.ta.bbands(length=self.config.bbands_length_for_trend, std=self.config.bbands_std_dev_for_trend, append=True)
-        candles_df.rename(columns={f"BBP_{self.config.bbands_length_for_trend}_{self.config.bbands_std_dev_for_trend}": "bbp"}, inplace=True)
-        candles_df["normalized_bbp"] = candles_df["bbp"].apply(self.get_normalized_bbp)
+        bbands_for_trend = candles_df.ta.bbands(length=self.config.bbands_length_for_trend, std=self.config.bbands_std_dev_for_trend)
+        candles_df["bbp"] = bbands_for_trend[f"BBP_{self.config.bbands_length_for_trend}_{self.config.bbands_std_dev_for_trend}"]
+        candles_df["normalized_bbp"] = candles_df["bbp"].apply(self.normalize_bbp)
 
         bbands_for_volatility = candles_df.ta.bbands(length=self.config.bbands_length_for_volatility, std=self.config.bbands_std_dev_for_volatility)
         candles_df["bbb_for_volatility"] = bbands_for_volatility[f"BBB_{self.config.bbands_length_for_volatility}_{self.config.bbands_std_dev_for_volatility}"]
+
+        rsi = candles_df.ta.rsi(length=self.config.rsi_length)
+        candles_df["normalized_rsi"] = rsi.apply(self.normalize_rsi)
 
         self.processed_data["features"] = candles_df
 
@@ -107,15 +109,15 @@ class MmBbands(ControllerBase):
         actions.extend(self.create_actions_proposal())
         actions.extend(self.stop_actions_proposal())
 
-        # TODO: remove
-        trading_sell_executors = self.get_trading_executors_on_side(TradeType.SELL)
-        self.logger().info("trading_sell_executors:")
-        for trading_sell_executor in trading_sell_executors:
-            self.logger().info(f"trading_sell_executor:{trading_sell_executor}")
-        trading_buy_executors = self.get_trading_executors_on_side(TradeType.BUY)
-        self.logger().info("trading_buy_executors:")
-        for trading_buy_executor in trading_buy_executors:
-            self.logger().info(f"trading_buy_executor:{trading_buy_executor}")
+        # # TODO: remove
+        # trading_sell_executors = self.get_trading_executors_on_side(TradeType.SELL)
+        # self.logger().info("trading_sell_executors:")
+        # for trading_sell_executor in trading_sell_executors:
+        #     self.logger().info(f"trading_sell_executor:{trading_sell_executor}")
+        # trading_buy_executors = self.get_trading_executors_on_side(TradeType.BUY)
+        # self.logger().info("trading_buy_executors:")
+        # for trading_buy_executor in trading_buy_executors:
+        #     self.logger().info(f"trading_buy_executor:{trading_buy_executor}")
 
         return actions
 
@@ -149,17 +151,15 @@ class MmBbands(ControllerBase):
         unfilled_sell_executors, unfilled_buy_executors = self.get_unfilled_executors_by_side()
 
         # TODO: remove
-        self.logger().info("stop_actions_proposal > unfilled_sell_executors:")
-        for unfilled_sell_executor in unfilled_sell_executors:
-            self.logger().info(f"unfilled_sell_executor:{unfilled_sell_executor}")
-
-        # TODO: remove
-        self.logger().info("stop_actions_proposal > unfilled_buy_executors:")
-        for unfilled_buy_executor in unfilled_buy_executors:
-            self.logger().info(f"unfilled_buy_executor:{unfilled_buy_executor}")
+        self.logger().info(f"unfilled executors: {len(unfilled_sell_executors)} + {len(unfilled_buy_executors)}")
 
         for unfilled_executor in unfilled_sell_executors + unfilled_buy_executors:
             has_expired = has_order_expired(unfilled_executor, self.config.unfilled_order_expiration_min * 60, self.market_data_provider.time())
+
+            # TODO: remove
+            if has_expired:
+                self.logger().info("has_expired:true")
+
             if has_expired or is_high_volatility:
                 stop_actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=unfilled_executor.id))
 
@@ -175,7 +175,8 @@ class MmBbands(ControllerBase):
             "timestamp_iso",
             "close",
             "normalized_bbp",
-            "bbb_for_volatility"
+            "bbb_for_volatility",
+            "normalized_rsi"
         ]
 
         return [format_df_for_printout(features_df[columns_to_display].tail(self.config.bbands_length_for_trend), table_format="psql", )]
@@ -233,9 +234,9 @@ class MmBbands(ControllerBase):
         last_buy_executor: Optional[ExecutorInfo] = None
 
         for executor in reversed(terminated_executors):
-            if last_sell_executor is None and executor.side == TradeType.SELL:
+            if not last_sell_executor and executor.side == TradeType.SELL:
                 last_sell_executor = executor
-            if last_buy_executor is None and executor.side == TradeType.BUY:
+            if not last_buy_executor and executor.side == TradeType.BUY:
                 last_buy_executor = executor
 
             # If both are found, no need to continue the loop
@@ -256,11 +257,13 @@ class MmBbands(ControllerBase):
     def get_position_quote_amount(self, side: TradeType) -> Decimal:
         amount_quote = Decimal(self.config.total_amount_quote)
 
-        if side == TradeType.SELL:
-            amount_quote = amount_quote * Decimal(0.67)  # Less, because closing a Short position on SL costs significantly more
-
         # If balance = 100 USDT with leverage 20x, the quote position should be 500
-        return amount_quote * self.config.leverage / 4
+        position_quote_amount = amount_quote * self.config.leverage / 4
+
+        if side == TradeType.SELL:
+            position_quote_amount = position_quote_amount * Decimal(0.67)  # Less, because closing a Short position on SL costs significantly more
+
+        return position_quote_amount
 
     def get_best_ask(self) -> Decimal:
         return self._get_best_ask_or_bid(PriceType.BestAsk)
@@ -320,6 +323,9 @@ class MmBbands(ControllerBase):
             self.logger().info("self.has_sl_occurred_on_sell_and_price_trending_up, increasing trend_adjustment_pct")
             trend_adjustment_pct += self.config.default_spread_pct * Decimal(0.5)
 
+        latest_normalized_rsi = self.get_latest_normalized_rsi()
+        rsi_adjustment_pct = -latest_normalized_rsi * Decimal(0.012)
+
         # If we're adding a new position while having a filled one on the same side, we increase the adjustments
         if len(self.get_trading_executors_on_side(TradeType.SELL)) > 0:
             self.logger().info("Adding a position while having a filled one on the same side - increasing the adjustments")
@@ -327,12 +333,12 @@ class MmBbands(ControllerBase):
             trend_adjustment_pct += self.config.default_spread_pct * Decimal(0.5)
 
         default_adjustment = self.config.default_spread_pct / 100
-        total_adjustment = default_adjustment + volatility_adjustment_pct / 100 + trend_adjustment_pct / 100
+        total_adjustment = default_adjustment + volatility_adjustment_pct / 100 + trend_adjustment_pct / 100 + rsi_adjustment_pct / 100
 
         ref_price = mid_price * Decimal(1 + total_adjustment)
 
         self.logger().info(f"Adjusting SELL price. mid:{mid_price}, avg_last_three_bbb:{avg_last_three_bbb}")
-        self.logger().info(f"Adjusting SELL price. def_adj:{default_adjustment}, volatility_adjustment_pct:{volatility_adjustment_pct}, trend_adjustment_pct:{trend_adjustment_pct}")
+        self.logger().info(f"Adjusting SELL price. def_adj:{default_adjustment}, volatility_adjustment_pct:{volatility_adjustment_pct}, trend_adjustment_pct:{trend_adjustment_pct}, rsi_adjustment_pct:{rsi_adjustment_pct}")
         self.logger().info(f"Adjusting SELL price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
         return ref_price, volatility_adjustment_pct
@@ -358,6 +364,9 @@ class MmBbands(ControllerBase):
             self.logger().info("self.has_sl_occurred_on_buy_and_price_trending_down, increasing trend_adjustment_pct")
             trend_adjustment_pct += self.config.default_spread_pct * Decimal(0.5)
 
+        latest_normalized_rsi = self.get_latest_normalized_rsi()
+        rsi_adjustment_pct = latest_normalized_rsi * Decimal(0.012)
+
         # If we're adding a new position while having a filled one on the same side, we increase the adjustments
         if len(self.get_trading_executors_on_side(TradeType.BUY)) > 0:
             self.logger().info("Adding a position while having a filled one on the same side - increasing the adjustments")
@@ -365,12 +374,12 @@ class MmBbands(ControllerBase):
             trend_adjustment_pct += self.config.default_spread_pct * Decimal(0.5)
 
         default_adjustment = self.config.default_spread_pct / 100
-        total_adjustment = default_adjustment + volatility_adjustment_pct / 100 + trend_adjustment_pct / 100
+        total_adjustment = default_adjustment + volatility_adjustment_pct / 100 + trend_adjustment_pct / 100 + rsi_adjustment_pct / 100
 
         ref_price = mid_price * Decimal(1 - total_adjustment)
 
         self.logger().info(f"Adjusting BUY price. mid:{mid_price}, avg_last_three_bbb:{avg_last_three_bbb}")
-        self.logger().info(f"Adjusting BUY price. def_adj:{default_adjustment}, volatility_adjustment_pct:{volatility_adjustment_pct}, trend_adjustment_pct:{trend_adjustment_pct}")
+        self.logger().info(f"Adjusting BUY price. def_adj:{default_adjustment}, volatility_adjustment_pct:{volatility_adjustment_pct}, trend_adjustment_pct:{trend_adjustment_pct}, rsi_adjustment_pct:{rsi_adjustment_pct}")
         self.logger().info(f"Adjusting BUY price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
         return ref_price, volatility_adjustment_pct
@@ -380,8 +389,12 @@ class MmBbands(ControllerBase):
     #
 
     @staticmethod
-    def get_normalized_bbp(bbp: float) -> Decimal:
+    def normalize_bbp(bbp: float) -> Decimal:
         return Decimal(bbp - 0.5)
+
+    @staticmethod
+    def normalize_rsi(rsi: float) -> Decimal:
+        return Decimal(rsi * 2 - 100)
 
     def get_latest_normalized_bbp(self) -> Decimal:
         bbp_series: pd.Series = self.processed_data["features"]["normalized_bbp"]
@@ -415,20 +428,24 @@ class MmBbands(ControllerBase):
     def is_still_trending_down(self) -> bool:
         return self.get_latest_normalized_bbp() < 0.2
 
+    def get_latest_normalized_rsi(self) -> Decimal:
+        rsi_series: pd.Series = self.processed_data["features"]["normalized_rsi"]
+        return Decimal(rsi_series.iloc[-1])
+
     def has_sl_occurred_on_side(self, side: TradeType) -> bool:
         return self._is_last_sell_executor_sl() if side == TradeType.SELL else self._is_last_buy_executor_sl()
 
     def check_trading_executors(self):
         terminated_sell_executor, terminated_buy_executor = self.get_last_terminated_executor_by_side()
 
-        if terminated_sell_executor is not None:
+        if terminated_sell_executor:
             self._check_for_stop_loss_on_sell(terminated_sell_executor)
 
-        if terminated_buy_executor is not None:
+        if terminated_buy_executor:
             self._check_for_stop_loss_on_buy(terminated_buy_executor)
 
     def _check_for_stop_loss_on_sell(self, last_terminated_executor: Optional[ExecutorInfo]):
-        if self.last_terminated_sell_executor is not None and self.last_terminated_sell_executor == last_terminated_executor.id:
+        if self.last_terminated_sell_executor and self.last_terminated_sell_executor == last_terminated_executor.id:
             return
 
         close_type = last_terminated_executor.close_type
@@ -440,7 +457,7 @@ class MmBbands(ControllerBase):
         self.last_terminated_sell_executor_timestamp = self.market_data_provider.time()
 
     def _check_for_stop_loss_on_buy(self, last_terminated_executor: Optional[ExecutorInfo]):
-        if self.last_terminated_buy_executor is not None and self.last_terminated_buy_executor == last_terminated_executor.id:
+        if self.last_terminated_buy_executor and self.last_terminated_buy_executor == last_terminated_executor.id:
             return
 
         close_type = last_terminated_executor.close_type
@@ -452,7 +469,7 @@ class MmBbands(ControllerBase):
         self.last_terminated_buy_executor_timestamp = self.market_data_provider.time()
 
     def _is_last_sell_executor_sl(self) -> bool:
-        return self.last_terminated_sell_executor is not None and self.last_terminated_sell_executor.close_type == CloseType.STOP_LOSS
+        return self.last_terminated_sell_executor and self.last_terminated_sell_executor.close_type == CloseType.STOP_LOSS
 
     def _is_last_buy_executor_sl(self) -> bool:
-        return self.last_terminated_buy_executor is not None and self.last_terminated_buy_executor.close_type == CloseType.STOP_LOSS
+        return self.last_terminated_buy_executor and self.last_terminated_buy_executor.close_type == CloseType.STOP_LOSS
