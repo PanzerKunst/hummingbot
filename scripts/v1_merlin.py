@@ -143,10 +143,7 @@ class Merlin(StrategyV2Base):
             self.logger().error(f"ERROR: len(active_sell_orders) > 0 and len(active_buy_orders) == 0 | active_sell_order.filled_at: {active_sell_order.filled_at}")
 
             if active_sell_order.filled_at:
-                order_id = active_sell_order.order_id
-                connector_name = active_sell_order.connector_name
-                trading_pair, _ = self.config.connectors_and_pairs.get(connector_name)
-                self.cancel(connector_name, trading_pair, order_id)
+                self.cancel_tracked_order(active_sell_order)
 
         if len(active_buy_orders) > 0 and len(active_sell_orders) == 0:
             active_buy_order = active_buy_orders[0]
@@ -155,10 +152,7 @@ class Merlin(StrategyV2Base):
             self.logger().error(f"ERROR: len(active_buy_orders) > 0 and len(active_sell_orders) == 0 | active_buy_order.filled_at: {active_buy_order.filled_at}")
 
             if active_buy_order.filled_at:
-                order_id = active_buy_order.order_id
-                connector_name = active_buy_order.connector_name
-                trading_pair, _ = self.config.connectors_and_pairs.get(connector_name)
-                self.cancel(connector_name, trading_pair, order_id)
+                self.cancel_tracked_order(active_buy_order)
 
         if len(active_sell_orders) > 0 and len(active_buy_orders) > 0:
             active_sell_order = active_sell_orders[0]
@@ -271,14 +265,14 @@ class Merlin(StrategyV2Base):
         # TODO: remove
         self.logger().info(f"did_fill_order | self.tracked_orders: {self.tracked_orders}")
 
-    def did_cancel_order(self, cancelled_event: OrderCancelledEvent):
-        for tracked_order in self.tracked_orders:
-            if tracked_order.order_id == cancelled_event.order_id:
-                tracked_order.cancelled_at = cancelled_event.timestamp
-                break
-
-        # TODO: remove
-        self.logger().info(f"did_cancel_order | self.tracked_orders: {self.tracked_orders}")
+    # Doesn't seem to get triggered
+    # def did_cancel_order(self, cancelled_event: OrderCancelledEvent):
+    #     for tracked_order in self.tracked_orders:
+    #         if tracked_order.order_id == cancelled_event.order_id:
+    #             tracked_order.cancelled_at = cancelled_event.timestamp
+    #             break
+    #
+    #     self.logger().info(f"did_cancel_order | self.tracked_orders: {self.tracked_orders}")
 
     # def get_mid_price(self, connector_name):
     #     trading_pair, _ = self.config.connectors_and_pairs.get(connector_name)
@@ -373,6 +367,11 @@ class Merlin(StrategyV2Base):
         self.logger().info(f"cancel_order | tracked_order: {tracked_order}")
 
         self.cancel(connector_name, trading_pair, order_id)
+
+        for order in self.tracked_orders:
+            if order.order_id == tracked_order.order_id:
+                order.cancelled_at = self.market_data_provider.time()
+                break
 
     #
     # Custom functions specific to this controller
