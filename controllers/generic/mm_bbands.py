@@ -44,7 +44,7 @@ class MmBbandsConfig(ControllerConfigBase):
     # Candles
     candles_connector: str = "okx_perpetual"
     candles_interval: str = "1m"
-    candles_length: int = 24
+    candles_length: int = 12
     candles_config: List[CandlesConfig] = []  # Initialized in the constructor
 
     # Maker orders settings
@@ -71,6 +71,8 @@ class MmBbands(ControllerBase):
     def __init__(self, config: MmBbandsConfig, *args, **kwargs):
         super().__init__(config, *args, **kwargs)
         self.config = config
+
+        self.get_trade_connector().set_position_mode(config.position_mode)
 
         if len(self.config.candles_config) == 0:
             self.config.candles_config = [CandlesConfig(
