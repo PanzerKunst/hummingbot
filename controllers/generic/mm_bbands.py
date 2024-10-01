@@ -15,7 +15,7 @@ from hummingbot.strategy_v2.executors.position_executor.data_types import Positi
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, ExecutorAction, StopExecutorAction
 from hummingbot.strategy_v2.models.executors import CloseType
 from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
-from scripts.utility.my_utils import has_order_expired
+from scripts.utility.my_utils import has_order_expired, timestamp_to_iso
 
 
 class MmBbandsConfig(ControllerConfigBase):
@@ -451,6 +451,10 @@ class MmBbands(ControllerBase):
     def check_trading_executors(self):
         terminated_sell_executor, terminated_buy_executor = self.get_last_terminated_executor_by_side()
 
+        # TODO: remove
+        self.logger().info(f"check_trading_executors() | terminated_sell_executor: {terminated_sell_executor}")
+        self.logger().info(f"check_trading_executors() | terminated_buy_executor: {terminated_buy_executor}")
+
         if terminated_sell_executor:
             self._check_for_stop_loss_on_sell(terminated_sell_executor)
 
@@ -458,25 +462,31 @@ class MmBbands(ControllerBase):
             self._check_for_stop_loss_on_buy(terminated_buy_executor)
 
     def _check_for_stop_loss_on_sell(self, last_terminated_executor: Optional[ExecutorInfo]):
-        if self.last_terminated_sell_executor and self.last_terminated_sell_executor == last_terminated_executor.id:
+        if self.last_terminated_sell_executor and self.last_terminated_sell_executor.id == last_terminated_executor.id:
             return
 
         close_type = last_terminated_executor.close_type
 
         if close_type not in (CloseType.TIME_LIMIT, CloseType.TAKE_PROFIT, CloseType.STOP_LOSS):
             return
+
+        # TODO: remove
+        self.logger().info(f"_check_for_stop_loss_on_sell() | updating self.last_terminated_sell_executor to: {last_terminated_executor} with timestamp: {timestamp_to_iso(self.market_data_provider.time())}")
 
         self.last_terminated_sell_executor = last_terminated_executor
         self.last_terminated_sell_executor_timestamp = self.market_data_provider.time()
 
     def _check_for_stop_loss_on_buy(self, last_terminated_executor: Optional[ExecutorInfo]):
-        if self.last_terminated_buy_executor and self.last_terminated_buy_executor == last_terminated_executor.id:
+        if self.last_terminated_buy_executor and self.last_terminated_buy_executor.id == last_terminated_executor.id:
             return
 
         close_type = last_terminated_executor.close_type
 
         if close_type not in (CloseType.TIME_LIMIT, CloseType.TAKE_PROFIT, CloseType.STOP_LOSS):
             return
+
+        # TODO: remove
+        self.logger().info(f"_check_for_stop_loss_on_buy() | updating self.last_terminated_buy_executor to: {last_terminated_executor} with timestamp: {timestamp_to_iso(self.market_data_provider.time())}")
 
         self.last_terminated_buy_executor = last_terminated_executor
         self.last_terminated_buy_executor_timestamp = self.market_data_provider.time()
