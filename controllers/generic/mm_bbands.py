@@ -506,5 +506,11 @@ class MmBbands(ControllerBase):
             return None
 
         last_trading_executor = trading_executors[-1]
-        triple_barrier_config = last_trading_executor.config.triple_barrier_config
-        return triple_barrier_config.stop_loss
+        executor_config = last_trading_executor.config
+        entry_price = executor_config.entry_price
+        stop_loss = executor_config.triple_barrier_config.stop_loss
+
+        sl_price_sell: Decimal = entry_price * (1 + stop_loss)
+        sl_price_buy: Decimal = entry_price * (1 - stop_loss)
+
+        return sl_price_sell if side == TradeType.SELL else sl_price_buy
