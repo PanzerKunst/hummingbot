@@ -19,13 +19,14 @@ from scripts.utility.my_utils import has_order_expired, timestamp_to_iso
 
 
 class MmBbandsConfig(ControllerConfigBase):
+    # Standard attributes - avoid renaming
     controller_name: str = "mm_bbands"
-    connector_name: str = "okx_perpetual"  # Do not rename attribute - used by BacktestingEngineBase
-    trading_pair: str = "POPCAT-USDT"  # Do not rename attribute - used by BacktestingEngineBase
+    connector_name: str = "okx_perpetual"
+    trading_pair: str = "POPCAT-USDT"
     total_amount_quote: int = Field(5, client_data=ClientFieldData(is_updatable=True))
-
     leverage: int = 20
     position_mode: PositionMode = PositionMode.HEDGE
+
     cooldown_time_min: int = Field(1, client_data=ClientFieldData(is_updatable=True))
     unfilled_order_expiration_min: int = Field(7, client_data=ClientFieldData(is_updatable=True))
 
