@@ -36,7 +36,7 @@ class MerlinConfig(StrategyV2ConfigBase):
 
     leverage: int = 20  # Max 5 on Hyperliquid
     total_amount_quote: int = Field(5, client_data=ClientFieldData(is_updatable=True))
-    cooldown_time_min: int = Field(10, client_data=ClientFieldData(is_updatable=True))
+    cooldown_time_min: int = Field(1, client_data=ClientFieldData(is_updatable=True))
     # unfilled_order_expiration: int = 1 TODO: try alternative with LIMIT orders at mid-price
 
     # Triple Barrier
@@ -45,7 +45,7 @@ class MerlinConfig(StrategyV2ConfigBase):
     filled_order_expiration_min: int = Field(1000, client_data=ClientFieldData(is_updatable=True))
 
     # Trading algo
-    min_ask_bid_price_delta_to_open_bps: int = Field(20, client_data=ClientFieldData(is_updatable=True))  # 0.2%
+    min_ask_bid_price_delta_to_open_bps: int = Field(60, client_data=ClientFieldData(is_updatable=True))  # 0.6%
     max_mid_price_delta_to_close_bps: int = Field(2, client_data=ClientFieldData(is_updatable=True))  # 0.02%
 
     @property
@@ -124,12 +124,14 @@ class Merlin(StrategyV2Base):
                 self.logger().info(f"{best_ask_connector_name}, {best_ask_price}, {best_bid_connector_name}, {best_bid_price}")
                 self.logger().info(f"len(active_orders):{len(active_orders)}")
 
+                # It seems that due to order latency, doing the opposite of the intended logic works better
+
                 if self.can_create_order(active_sell_orders, TradeType.SELL):
-                    sell_executor_config = self.get_executor_config(best_bid_connector_name, TradeType.SELL, best_bid_price)
+                    sell_executor_config = self.get_executor_config(best_ask_connector_name, TradeType.SELL, best_ask_price)
                     self.create_order(sell_executor_config)
 
                 if self.can_create_order(active_buy_orders, TradeType.BUY):
-                    buy_executor_config = self.get_executor_config(best_ask_connector_name, TradeType.BUY, best_ask_price)
+                    buy_executor_config = self.get_executor_config(best_bid_connector_name, TradeType.BUY, best_bid_price)
                     self.create_order(buy_executor_config)
 
                 # TODO: try alternative with LIMIT orders at mid-price
