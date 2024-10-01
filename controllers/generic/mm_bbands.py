@@ -9,7 +9,6 @@ from hummingbot.client.config.config_data_types import ClientFieldData
 from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.data_type.common import OrderType, PositionMode, PriceType, TradeType
-from hummingbot.core.event.events import OrderFilledEvent
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.strategy_v2.controllers.controller_base import ControllerBase, ControllerConfigBase
 from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig, TripleBarrierConfig
@@ -110,16 +109,6 @@ class MmBbands(ControllerBase):
         actions.extend(self.create_actions_proposal())
         actions.extend(self.stop_actions_proposal())
 
-        # # TODO: remove
-        # trading_sell_executors = self.get_trading_executors_on_side(TradeType.SELL)
-        # self.logger().info("trading_sell_executors:")
-        # for trading_sell_executor in trading_sell_executors:
-        #     self.logger().info(f"trading_sell_executor:{trading_sell_executor}")
-        # trading_buy_executors = self.get_trading_executors_on_side(TradeType.BUY)
-        # self.logger().info("trading_buy_executors:")
-        # for trading_buy_executor in trading_buy_executors:
-        #     self.logger().info(f"trading_buy_executor:{trading_buy_executor}")
-
         return actions
 
     def create_actions_proposal(self) -> List[ExecutorAction]:
@@ -145,9 +134,6 @@ class MmBbands(ControllerBase):
         stop_actions = []
 
         is_high_volatility: bool = self.is_high_volatility()
-
-        # TODO: remove
-        self.logger().info(f"is_high_volatility: {is_high_volatility}")
 
         if is_high_volatility:
             self.logger().info(f"##### is_high_volatility -> Stopping unfilled executors #####")
@@ -186,14 +172,15 @@ class MmBbands(ControllerBase):
     # Custom functions potentially interesting for other controllers
     #
 
-    def did_fill_order(self, filled_event: OrderFilledEvent):
-        position = filled_event.position
-
-        if not position:
-            return
-
-        # TODO: remove
-        self.logger().info(f"did_fill_order | filled_event: {filled_event}")
+    # DOES NOT TRIGGER. Only works on V2 scripts
+    # def did_fill_order(self, filled_event: OrderFilledEvent):
+    #     position = filled_event.position
+    #
+    #     if not position:
+    #         return
+    #
+    #     # TODO: remove
+    #     self.logger().info(f"did_fill_order | filled_event: {filled_event}")
 
     def can_create_executor(self, unfilled_executors: List[ExecutorInfo], side: TradeType) -> bool:
         if self.get_position_quote_amount(side) == 0 or self.is_high_volatility() or len(unfilled_executors) > 0:
@@ -443,6 +430,9 @@ class MmBbands(ControllerBase):
         return (bbb_last_full_minute + bbb_before_that + bbb_even_before_that) / 3
 
     def is_high_volatility(self) -> bool:
+        # TODO: remove
+        self.logger().info(f"is_high_volatility() | latest_bbb: {self.get_latest_bbb()}")
+
         return self.get_latest_bbb() > self.config.high_volatility_threshold
 
     def is_still_trending_up(self) -> bool:
