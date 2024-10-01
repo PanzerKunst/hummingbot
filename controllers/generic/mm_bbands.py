@@ -9,13 +9,14 @@ from hummingbot.client.config.config_data_types import ClientFieldData
 from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.data_type.common import OrderType, PositionMode, PriceType, TradeType
+from hummingbot.core.event.events import OrderFilledEvent
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.strategy_v2.controllers.controller_base import ControllerBase, ControllerConfigBase
 from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig, TripleBarrierConfig
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, ExecutorAction, StopExecutorAction
 from hummingbot.strategy_v2.models.executors import CloseType
 from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
-from scripts.utility.my_utils import has_order_expired, timestamp_to_iso
+from scripts.utility.my_utils import has_order_expired
 
 
 class MmBbandsConfig(ControllerConfigBase):
@@ -40,7 +41,7 @@ class MmBbandsConfig(ControllerConfigBase):
     bbands_std_dev_for_trend: Decimal = Field(2.0, client_data=ClientFieldData(is_updatable=True))
     bbands_length_for_volatility: int = Field(2, client_data=ClientFieldData(is_updatable=True))
     bbands_std_dev_for_volatility: Decimal = Field(3.0, client_data=ClientFieldData(is_updatable=True))
-    high_volatility_threshold: Decimal = Field(5.0, client_data=ClientFieldData(is_updatable=True))
+    high_volatility_threshold: Decimal = Field(3.0, client_data=ClientFieldData(is_updatable=True))
     rsi_length: int = Field(12, client_data=ClientFieldData(is_updatable=True))
 
     # Candles
@@ -51,7 +52,6 @@ class MmBbandsConfig(ControllerConfigBase):
 
     # Maker orders settings
     default_spread_pct: Decimal = Field(0.5, client_data=ClientFieldData(is_updatable=True))
-    price_adjustment_volatility_threshold: Decimal = Field(0.0, client_data=ClientFieldData(is_updatable=True))
 
     def update_markets(self, markets: Dict[str, Set[str]]) -> Dict[str, Set[str]]:
         if self.connector_name not in markets:
@@ -130,13 +130,13 @@ class MmBbands(ControllerBase):
         unfilled_sell_executors, unfilled_buy_executors = self.get_unfilled_executors_by_side()
 
         if self.can_create_executor(unfilled_sell_executors, TradeType.SELL):
-            sell_price, volatility_adjustment_pct = self.adjust_sell_price(mid_price)
-            sell_executor_config = self.get_executor_config(TradeType.SELL, sell_price, volatility_adjustment_pct)
+            sell_price = self.adjust_sell_price(mid_price)
+            sell_executor_config = self.get_executor_config(TradeType.SELL, sell_price)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=sell_executor_config))
 
         if self.can_create_executor(unfilled_buy_executors, TradeType.BUY):
-            buy_price, volatility_adjustment_pct = self.adjust_buy_price(mid_price)
-            buy_executor_config = self.get_executor_config(TradeType.BUY, buy_price, volatility_adjustment_pct)
+            buy_price = self.adjust_buy_price(mid_price)
+            buy_executor_config = self.get_executor_config(TradeType.BUY, buy_price)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=buy_executor_config))
 
         return create_actions
@@ -146,13 +146,13 @@ class MmBbands(ControllerBase):
 
         is_high_volatility: bool = self.is_high_volatility()
 
+        # TODO: remove
+        self.logger().info(f"is_high_volatility: {is_high_volatility}")
+
         if is_high_volatility:
-            self.logger().info(f"##### {self.config.trading_pair} is_high_volatility -> Stopping unfilled executors #####")
+            self.logger().info(f"##### is_high_volatility -> Stopping unfilled executors #####")
 
         unfilled_sell_executors, unfilled_buy_executors = self.get_unfilled_executors_by_side()
-
-        # TODO: remove
-        self.logger().info(f"unfilled executors: {len(unfilled_sell_executors)} + {len(unfilled_buy_executors)}")
 
         for unfilled_executor in unfilled_sell_executors + unfilled_buy_executors:
             has_expired = has_order_expired(unfilled_executor, self.config.unfilled_order_expiration_min * 60, self.market_data_provider.time())
@@ -186,14 +186,20 @@ class MmBbands(ControllerBase):
     # Custom functions potentially interesting for other controllers
     #
 
+    def did_fill_order(self, filled_event: OrderFilledEvent):
+        position = filled_event.position
+
+        if not position:
+            return
+
+        # TODO: remove
+        self.logger().info(f"did_fill_order | filled_event: {filled_event}")
+
     def can_create_executor(self, unfilled_executors: List[ExecutorInfo], side: TradeType) -> bool:
         if self.get_position_quote_amount(side) == 0 or self.is_high_volatility() or len(unfilled_executors) > 0:
             return False
 
         last_terminated_timestamp: float = self.last_terminated_sell_executor_timestamp if side == TradeType.SELL else self.last_terminated_buy_executor_timestamp
-
-        # TODO: remove
-        self.logger().info(f"{side} timestamp_to_iso:{timestamp_to_iso(last_terminated_timestamp)}, current:{timestamp_to_iso(self.market_data_provider.time())}")
 
         if last_terminated_timestamp + self.config.cooldown_time_min * 60 > self.market_data_provider.time():
             self.logger().info("Cooldown not passed yet")
@@ -220,10 +226,13 @@ class MmBbands(ControllerBase):
 
         return unfilled_sell_executors, unfilled_buy_executors
 
-    def get_trading_executors_on_side(self, side: TradeType) -> List[ExecutorInfo]:
+    def get_trading_executors_by_side(self) -> Tuple[List[ExecutorInfo], List[ExecutorInfo]]:
         active_sell_executors, active_buy_executors = self.get_active_executors_by_side()
-        active_executors_for_side = active_sell_executors if side == TradeType.SELL else active_buy_executors
-        return [e for e in active_executors_for_side if e.is_trading]
+
+        trading_sell_executors = [e for e in active_sell_executors if e.is_trading]
+        trading_buy_executors = [e for e in active_buy_executors if e.is_trading]
+
+        return trading_sell_executors, trading_buy_executors
 
     def get_last_terminated_executor_by_side(self) -> Tuple[Optional[ExecutorInfo], Optional[ExecutorInfo]]:
         terminated_executors = self.filter_executors(
@@ -275,9 +284,8 @@ class MmBbands(ControllerBase):
     def _get_best_ask_or_bid(self, price_type: PriceType) -> Decimal:
         return self.market_data_provider.get_price_by_type(self.config.connector_name, self.config.trading_pair, price_type)
 
-    def get_executor_config(self, side: TradeType, ref_price: Decimal, volatility_adjustment_pct: Decimal) -> PositionExecutorConfig:
-        triple_barrier_config = self.get_triple_barrier_config(volatility_adjustment_pct / 100, side)
-        self.logger().info(f"Creating an executor with stop loss:{triple_barrier_config.stop_loss} | take profit:{triple_barrier_config.take_profit}")
+    def get_executor_config(self, side: TradeType, ref_price: Decimal) -> PositionExecutorConfig:
+        triple_barrier_config = self.get_triple_barrier_config()
 
         return PositionExecutorConfig(
             timestamp=self.market_data_provider.time(),
@@ -290,12 +298,10 @@ class MmBbands(ControllerBase):
             leverage=self.config.leverage
         )
 
-    def get_triple_barrier_config(self, volatility_adjustment: Decimal, side: TradeType) -> TripleBarrierConfig:
-        take_profit_pct: Decimal = self.config.take_profit_pct if side == TradeType.BUY else self.config.take_profit_pct * Decimal(1.33)
-
+    def get_triple_barrier_config(self) -> TripleBarrierConfig:
         return TripleBarrierConfig(
-            stop_loss=self.config.stop_loss_pct / 100 * (1 + volatility_adjustment * 4),
-            take_profit=take_profit_pct / 100 * (1 + volatility_adjustment * 4),
+            stop_loss=self.config.stop_loss_pct / 100,
+            take_profit=self.config.take_profit_pct / 100,
             time_limit=self.config.filled_order_expiration_min * 60,
             open_order_type=OrderType.LIMIT,
             take_profit_order_type=OrderType.LIMIT,
@@ -303,18 +309,19 @@ class MmBbands(ControllerBase):
             time_limit_order_type=OrderType.MARKET  # Only market orders are supported for time_limit and stop_loss
         )
 
-    def adjust_sell_price(self, mid_price: Decimal) -> Tuple[Decimal, Decimal]:
+    def adjust_sell_price(self, mid_price: Decimal) -> Decimal:
         volatility_adjustment_pct: Decimal = Decimal(0)
 
         avg_last_three_bbb = self.get_avg_last_tree_bbb()
-        if avg_last_three_bbb > self.config.price_adjustment_volatility_threshold:
-            above_threshold = avg_last_three_bbb - self.config.price_adjustment_volatility_threshold
-            volatility_adjustment_pct += above_threshold * Decimal(0.5)
+        if avg_last_three_bbb > 0:
+            volatility_adjustment_pct += avg_last_three_bbb * Decimal(0.5)
 
         trend_adjustment_pct: Decimal = Decimal(0)
 
+        trading_sell_executors, _ = self.get_trading_executors_by_side()
+
         # If there is a trading SELL position with negative PnL, we add to the adjustment
-        for trading_executor in self.get_trading_executors_on_side(TradeType.SELL):
+        for trading_executor in trading_sell_executors:
             pnl_pct = trading_executor.net_pnl_pct * 100
             if pnl_pct < 0:
                 self.logger().info(f"Adding SELL position while negative filled position of pnl_pct {trading_executor.net_pnl_pct}")
@@ -328,7 +335,7 @@ class MmBbands(ControllerBase):
         rsi_adjustment_pct = -latest_normalized_rsi * Decimal(0.012)
 
         # If we're adding a new position while having a filled one on the same side, we increase the adjustments
-        if len(self.get_trading_executors_on_side(TradeType.SELL)) > 0:
+        if len(trading_sell_executors) > 0:
             self.logger().info("Adding a position while having a filled one on the same side - increasing the adjustments")
             volatility_adjustment_pct += self.config.default_spread_pct * Decimal(0.5)
             trend_adjustment_pct += self.config.default_spread_pct * Decimal(0.5)
@@ -342,20 +349,28 @@ class MmBbands(ControllerBase):
         self.logger().info(f"Adjusting SELL price. def_adj:{default_adjustment}, volatility_adjustment_pct:{volatility_adjustment_pct}, trend_adjustment_pct:{trend_adjustment_pct}, rsi_adjustment_pct:{rsi_adjustment_pct}")
         self.logger().info(f"Adjusting SELL price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
-        return ref_price, volatility_adjustment_pct
+        trading_order_sl_price = self.get_sl_price(TradeType.SELL)
 
-    def adjust_buy_price(self, mid_price: Decimal) -> Tuple[Decimal, Decimal]:
+        if trading_order_sl_price and trading_order_sl_price > ref_price:
+            self.logger().info(f"There is a trading Short order whose SL {trading_order_sl_price} is above ref_price {ref_price}")
+            self.logger().info(f"Returning {trading_order_sl_price * Decimal(1 + 0.01)}")
+            return trading_order_sl_price * Decimal(1 + 0.01)
+
+        return ref_price
+
+    def adjust_buy_price(self, mid_price: Decimal) -> Decimal:
         volatility_adjustment_pct: Decimal = Decimal(0)
 
         avg_last_three_bbb = self.get_avg_last_tree_bbb()
-        if avg_last_three_bbb > self.config.price_adjustment_volatility_threshold:
-            above_threshold = avg_last_three_bbb - self.config.price_adjustment_volatility_threshold
-            volatility_adjustment_pct += above_threshold * Decimal(0.5)
+        if avg_last_three_bbb > 0:
+            volatility_adjustment_pct += avg_last_three_bbb * Decimal(0.5)
 
         trend_adjustment_pct: Decimal = Decimal(0)
 
+        _, trading_buy_executors = self.get_trading_executors_by_side()
+
         # If there is a trading BUY position with negative PnL, we add to the adjustment
-        for trading_executor in self.get_trading_executors_on_side(TradeType.BUY):
+        for trading_executor in trading_buy_executors:
             pnl_pct = trading_executor.net_pnl_pct * 100
             if pnl_pct < 0:
                 self.logger().info(f"Adding BUY position while negative filled position of pnl_pct {trading_executor.net_pnl_pct}")
@@ -369,7 +384,7 @@ class MmBbands(ControllerBase):
         rsi_adjustment_pct = latest_normalized_rsi * Decimal(0.012)
 
         # If we're adding a new position while having a filled one on the same side, we increase the adjustments
-        if len(self.get_trading_executors_on_side(TradeType.BUY)) > 0:
+        if len(trading_buy_executors) > 0:
             self.logger().info("Adding a position while having a filled one on the same side - increasing the adjustments")
             volatility_adjustment_pct += self.config.default_spread_pct * Decimal(0.5)
             trend_adjustment_pct += self.config.default_spread_pct * Decimal(0.5)
@@ -383,7 +398,14 @@ class MmBbands(ControllerBase):
         self.logger().info(f"Adjusting BUY price. def_adj:{default_adjustment}, volatility_adjustment_pct:{volatility_adjustment_pct}, trend_adjustment_pct:{trend_adjustment_pct}, rsi_adjustment_pct:{rsi_adjustment_pct}")
         self.logger().info(f"Adjusting BUY price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
-        return ref_price, volatility_adjustment_pct
+        trading_order_sl_price = self.get_sl_price(TradeType.BUY)
+
+        if trading_order_sl_price and trading_order_sl_price < ref_price:
+            self.logger().info(f"There is a trading Long order whose SL {trading_order_sl_price} is below ref_price {ref_price}")
+            self.logger().info(f"Returning {trading_order_sl_price * Decimal(1 - 0.01)}")
+            return trading_order_sl_price * Decimal(1 - 0.01)
+
+        return ref_price
 
     #
     # Custom functions specific to this controller
@@ -474,3 +496,15 @@ class MmBbands(ControllerBase):
 
     def _is_last_buy_executor_sl(self) -> bool:
         return self.last_terminated_buy_executor and self.last_terminated_buy_executor.close_type == CloseType.STOP_LOSS
+
+    # TODO: a smarter system would handle correctly multiple open orders on the same side
+    def get_sl_price(self, side: TradeType) -> Optional[Decimal]:
+        trading_sell_executors, trading_buy_executors = self.get_trading_executors_by_side()
+        trading_executors = trading_sell_executors if side == TradeType.SELL else trading_buy_executors
+
+        if len(trading_executors) == 0:
+            return None
+
+        last_trading_executor = trading_executors[-1]
+        triple_barrier_config = last_trading_executor.config.triple_barrier_config
+        return triple_barrier_config.stop_loss
