@@ -340,8 +340,8 @@ class MmBbands(ControllerBase):
 
         if trading_order_sl_price and trading_order_sl_price > ref_price:
             self.logger().info(f"There is a trading Short order whose SL {trading_order_sl_price} is above ref_price {ref_price}")
-            self.logger().info(f"Returning {trading_order_sl_price * Decimal(1 + 0.001)}")
-            return trading_order_sl_price * Decimal(1 + 0.001)
+            self.logger().info(f"Returning {trading_order_sl_price * Decimal(1 + 0.002)}")
+            return trading_order_sl_price * Decimal(1 + 0.002)
 
         return ref_price
 
@@ -389,8 +389,8 @@ class MmBbands(ControllerBase):
 
         if trading_order_sl_price and trading_order_sl_price < ref_price:
             self.logger().info(f"There is a trading Long order whose SL {trading_order_sl_price} is below ref_price {ref_price}")
-            self.logger().info(f"Returning {trading_order_sl_price * Decimal(1 - 0.001)}")
-            return trading_order_sl_price * Decimal(1 - 0.001)
+            self.logger().info(f"Returning {trading_order_sl_price * Decimal(1 - 0.002)}")
+            return trading_order_sl_price * Decimal(1 - 0.002)
 
         return ref_price
 
