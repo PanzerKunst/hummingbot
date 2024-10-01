@@ -1,7 +1,7 @@
 id: conf_generic.mm_bbands_POPCAT
 controller_name: mm_bbands
 controller_type: generic
-total_amount_quote: 5
+total_amount_quote: 10
 manual_kill_switch: null
 candles_config: []
 connector_name: okx_perpetual

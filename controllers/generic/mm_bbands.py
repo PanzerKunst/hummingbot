@@ -23,7 +23,7 @@ class MmBbandsConfig(ControllerConfigBase):
     controller_name: str = "mm_bbands"
     connector_name: str = "okx_perpetual"
     trading_pair: str = "POPCAT-USDT"
-    total_amount_quote: int = Field(5, client_data=ClientFieldData(is_updatable=True))
+    total_amount_quote: int = Field(10, client_data=ClientFieldData(is_updatable=True))
     leverage: int = 20
     position_mode: PositionMode = PositionMode.HEDGE
 
