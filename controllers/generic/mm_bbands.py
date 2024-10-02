@@ -519,11 +519,10 @@ class MmBbands(ControllerBase):
         return sl_price_sell if side == TradeType.SELL else sl_price_buy
 
     def should_stop_unfilled_executors_after_sl(self, side: TradeType) -> bool:
-        last_terminated_executor = self.last_terminated_sell_executor if side == TradeType.SELL else self.last_terminated_buy_executor
+        is_sl = self._is_last_sell_executor_sl() if side == TradeType.SELL else self._is_last_buy_executor_sl()
         last_terminated_executor_timestamp = self.last_terminated_sell_executor_timestamp if side == TradeType.SELL else self.last_terminated_buy_executor_timestamp
 
         return (
-            last_terminated_executor and
-            last_terminated_executor.close_type == CloseType.STOP_LOSS and
+            is_sl and
             last_terminated_executor_timestamp + self.config.cooldown_time_min * 60 > self.market_data_provider.time()
         )
