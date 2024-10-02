@@ -457,6 +457,8 @@ class MmBbands(ControllerBase):
         return self._is_last_sell_executor_sl() if side == TradeType.SELL else self._is_last_buy_executor_sl()
 
     def check_trading_executors(self):
+        self.reset_old_stop_losses()
+
         terminated_sell_executor, terminated_buy_executor = self.get_last_terminated_executor_by_side()
 
         if terminated_sell_executor:
@@ -464,6 +466,25 @@ class MmBbands(ControllerBase):
 
         if terminated_buy_executor:
             self._check_for_stop_loss_on_buy(terminated_buy_executor)
+
+    def reset_old_stop_losses(self):
+        if (
+            self.has_sl_occurred_on_side(TradeType.SELL) and
+            self.last_terminated_sell_executor_timestamp + 20 * 60 > self.market_data_provider.time()
+        ):
+            self.logger().info("Over 20 minutes have passed since the last SL on a Short, resetting last_terminated_sell_executor and its timestamp")
+
+            self.last_terminated_sell_executor = None
+            self.last_terminated_sell_executor_timestamp = 0
+
+        if (
+            self.has_sl_occurred_on_side(TradeType.BUY) and
+            self.last_terminated_buy_executor_timestamp + 20 * 60 > self.market_data_provider.time()
+        ):
+            self.logger().info("Over 20 minutes have passed since the last SL on a Long, resetting last_terminated_buy_executor and its timestamp")
+
+            self.last_terminated_buy_executor = None
+            self.last_terminated_buy_executor_timestamp = 0
 
     def _check_for_stop_loss_on_sell(self, last_terminated_executor: Optional[ExecutorInfo]):
         if self.last_terminated_sell_executor and self.last_terminated_sell_executor.id == last_terminated_executor.id:
