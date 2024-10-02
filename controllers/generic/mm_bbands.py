@@ -64,11 +64,6 @@ class MmBbandsConfig(ControllerConfigBase):
 
 
 class MmBbands(ControllerBase):
-    last_terminated_sell_executor: Optional[ExecutorInfo] = None
-    last_terminated_sell_executor_timestamp: float = 0.0
-    last_terminated_buy_executor: Optional[ExecutorInfo] = None
-    last_terminated_buy_executor_timestamp: float = 0.0
-
     def __init__(self, config: MmBbandsConfig, *args, **kwargs):
         super().__init__(config, *args, **kwargs)
         self.config = config
@@ -80,6 +75,11 @@ class MmBbands(ControllerBase):
                 interval=self.config.candles_interval,
                 max_records=self.config.candles_length
             )]
+
+        self.last_terminated_sell_executor: Optional[ExecutorInfo] = None
+        self.last_terminated_sell_executor_timestamp: float = 0.0
+        self.last_terminated_buy_executor: Optional[ExecutorInfo] = None
+        self.last_terminated_buy_executor_timestamp: float = 0.0
 
     async def update_processed_data(self):
         candles_config = self.config.candles_config[0]
@@ -139,6 +139,16 @@ class MmBbands(ControllerBase):
             self.logger().info(f"##### is_high_volatility -> Stopping unfilled executors #####")
 
         unfilled_sell_executors, unfilled_buy_executors = self.get_unfilled_executors_by_side()
+
+        if self.should_stop_unfilled_executors_after_sl(TradeType.SELL):
+            for unfilled_executor in unfilled_sell_executors:
+                self.logger().info("should_stop_unfilled_shorts and unfilled_sell_executors not empty")
+                stop_actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=unfilled_executor.id))
+
+        if self.should_stop_unfilled_executors_after_sl(TradeType.BUY):
+            for unfilled_executor in unfilled_buy_executors:
+                self.logger().info("should_stop_unfilled_longs and unfilled_buy_executors not empty")
+                stop_actions.append(StopExecutorAction(controller_id=self.config.id, executor_id=unfilled_executor.id))
 
         for unfilled_executor in unfilled_sell_executors + unfilled_buy_executors:
             has_expired = has_order_expired(unfilled_executor, self.config.unfilled_order_expiration_min * 60, self.market_data_provider.time())
@@ -507,3 +517,13 @@ class MmBbands(ControllerBase):
         sl_price_buy: Decimal = entry_price * (1 - stop_loss)
 
         return sl_price_sell if side == TradeType.SELL else sl_price_buy
+
+    def should_stop_unfilled_executors_after_sl(self, side: TradeType) -> bool:
+        last_terminated_executor = self.last_terminated_sell_executor if side == TradeType.SELL else self.last_terminated_buy_executor
+        last_terminated_executor_timestamp = self.last_terminated_sell_executor_timestamp if side == TradeType.SELL else self.last_terminated_buy_executor_timestamp
+
+        return (
+            last_terminated_executor and
+            last_terminated_executor.close_type == CloseType.STOP_LOSS and
+            last_terminated_executor_timestamp + self.config.cooldown_time_min * 60 > self.market_data_provider.time()
+        )
