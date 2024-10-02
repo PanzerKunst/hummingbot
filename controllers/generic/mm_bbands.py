@@ -471,7 +471,7 @@ class MmBbands(ControllerBase):
 
         close_type = last_terminated_executor.close_type
 
-        if close_type not in (CloseType.TIME_LIMIT, CloseType.TAKE_PROFIT, CloseType.STOP_LOSS):
+        if close_type not in (CloseType.TAKE_PROFIT, CloseType.STOP_LOSS):
             return
 
         # TODO: remove
@@ -486,7 +486,7 @@ class MmBbands(ControllerBase):
 
         close_type = last_terminated_executor.close_type
 
-        if close_type not in (CloseType.TIME_LIMIT, CloseType.TAKE_PROFIT, CloseType.STOP_LOSS):
+        if close_type not in (CloseType.TAKE_PROFIT, CloseType.STOP_LOSS):
             return
 
         # TODO: remove
