@@ -451,10 +451,6 @@ class MmBbands(ControllerBase):
     def check_trading_executors(self):
         terminated_sell_executor, terminated_buy_executor = self.get_last_terminated_executor_by_side()
 
-        # TODO: remove
-        self.logger().info(f"check_trading_executors() | terminated_sell_executor: {terminated_sell_executor}")
-        self.logger().info(f"check_trading_executors() | terminated_buy_executor: {terminated_buy_executor}")
-
         if terminated_sell_executor:
             self._check_for_stop_loss_on_sell(terminated_sell_executor)
 
@@ -471,7 +467,7 @@ class MmBbands(ControllerBase):
             return
 
         # TODO: remove
-        self.logger().info(f"_check_for_stop_loss_on_sell() | updating self.last_terminated_sell_executor to: {last_terminated_executor} with timestamp: {timestamp_to_iso(self.market_data_provider.time())}")
+        self.logger().info(f"_check_for_stop_loss_on_sell() | updating self.last_terminated_sell_executor to: {close_type} with timestamp: {timestamp_to_iso(self.market_data_provider.time())}")
 
         self.last_terminated_sell_executor = last_terminated_executor
         self.last_terminated_sell_executor_timestamp = self.market_data_provider.time()
@@ -486,7 +482,7 @@ class MmBbands(ControllerBase):
             return
 
         # TODO: remove
-        self.logger().info(f"_check_for_stop_loss_on_buy() | updating self.last_terminated_buy_executor to: {last_terminated_executor} with timestamp: {timestamp_to_iso(self.market_data_provider.time())}")
+        self.logger().info(f"_check_for_stop_loss_on_buy() | updating self.last_terminated_buy_executor to: {close_type} with timestamp: {timestamp_to_iso(self.market_data_provider.time())}")
 
         self.last_terminated_buy_executor = last_terminated_executor
         self.last_terminated_buy_executor_timestamp = self.market_data_provider.time()
