@@ -326,16 +326,16 @@ class MmBbands(ControllerBase):
 
         if self.has_sl_occurred_on_side(TradeType.SELL) and self.is_still_trending_up():
             self.logger().info("self.has_sl_occurred_on_sell_and_price_trending_up, increasing trend_adjustment_pct")
-            trend_adjustment_pct += self.config.default_spread_pct * Decimal(0.5)
+            trend_adjustment_pct += self.config.default_spread_pct * 2
 
         latest_normalized_rsi = self.get_latest_normalized_rsi()
-        rsi_adjustment_pct = -latest_normalized_rsi * Decimal(0.012)
+        rsi_adjustment_pct = -latest_normalized_rsi * Decimal(0.01)
 
         # If we're adding a new position while having a filled one on the same side, we increase the adjustments
         if len(trading_sell_executors) > 0:
             self.logger().info("Adding a position while having a filled one on the same side - increasing the adjustments")
-            volatility_adjustment_pct += self.config.default_spread_pct * Decimal(0.5)
-            trend_adjustment_pct += self.config.default_spread_pct * Decimal(0.5)
+            volatility_adjustment_pct += self.config.default_spread_pct * Decimal(0.7)
+            trend_adjustment_pct += self.config.default_spread_pct * Decimal(0.7)
 
         default_adjustment = self.config.default_spread_pct / 100
         total_adjustment = default_adjustment + volatility_adjustment_pct / 100 + trend_adjustment_pct / 100 + rsi_adjustment_pct / 100
@@ -375,16 +375,16 @@ class MmBbands(ControllerBase):
 
         if self.has_sl_occurred_on_side(TradeType.BUY) and self.is_still_trending_down():
             self.logger().info("self.has_sl_occurred_on_buy_and_price_trending_down, increasing trend_adjustment_pct")
-            trend_adjustment_pct += self.config.default_spread_pct * Decimal(0.5)
+            trend_adjustment_pct += self.config.default_spread_pct * 2
 
         latest_normalized_rsi = self.get_latest_normalized_rsi()
-        rsi_adjustment_pct = latest_normalized_rsi * Decimal(0.012)
+        rsi_adjustment_pct = latest_normalized_rsi * Decimal(0.01)
 
         # If we're adding a new position while having a filled one on the same side, we increase the adjustments
         if len(trading_buy_executors) > 0:
             self.logger().info("Adding a position while having a filled one on the same side - increasing the adjustments")
-            volatility_adjustment_pct += self.config.default_spread_pct * Decimal(0.5)
-            trend_adjustment_pct += self.config.default_spread_pct * Decimal(0.5)
+            volatility_adjustment_pct += self.config.default_spread_pct * Decimal(0.7)
+            trend_adjustment_pct += self.config.default_spread_pct * Decimal(0.7)
 
         default_adjustment = self.config.default_spread_pct / 100
         total_adjustment = default_adjustment + volatility_adjustment_pct / 100 + trend_adjustment_pct / 100 + rsi_adjustment_pct / 100
