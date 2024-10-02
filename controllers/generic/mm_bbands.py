@@ -430,9 +430,6 @@ class MmBbands(ControllerBase):
         return (bbb_last_full_minute + bbb_before_that + bbb_even_before_that) / 3
 
     def is_high_volatility(self) -> bool:
-        # TODO: remove
-        self.logger().info(f"is_high_volatility() | latest_bbb: {self.get_latest_bbb()}")
-
         return self.get_latest_bbb() > self.config.high_volatility_threshold
 
     def is_still_trending_up(self) -> bool:
