@@ -312,6 +312,7 @@ class MmBbands(ControllerBase):
         avg_last_three_bbb = self.get_avg_last_tree_bbb()
         if avg_last_three_bbb > 0:
             volatility_adjustment_pct += avg_last_three_bbb * Decimal(0.5)
+            # TODO: try removing `* Decimal(0.5)` and instead have a smaller default spread. Also, reduce unfilled_order_timeout
 
         trend_adjustment_pct: Decimal = Decimal(0)
 
