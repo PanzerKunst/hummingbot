@@ -330,7 +330,7 @@ class MmBbands(ControllerBase):
             trend_adjustment_pct += self.config.default_spread_pct * 2
 
         latest_normalized_rsi = self.get_latest_normalized_rsi()
-        rsi_adjustment_pct = -latest_normalized_rsi * Decimal(0.01)
+        rsi_adjustment_pct = -latest_normalized_rsi * Decimal(0.008)
 
         # If we're adding a new position while having a filled one on the same side, we increase the adjustments
         if len(trading_sell_executors) > 0:
@@ -379,7 +379,7 @@ class MmBbands(ControllerBase):
             trend_adjustment_pct += self.config.default_spread_pct * 2
 
         latest_normalized_rsi = self.get_latest_normalized_rsi()
-        rsi_adjustment_pct = latest_normalized_rsi * Decimal(0.01)
+        rsi_adjustment_pct = latest_normalized_rsi * Decimal(0.008)
 
         # If we're adding a new position while having a filled one on the same side, we increase the adjustments
         if len(trading_buy_executors) > 0:
