@@ -36,6 +36,7 @@ class MmBbandsConfig(ControllerConfigBase):
     filled_order_expiration_min: int = Field(1000, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
+    volume_for_1_pct_volatility_adjustment: int = Field(300000, client_data=ClientFieldData(is_updatable=True))
     bbands_length_for_trend: int = Field(6, client_data=ClientFieldData(is_updatable=True))
     bbands_std_dev_for_trend: Decimal = Field(2.0, client_data=ClientFieldData(is_updatable=True))
     bbands_length_for_volatility: int = Field(2, client_data=ClientFieldData(is_updatable=True))
@@ -171,6 +172,7 @@ class MmBbands(ControllerBase):
         columns_to_display = [
             "timestamp_iso",
             "close",
+            "volume",
             "normalized_bbp",
             "bbb_for_volatility",
             "normalized_rsi"
@@ -318,7 +320,10 @@ class MmBbands(ControllerBase):
             mid_price = trading_order_sl_price
             default_adjustment = Decimal(0)  # Safe as long as self.config.stop_loss_pct > self.config.default_spread_pct
 
-        volatility_adjustment_pct = Decimal(0)
+        volatility_adjustment_pct: Decimal = Decimal(self.get_recent_volume() / self.config.volume_for_1_pct_volatility_adjustment)
+
+        # TODO: remove
+        self.logger().info(f"volatility_adjustment_pct initialized to: {volatility_adjustment_pct}")
 
         avg_last_three_bbb = self.get_avg_last_tree_bbb()
         if avg_last_three_bbb > 0:
@@ -364,7 +369,10 @@ class MmBbands(ControllerBase):
             mid_price = trading_order_sl_price
             default_adjustment = Decimal(0)
 
-        volatility_adjustment_pct = Decimal(0)
+        volatility_adjustment_pct: Decimal = Decimal(self.get_recent_volume() / self.config.volume_for_1_pct_volatility_adjustment)
+
+        # TODO: remove
+        self.logger().info(f"volatility_adjustment_pct initialized to: {volatility_adjustment_pct}")
 
         avg_last_three_bbb = self.get_avg_last_tree_bbb()
         if avg_last_three_bbb > 0:
@@ -409,6 +417,13 @@ class MmBbands(ControllerBase):
     def normalize_rsi(rsi: float) -> Decimal:
         return Decimal(rsi * 2 - 100)
 
+    def get_recent_volume(self) -> int:
+        volume_series: pd.Series = self.processed_data["features"]["volume"]
+        volume_current_incomplete_minute = volume_series.iloc[-1]
+        volume_previous_full_minute = volume_series.iloc[-2]
+        volume_before_that = volume_series.iloc[-3]
+        return max(volume_current_incomplete_minute, volume_previous_full_minute, volume_before_that)
+
     def get_latest_normalized_bbp(self) -> Decimal:
         bbp_series: pd.Series = self.processed_data["features"]["normalized_bbp"]
         bbp_previous_full_minute = Decimal(bbp_series.iloc[-2])
@@ -419,7 +434,7 @@ class MmBbands(ControllerBase):
             else min(bbp_previous_full_minute, bbp_current_incomplete_minute)
         )
 
-    def get_latest_bbb(self) -> Decimal:
+    def get_recent_bbb(self) -> Decimal:
         bbb_series: pd.Series = self.processed_data["features"]["bbb_for_volatility"]
         bbb_current_incomplete_minute = Decimal(bbb_series.iloc[-1])
         bbb_previous_full_minute = Decimal(bbb_series.iloc[-2])
@@ -434,7 +449,7 @@ class MmBbands(ControllerBase):
         return (bbb_last_full_minute + bbb_before_that + bbb_even_before_that) / 3
 
     def is_high_volatility(self) -> bool:
-        return self.get_latest_bbb() > self.config.high_volatility_threshold
+        return self.get_recent_bbb() > self.config.high_volatility_threshold
 
     def is_still_trending_up(self) -> bool:
         return self.get_latest_normalized_bbp() > -0.2

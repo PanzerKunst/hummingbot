@@ -13,6 +13,7 @@ unfilled_order_expiration_min: 5
 stop_loss_pct: 0.8
 take_profit_pct: 0.8
 filled_order_expiration_min: 1000
+volume_for_1_pct_volatility_adjustment: 300000
 bbands_length_for_trend: 6
 bbands_std_dev_for_trend: 2.0
 bbands_length_for_volatility: 2
