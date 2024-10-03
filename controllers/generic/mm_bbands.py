@@ -342,7 +342,8 @@ class MmBbands(ControllerBase):
 
         latest_normalized_rsi = self.get_latest_normalized_rsi()
 
-        if self.is_rsi_at_the_edges(latest_normalized_rsi):
+        # `if not is_order_on_same_side` only because we have the bug of SL when > 1 position is open on the same side
+        if not is_order_on_same_side and self.is_rsi_at_the_edges(latest_normalized_rsi):
             rsi_adjustment_pct = -latest_normalized_rsi * Decimal(0.01)
 
         total_adjustment = default_adjustment + volatility_adjustment_pct / 100 + trend_adjustment_pct / 100 + rsi_adjustment_pct / 100
@@ -386,7 +387,7 @@ class MmBbands(ControllerBase):
 
         latest_normalized_rsi = self.get_latest_normalized_rsi()
 
-        if self.is_rsi_at_the_edges(latest_normalized_rsi):
+        if not is_order_on_same_side and self.is_rsi_at_the_edges(latest_normalized_rsi):
             rsi_adjustment_pct = latest_normalized_rsi * Decimal(0.01)
 
         total_adjustment = default_adjustment + volatility_adjustment_pct / 100 + trend_adjustment_pct / 100 + rsi_adjustment_pct / 100
