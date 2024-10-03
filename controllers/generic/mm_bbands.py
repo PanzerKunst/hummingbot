@@ -46,7 +46,7 @@ class MmBbandsConfig(ControllerConfigBase):
     # Candles
     candles_connector: str = "okx_perpetual"
     candles_interval: str = "1m"
-    candles_length: int = 12
+    candles_length: int = 24
     candles_config: List[CandlesConfig] = []  # Initialized in the constructor
 
     # Maker orders settings
@@ -179,7 +179,7 @@ class MmBbands(ControllerBase):
             "normalized_rsi"
         ]
 
-        return [format_df_for_printout(features_df[columns_to_display].tail(self.config.candles_length), table_format="psql", )]
+        return [format_df_for_printout(features_df[columns_to_display].tail(self.config.rsi_length), table_format="psql", )]
 
     #
     # Custom functions potentially interesting for other controllers
@@ -443,7 +443,7 @@ class MmBbands(ControllerBase):
     def has_been_trending_down_for_a_while(self) -> bool:
         bbp_series: pd.Series = self.processed_data["features"]["normalized_bbp"]
 
-        for i in range(2, 10):  # 8 times, the ending point is exclusive
+        for i in range(2, 10):  # 8 times, the ending point is exclusive.
             normalized_bbp = Decimal(bbp_series.iloc[-i])
 
             if normalized_bbp > 0:
