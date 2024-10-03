@@ -76,9 +76,6 @@ class MmBbands(ControllerBase):
                 max_records=self.config.candles_length
             )]
 
-        # TODO: remove
-        self.logger().info("__init__")
-
         self.last_terminated_sell_executor: Optional[ExecutorInfo] = None
         self.last_terminated_sell_executor_timestamp: float = 0.0
         self.last_terminated_buy_executor: Optional[ExecutorInfo] = None
@@ -237,7 +234,7 @@ class MmBbands(ControllerBase):
     def get_last_terminated_executor_by_side(self) -> Tuple[Optional[ExecutorInfo], Optional[ExecutorInfo]]:
         terminated_executors = self.filter_executors(
             executors=self.executors_info,
-            filter_func=lambda e: e.connector_name == self.config.connector_name and e.is_done
+            filter_func=lambda e: e.connector_name == self.config.connector_name and e.is_done and e.filled_amount_quote > 0
         )
 
         last_sell_executor: Optional[ExecutorInfo] = None
