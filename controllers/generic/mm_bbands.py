@@ -250,12 +250,6 @@ class MmBbands(ControllerBase):
             if last_sell_executor and last_buy_executor:
                 break
 
-        # TODO: remove
-        if last_sell_executor:
-            self.logger().info(f"last_sell_executor.is_trading:{last_sell_executor.is_trading} | filled_amount_quote:{last_sell_executor.filled_amount_quote}")
-        if last_buy_executor:
-            self.logger().info(f"last_buy_executor.is_trading:{last_buy_executor.is_trading} | filled_amount_quote:{last_buy_executor.filled_amount_quote}")
-
         return last_sell_executor, last_buy_executor
 
     def get_trade_connector(self) -> Optional[ConnectorBase]:
