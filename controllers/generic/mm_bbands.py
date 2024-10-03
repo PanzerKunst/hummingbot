@@ -122,13 +122,13 @@ class MmBbands(ControllerBase):
         unfilled_sell_executors, unfilled_buy_executors = self.get_unfilled_executors_by_side()
 
         if self.can_create_executor(unfilled_sell_executors, TradeType.SELL):
-            sell_price = self.adjust_sell_price(mid_price)
-            sell_executor_config = self.get_executor_config(TradeType.SELL, sell_price)
+            sell_price, is_order_on_same_side = self.adjust_sell_price(mid_price)
+            sell_executor_config = self.get_executor_config(TradeType.SELL, sell_price, is_order_on_same_side)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=sell_executor_config))
 
         if self.can_create_executor(unfilled_buy_executors, TradeType.BUY):
-            buy_price = self.adjust_buy_price(mid_price)
-            buy_executor_config = self.get_executor_config(TradeType.BUY, buy_price)
+            buy_price, is_order_on_same_side = self.adjust_buy_price(mid_price)
+            buy_executor_config = self.get_executor_config(TradeType.BUY, buy_price, is_order_on_same_side)
             create_actions.append(CreateExecutorAction(controller_id=self.config.id, executor_config=buy_executor_config))
 
         return create_actions
@@ -284,8 +284,9 @@ class MmBbands(ControllerBase):
     def _get_best_ask_or_bid(self, price_type: PriceType) -> Decimal:
         return self.market_data_provider.get_price_by_type(self.config.connector_name, self.config.trading_pair, price_type)
 
-    def get_executor_config(self, side: TradeType, ref_price: Decimal) -> PositionExecutorConfig:
+    def get_executor_config(self, side: TradeType, ref_price: Decimal, is_order_on_same_side: bool) -> PositionExecutorConfig:
         triple_barrier_config = self.get_triple_barrier_config()
+        amount_multiplier = Decimal(1.5) if is_order_on_same_side else Decimal(1)
 
         return PositionExecutorConfig(
             timestamp=self.market_data_provider.time(),
@@ -293,7 +294,7 @@ class MmBbands(ControllerBase):
             trading_pair=self.config.trading_pair,
             side=side,
             entry_price=ref_price,
-            amount=self.get_position_quote_amount(side) / ref_price,
+            amount=self.get_position_quote_amount(side) / ref_price * amount_multiplier,
             triple_barrier_config=triple_barrier_config,
             leverage=self.config.leverage
         )
@@ -309,10 +310,11 @@ class MmBbands(ControllerBase):
             time_limit_order_type=OrderType.MARKET  # Only market orders are supported for time_limit and stop_loss
         )
 
-    def adjust_sell_price(self, mid_price: Decimal) -> Decimal:
+    def adjust_sell_price(self, mid_price: Decimal) -> Tuple[Decimal, bool]:
         default_adjustment = self.config.default_spread_pct / 100
 
         trading_order_sl_price = self.get_sl_price(TradeType.SELL)
+        is_order_on_same_side: bool = trading_order_sl_price is not None
 
         if trading_order_sl_price:
             self.logger().info(f"There is a trading Short order. Updating mid_price to: {trading_order_sl_price} and default_adjustment to 0")
@@ -330,11 +332,11 @@ class MmBbands(ControllerBase):
 
         if self.is_last_sell_executor_sl() and self.is_still_trending_up():
             self.logger().info("self.is_last_sell_executor_sl() and self.is_still_trending_up(), increasing trend_adjustment_pct")
-            trend_adjustment_pct += self.config.default_spread_pct
+            trend_adjustment_pct += self.config.default_spread_pct * Decimal(1.2)
 
         if self.has_been_trending_up_for_a_while():
             self.logger().info("self.has_been_trending_up_for_a_while(), increasing trend_adjustment_pct")
-            trend_adjustment_pct += self.config.default_spread_pct
+            trend_adjustment_pct += self.config.default_spread_pct * Decimal(1.2)
 
         rsi_adjustment_pct = Decimal(0)
 
@@ -351,12 +353,13 @@ class MmBbands(ControllerBase):
         self.logger().info(f"Adjusting SELL price. def_adj:{default_adjustment}, volatility_adjustment_pct:{volatility_adjustment_pct}, trend_adjustment_pct:{trend_adjustment_pct}, rsi_adjustment_pct:{rsi_adjustment_pct}")
         self.logger().info(f"Adjusting SELL price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
-        return ref_price
+        return ref_price, is_order_on_same_side
 
-    def adjust_buy_price(self, mid_price: Decimal) -> Decimal:
+    def adjust_buy_price(self, mid_price: Decimal) -> Tuple[Decimal, bool]:
         default_adjustment = self.config.default_spread_pct / 100
 
         trading_order_sl_price = self.get_sl_price(TradeType.BUY)
+        is_order_on_same_side: bool = trading_order_sl_price is not None
 
         if trading_order_sl_price:
             self.logger().info(f"There is a trading Long order. Updating mid_price to: {trading_order_sl_price} and default_adjustment to 0")
@@ -373,11 +376,11 @@ class MmBbands(ControllerBase):
 
         if self.is_last_buy_executor_sl() and self.is_still_trending_down():
             self.logger().info("self.is_last_buy_executor_sl() and self.is_still_trending_down(), increasing trend_adjustment_pct")
-            trend_adjustment_pct += self.config.default_spread_pct
+            trend_adjustment_pct += self.config.default_spread_pct * Decimal(1.2)
 
         if self.has_been_trending_down_for_a_while():
             self.logger().info("self.has_been_trending_down_for_a_while(), increasing trend_adjustment_pct")
-            trend_adjustment_pct += self.config.default_spread_pct
+            trend_adjustment_pct += self.config.default_spread_pct * Decimal(1.2)
 
         rsi_adjustment_pct = Decimal(0)
 
@@ -394,7 +397,7 @@ class MmBbands(ControllerBase):
         self.logger().info(f"Adjusting BUY price. def_adj:{default_adjustment}, volatility_adjustment_pct:{volatility_adjustment_pct}, trend_adjustment_pct:{trend_adjustment_pct}, rsi_adjustment_pct:{rsi_adjustment_pct}")
         self.logger().info(f"Adjusting BUY price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
-        return ref_price
+        return ref_price, is_order_on_same_side
 
     #
     # Custom functions specific to this controller
