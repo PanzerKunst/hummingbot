@@ -28,7 +28,7 @@ class MmBbandsConfig(ControllerConfigBase):
     position_mode: PositionMode = PositionMode.HEDGE
 
     cooldown_time_min: int = Field(1, client_data=ClientFieldData(is_updatable=True))
-    unfilled_order_expiration_min: int = Field(7, client_data=ClientFieldData(is_updatable=True))
+    unfilled_order_expiration_min: int = Field(5, client_data=ClientFieldData(is_updatable=True))
 
     # Triple Barrier
     stop_loss_pct: Decimal = Field(0.7, client_data=ClientFieldData(is_updatable=True))
@@ -252,6 +252,12 @@ class MmBbands(ControllerBase):
             # If both are found, no need to continue the loop
             if last_sell_executor and last_buy_executor:
                 break
+
+        # TODO: remove
+        if last_sell_executor:
+            self.logger().info(f"last_sell_executor.is_trading:{last_sell_executor.is_trading} | filled_amount_quote:{last_sell_executor.filled_amount_quote}")
+        if last_buy_executor:
+            self.logger().info(f"last_buy_executor.is_trading:{last_buy_executor.is_trading} | filled_amount_quote:{last_buy_executor.filled_amount_quote}")
 
         return last_sell_executor, last_buy_executor
 

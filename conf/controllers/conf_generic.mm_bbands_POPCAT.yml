@@ -9,7 +9,7 @@ trading_pair: POPCAT-USDT
 leverage: 20
 position_mode: HEDGE
 cooldown_time_min: 1
-unfilled_order_expiration_min: 7
+unfilled_order_expiration_min: 5
 stop_loss_pct: 0.7
 take_profit_pct: 0.7
 filled_order_expiration_min: 1000
