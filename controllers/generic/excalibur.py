@@ -37,7 +37,7 @@ class ExcaliburConfig(ControllerConfigBase):
     # Candles
     candles_connector: str = "binance"
     candles_interval: str = "15m"
-    candles_length: int = 30
+    candles_length: int = 150
     candles_config: List[CandlesConfig] = []  # Initialized in the constructor
 
     # Trading algo
@@ -91,11 +91,8 @@ class Excalibur(ControllerBase):
 
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
 
-        sma_short = candles_df.ta.sma(length=self.config.sma_short_length)
-        candles_df["sma_short"] = sma_short[f"SMA_{self.config.sma_short_length}"]
-
-        sma_long = candles_df.ta.sma(length=self.config.sma_long_length)
-        candles_df["sma_long"] = sma_long[f"SMA_{self.config.sma_long_length}"]
+        candles_df["sma_short"] = candles_df.ta.sma(length=self.config.sma_short_length)
+        candles_df["sma_long"] = candles_df.ta.sma(length=self.config.sma_long_length)
 
         self.update_indicators(candles_df)
         candles_df["sma_short"] = self.indicators_df["sma_short"]
@@ -161,7 +158,7 @@ class Excalibur(ControllerBase):
             "sma_long"
         ]
 
-        return [format_df_for_printout(features_df[columns_to_display].tail(self.config.candles_length), table_format="psql", )]
+        return [format_df_for_printout(features_df[columns_to_display].tail(20), table_format="psql", )]
 
     #
     # Custom functions potentially interesting for other controllers

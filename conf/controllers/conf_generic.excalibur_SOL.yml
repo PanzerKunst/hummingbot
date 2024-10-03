@@ -14,5 +14,5 @@ sma_short_length: 50
 sma_long_length: 100
 candles_connector: binance
 candles_interval: 15m
-candles_length: 30
+candles_length: 150
 delta_with_mid_price_bps: 0
