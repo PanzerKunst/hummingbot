@@ -31,8 +31,8 @@ class MmBbandsConfig(ControllerConfigBase):
     unfilled_order_expiration_min: int = Field(5, client_data=ClientFieldData(is_updatable=True))
 
     # Triple Barrier
-    stop_loss_pct: Decimal = Field(0.7, client_data=ClientFieldData(is_updatable=True))
-    take_profit_pct: Decimal = Field(0.7, client_data=ClientFieldData(is_updatable=True))
+    stop_loss_pct: Decimal = Field(0.8, client_data=ClientFieldData(is_updatable=True))
+    take_profit_pct: Decimal = Field(0.8, client_data=ClientFieldData(is_updatable=True))
     filled_order_expiration_min: int = Field(1000, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
@@ -50,7 +50,7 @@ class MmBbandsConfig(ControllerConfigBase):
     candles_config: List[CandlesConfig] = []  # Initialized in the constructor
 
     # Maker orders settings
-    default_spread_pct: Decimal = Field(0.5, client_data=ClientFieldData(is_updatable=True))
+    default_spread_pct: Decimal = Field(0.6, client_data=ClientFieldData(is_updatable=True))
 
     def update_markets(self, markets: Dict[str, Set[str]]) -> Dict[str, Set[str]]:
         if self.connector_name not in markets:
