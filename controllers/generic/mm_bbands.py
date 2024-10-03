@@ -331,8 +331,8 @@ class MmBbands(ControllerBase):
             self.logger().info("self.is_last_sell_executor_sl() and self.is_still_trending_up(), increasing trend_adjustment_pct")
             trend_adjustment_pct += self.config.default_spread_pct * Decimal(1.5)
 
-        if self.has_been_trending_up_for_a_while():
-            self.logger().info("self.has_been_trending_up_for_a_while(), increasing trend_adjustment_pct")
+        if self.has_been_trending_up_for_a_while() or self.has_been_trending_down_for_a_while():
+            self.logger().info("self.has_been_trending_for_a_while(), increasing trend_adjustment_pct")
             trend_adjustment_pct += self.config.default_spread_pct * Decimal(1.5)
 
         rsi_adjustment_pct = Decimal(0)
@@ -376,8 +376,8 @@ class MmBbands(ControllerBase):
             self.logger().info("self.is_last_buy_executor_sl() and self.is_still_trending_down(), increasing trend_adjustment_pct")
             trend_adjustment_pct += self.config.default_spread_pct * Decimal(1.5)
 
-        if self.has_been_trending_down_for_a_while():
-            self.logger().info("self.has_been_trending_down_for_a_while(), increasing trend_adjustment_pct")
+        if self.has_been_trending_up_for_a_while() or self.has_been_trending_down_for_a_while():
+            self.logger().info("self.has_been_trending_for_a_while(), increasing trend_adjustment_pct")
             trend_adjustment_pct += self.config.default_spread_pct * Decimal(1.5)
 
         rsi_adjustment_pct = Decimal(0)
