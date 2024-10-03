@@ -46,7 +46,7 @@ class MmBbandsConfig(ControllerConfigBase):
     # Candles
     candles_connector: str = "okx_perpetual"
     candles_interval: str = "1m"
-    candles_length: int = 24
+    candles_length: int = 12
     candles_config: List[CandlesConfig] = []  # Initialized in the constructor
 
     # Maker orders settings
@@ -75,6 +75,9 @@ class MmBbands(ControllerBase):
                 interval=self.config.candles_interval,
                 max_records=self.config.candles_length
             )]
+
+        # TODO: remove
+        self.logger().info("__init__")
 
         self.last_terminated_sell_executor: Optional[ExecutorInfo] = None
         self.last_terminated_sell_executor_timestamp: float = 0.0
@@ -176,7 +179,7 @@ class MmBbands(ControllerBase):
             "normalized_rsi"
         ]
 
-        return [format_df_for_printout(features_df[columns_to_display].tail(self.config.bbands_length_for_trend), table_format="psql", )]
+        return [format_df_for_printout(features_df[columns_to_display].tail(self.config.candles_length), table_format="psql", )]
 
     #
     # Custom functions potentially interesting for other controllers
@@ -307,38 +310,39 @@ class MmBbands(ControllerBase):
         )
 
     def adjust_sell_price(self, mid_price: Decimal) -> Decimal:
-        volatility_adjustment_pct: Decimal = Decimal(0)
+        default_adjustment = self.config.default_spread_pct / 100
+
+        trading_order_sl_price = self.get_sl_price(TradeType.SELL)
+
+        if trading_order_sl_price:
+            self.logger().info(f"There is a trading Short order. Updating mid_price to: {trading_order_sl_price} and default_adjustment to 0")
+            mid_price = trading_order_sl_price
+            default_adjustment = Decimal(0)  # Safe as long as self.config.stop_loss_pct > self.config.default_spread_pct
+
+        volatility_adjustment_pct = Decimal(0)
 
         avg_last_three_bbb = self.get_avg_last_tree_bbb()
         if avg_last_three_bbb > 0:
             volatility_adjustment_pct += avg_last_three_bbb * Decimal(0.5)
             # TODO: try removing `* Decimal(0.5)` and instead have a smaller default spread. Also, reduce unfilled_order_timeout
 
-        trend_adjustment_pct: Decimal = Decimal(0)
+        trend_adjustment_pct = Decimal(0)
 
-        trading_sell_executors, _ = self.get_trading_executors_by_side()
+        if self.is_last_sell_executor_sl() and self.is_still_trending_up():
+            self.logger().info("self.is_last_sell_executor_sl() and self.is_still_trending_up(), increasing trend_adjustment_pct")
+            trend_adjustment_pct += self.config.default_spread_pct
 
-        # If there is a trading SELL position with negative PnL, we add to the adjustment
-        for trading_executor in trading_sell_executors:
-            pnl_pct = trading_executor.net_pnl_pct * 100
-            if pnl_pct < 0:
-                self.logger().info(f"Adding SELL position while negative filled position of pnl_pct {trading_executor.net_pnl_pct}")
-                trend_adjustment_pct += -pnl_pct * 2
+        if self.has_been_trending_up_for_a_while():
+            self.logger().info("self.has_been_trending_up_for_a_while(), increasing trend_adjustment_pct")
+            trend_adjustment_pct += self.config.default_spread_pct
 
-        if self.has_sl_occurred_on_side(TradeType.SELL) and self.is_still_trending_up():
-            self.logger().info("self.has_sl_occurred_on_sell_and_price_trending_up, increasing trend_adjustment_pct")
-            trend_adjustment_pct += self.config.default_spread_pct * 2
+        rsi_adjustment_pct = Decimal(0)
 
         latest_normalized_rsi = self.get_latest_normalized_rsi()
-        rsi_adjustment_pct = -latest_normalized_rsi * Decimal(0.008)
 
-        # If we're adding a new position while having a filled one on the same side, we increase the adjustments
-        if len(trading_sell_executors) > 0:
-            self.logger().info("Adding a position while having a filled one on the same side - increasing the adjustments")
-            volatility_adjustment_pct += self.config.default_spread_pct * Decimal(0.7)
-            trend_adjustment_pct += self.config.default_spread_pct * Decimal(0.7)
+        if self.is_rsi_at_the_edges(latest_normalized_rsi):
+            rsi_adjustment_pct = -latest_normalized_rsi * Decimal(0.01)
 
-        default_adjustment = self.config.default_spread_pct / 100
         total_adjustment = default_adjustment + volatility_adjustment_pct / 100 + trend_adjustment_pct / 100 + rsi_adjustment_pct / 100
 
         ref_price = mid_price * Decimal(1 + total_adjustment)
@@ -347,47 +351,41 @@ class MmBbands(ControllerBase):
         self.logger().info(f"Adjusting SELL price. def_adj:{default_adjustment}, volatility_adjustment_pct:{volatility_adjustment_pct}, trend_adjustment_pct:{trend_adjustment_pct}, rsi_adjustment_pct:{rsi_adjustment_pct}")
         self.logger().info(f"Adjusting SELL price. total_adj:{total_adjustment}, ref_price:{ref_price}")
 
-        trading_order_sl_price = self.get_sl_price(TradeType.SELL)
-
-        if trading_order_sl_price and trading_order_sl_price > ref_price:
-            self.logger().info(f"There is a trading Short order whose SL {trading_order_sl_price} is above ref_price {ref_price}")
-            self.logger().info(f"Returning {trading_order_sl_price * Decimal(1 + 0.004)}")
-            return trading_order_sl_price * Decimal(1 + 0.004)
-
         return ref_price
 
     def adjust_buy_price(self, mid_price: Decimal) -> Decimal:
-        volatility_adjustment_pct: Decimal = Decimal(0)
+        default_adjustment = self.config.default_spread_pct / 100
+
+        trading_order_sl_price = self.get_sl_price(TradeType.BUY)
+
+        if trading_order_sl_price:
+            self.logger().info(f"There is a trading Long order. Updating mid_price to: {trading_order_sl_price} and default_adjustment to 0")
+            mid_price = trading_order_sl_price
+            default_adjustment = Decimal(0)
+
+        volatility_adjustment_pct = Decimal(0)
 
         avg_last_three_bbb = self.get_avg_last_tree_bbb()
         if avg_last_three_bbb > 0:
             volatility_adjustment_pct += avg_last_three_bbb * Decimal(0.5)
 
-        trend_adjustment_pct: Decimal = Decimal(0)
+        trend_adjustment_pct = Decimal(0)
 
-        _, trading_buy_executors = self.get_trading_executors_by_side()
+        if self.is_last_buy_executor_sl() and self.is_still_trending_down():
+            self.logger().info("self.is_last_buy_executor_sl() and self.is_still_trending_down(), increasing trend_adjustment_pct")
+            trend_adjustment_pct += self.config.default_spread_pct
 
-        # If there is a trading BUY position with negative PnL, we add to the adjustment
-        for trading_executor in trading_buy_executors:
-            pnl_pct = trading_executor.net_pnl_pct * 100
-            if pnl_pct < 0:
-                self.logger().info(f"Adding BUY position while negative filled position of pnl_pct {trading_executor.net_pnl_pct}")
-                trend_adjustment_pct += -pnl_pct * 2
+        if self.has_been_trending_down_for_a_while():
+            self.logger().info("self.has_been_trending_down_for_a_while(), increasing trend_adjustment_pct")
+            trend_adjustment_pct += self.config.default_spread_pct
 
-        if self.has_sl_occurred_on_side(TradeType.BUY) and self.is_still_trending_down():
-            self.logger().info("self.has_sl_occurred_on_buy_and_price_trending_down, increasing trend_adjustment_pct")
-            trend_adjustment_pct += self.config.default_spread_pct * 2
+        rsi_adjustment_pct = Decimal(0)
 
         latest_normalized_rsi = self.get_latest_normalized_rsi()
-        rsi_adjustment_pct = latest_normalized_rsi * Decimal(0.008)
 
-        # If we're adding a new position while having a filled one on the same side, we increase the adjustments
-        if len(trading_buy_executors) > 0:
-            self.logger().info("Adding a position while having a filled one on the same side - increasing the adjustments")
-            volatility_adjustment_pct += self.config.default_spread_pct * Decimal(0.7)
-            trend_adjustment_pct += self.config.default_spread_pct * Decimal(0.7)
+        if self.is_rsi_at_the_edges(latest_normalized_rsi):
+            rsi_adjustment_pct = latest_normalized_rsi * Decimal(0.01)
 
-        default_adjustment = self.config.default_spread_pct / 100
         total_adjustment = default_adjustment + volatility_adjustment_pct / 100 + trend_adjustment_pct / 100 + rsi_adjustment_pct / 100
 
         ref_price = mid_price * Decimal(1 - total_adjustment)
@@ -395,13 +393,6 @@ class MmBbands(ControllerBase):
         self.logger().info(f"Adjusting BUY price. mid:{mid_price}, avg_last_three_bbb:{avg_last_three_bbb}")
         self.logger().info(f"Adjusting BUY price. def_adj:{default_adjustment}, volatility_adjustment_pct:{volatility_adjustment_pct}, trend_adjustment_pct:{trend_adjustment_pct}, rsi_adjustment_pct:{rsi_adjustment_pct}")
         self.logger().info(f"Adjusting BUY price. total_adj:{total_adjustment}, ref_price:{ref_price}")
-
-        trading_order_sl_price = self.get_sl_price(TradeType.BUY)
-
-        if trading_order_sl_price and trading_order_sl_price < ref_price:
-            self.logger().info(f"There is a trading Long order whose SL {trading_order_sl_price} is below ref_price {ref_price}")
-            self.logger().info(f"Returning {trading_order_sl_price * Decimal(1 - 0.004)}")
-            return trading_order_sl_price * Decimal(1 - 0.004)
 
         return ref_price
 
@@ -449,12 +440,34 @@ class MmBbands(ControllerBase):
     def is_still_trending_down(self) -> bool:
         return self.get_latest_normalized_bbp() < 0.2
 
+    def has_been_trending_down_for_a_while(self) -> bool:
+        bbp_series: pd.Series = self.processed_data["features"]["normalized_bbp"]
+
+        for i in range(2, 10):  # 8 times, the ending point is exclusive
+            normalized_bbp = Decimal(bbp_series.iloc[-i])
+
+            if normalized_bbp > 0:
+                return False
+
+        return True
+
+    def has_been_trending_up_for_a_while(self) -> bool:
+        bbp_series: pd.Series = self.processed_data["features"]["normalized_bbp"]
+
+        for i in range(2, 10):
+            normalized_bbp = Decimal(bbp_series.iloc[-i])
+
+            if normalized_bbp < 0:
+                return False
+
+        return True
+
     def get_latest_normalized_rsi(self) -> Decimal:
         rsi_series: pd.Series = self.processed_data["features"]["normalized_rsi"]
         return Decimal(rsi_series.iloc[-1])
 
-    def has_sl_occurred_on_side(self, side: TradeType) -> bool:
-        return self._is_last_sell_executor_sl() if side == TradeType.SELL else self._is_last_buy_executor_sl()
+    def is_rsi_at_the_edges(self, normalized_rsi: Decimal) -> bool:
+        return normalized_rsi > 40 or normalized_rsi < -40
 
     def check_trading_executors(self):
         self.reset_old_stop_losses()
@@ -469,19 +482,19 @@ class MmBbands(ControllerBase):
 
     def reset_old_stop_losses(self):
         if (
-            self.has_sl_occurred_on_side(TradeType.SELL) and
-            self.last_terminated_sell_executor_timestamp + 20 * 60 > self.market_data_provider.time()
+            self.is_last_sell_executor_sl() and
+            self.last_terminated_sell_executor_timestamp + 45 * 60 < self.market_data_provider.time()
         ):
-            self.logger().info("Over 20 minutes have passed since the last SL on a Short, resetting last_terminated_sell_executor and its timestamp")
+            self.logger().info("Over 45 minutes have passed since the last SL on a Short, resetting last_terminated_sell_executor and its timestamp")
 
             self.last_terminated_sell_executor = None
             self.last_terminated_sell_executor_timestamp = 0
 
         if (
-            self.has_sl_occurred_on_side(TradeType.BUY) and
-            self.last_terminated_buy_executor_timestamp + 20 * 60 > self.market_data_provider.time()
+            self.is_last_buy_executor_sl() and
+            self.last_terminated_buy_executor_timestamp + 45 * 60 < self.market_data_provider.time()
         ):
-            self.logger().info("Over 20 minutes have passed since the last SL on a Long, resetting last_terminated_buy_executor and its timestamp")
+            self.logger().info("Over 45 minutes have passed since the last SL on a Long, resetting last_terminated_buy_executor and its timestamp")
 
             self.last_terminated_buy_executor = None
             self.last_terminated_buy_executor_timestamp = 0
@@ -516,10 +529,10 @@ class MmBbands(ControllerBase):
         self.last_terminated_buy_executor = last_terminated_executor
         self.last_terminated_buy_executor_timestamp = self.market_data_provider.time()
 
-    def _is_last_sell_executor_sl(self) -> bool:
+    def is_last_sell_executor_sl(self) -> bool:
         return self.last_terminated_sell_executor and self.last_terminated_sell_executor.close_type == CloseType.STOP_LOSS
 
-    def _is_last_buy_executor_sl(self) -> bool:
+    def is_last_buy_executor_sl(self) -> bool:
         return self.last_terminated_buy_executor and self.last_terminated_buy_executor.close_type == CloseType.STOP_LOSS
 
     # TODO: a smarter system would handle correctly multiple open orders on the same side
@@ -541,7 +554,7 @@ class MmBbands(ControllerBase):
         return sl_price_sell if side == TradeType.SELL else sl_price_buy
 
     def should_stop_unfilled_executors_after_sl(self, side: TradeType) -> bool:
-        is_sl = self._is_last_sell_executor_sl() if side == TradeType.SELL else self._is_last_buy_executor_sl()
+        is_sl = self.is_last_sell_executor_sl() if side == TradeType.SELL else self.is_last_buy_executor_sl()
         last_terminated_executor_timestamp = self.last_terminated_sell_executor_timestamp if side == TradeType.SELL else self.last_terminated_buy_executor_timestamp
 
         return (
