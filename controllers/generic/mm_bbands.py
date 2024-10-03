@@ -427,9 +427,10 @@ class MmBbands(ControllerBase):
 
     def get_latest_bbb(self) -> Decimal:
         bbb_series: pd.Series = self.processed_data["features"]["bbb_for_volatility"]
-        bbb_previous_full_minute = Decimal(bbb_series.iloc[-2])
         bbb_current_incomplete_minute = Decimal(bbb_series.iloc[-1])
-        return max(bbb_previous_full_minute, bbb_current_incomplete_minute)
+        bbb_previous_full_minute = Decimal(bbb_series.iloc[-2])
+        bbb_before_that = Decimal(bbb_series.iloc[-3])
+        return max(bbb_current_incomplete_minute, bbb_previous_full_minute, bbb_before_that)
 
     def get_avg_last_tree_bbb(self) -> Decimal:
         bbb_series: pd.Series = self.processed_data["features"]["bbb_for_volatility"]
