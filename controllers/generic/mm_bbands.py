@@ -467,7 +467,7 @@ class MmBbands(ControllerBase):
         return Decimal(rsi_series.iloc[-1])
 
     def is_rsi_at_the_edges(self, normalized_rsi: Decimal) -> bool:
-        return normalized_rsi > 40 or normalized_rsi < -40
+        return normalized_rsi > 36 or normalized_rsi < -36  # Equivalent to RSI 68 and 32
 
     def check_trading_executors(self):
         self.reset_old_stop_losses()
