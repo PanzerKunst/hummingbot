@@ -1,0 +1,23 @@
+markets: {}
+candles_config: []
+controllers_config: []
+config_update_interval: 10
+script_file_name: v1_merlin.py
+connectors_and_pairs:
+  gate_io_perpetual:
+  - WIF-USDT
+  - 0
+  kucoin_perpetual:
+  - WIF-USDT
+  - -0.001
+  okx_perpetual:
+  - WIF-USDT
+  - 0
+leverage: 20
+total_amount_quote: 5
+cooldown_time_min: 1
+stop_loss_pct: 0.5
+take_profit_pct: 10.0
+filled_order_expiration_min: 1000
+min_ask_bid_price_delta_to_open_bps: 60
+max_mid_price_delta_to_close_bps: 2
