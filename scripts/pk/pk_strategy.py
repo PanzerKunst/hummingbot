@@ -1,34 +1,41 @@
 from decimal import Decimal
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Dict
 
-from hummingbot.core.data_type.common import OrderType, TradeType, PositionAction, PriceType
+from hummingbot.connector.connector_base import ConnectorBase
+from hummingbot.core.data_type.common import PriceType, TradeType, PositionAction, OrderType
 from hummingbot.core.event.events import SellOrderCreatedEvent, BuyOrderCreatedEvent, OrderFilledEvent
-from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig
-from scripts.pk.arthur import ArthurStrategy
-from scripts.pk.pk_utils import has_current_price_reached_stop_loss, has_current_price_reached_take_profit, has_filled_order_reached_time_limit, \
-    has_unfilled_order_expired
+from hummingbot.strategy.strategy_v2_base import StrategyV2Base
+from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig, TripleBarrierConfig
+from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction
+from scripts.pk.arthur_config import ArthurConfig
+from scripts.pk.pk_utils import has_unfilled_order_expired, has_current_price_reached_stop_loss, has_current_price_reached_take_profit, \
+    has_filled_order_reached_time_limit
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
-class PkStrategy:
-    def __init__(self, child: ArthurStrategy):
-        self.child = child
+class PkStrategy(StrategyV2Base):
+    def __init__(self, connectors: Dict[str, ConnectorBase], config: ArthurConfig):
+        super().__init__(connectors, config)
+        self.config = config
 
         self.is_a_sell_order_being_created = False
         self.is_a_buy_order_being_created = False
 
         self.tracked_orders: List[TrackedOrderDetails] = []
 
+    def get_triple_barrier_config(self) -> TripleBarrierConfig:
+        raise NotImplementedError
+
     def get_mid_price(self) -> Decimal:
-        market_data_provider = self.child.market_data_provider
-        connector_name = self.child.config.connector_name
-        trading_pair = self.child.config.trading_pair
+        market_data_provider = self.market_data_provider
+        connector_name = self.config.connector_name
+        trading_pair = self.config.trading_pair
 
         return market_data_provider.get_price_by_type(connector_name, trading_pair, PriceType.MidPrice)
 
     def get_position_quote_amount(self, side: TradeType) -> Decimal:
-        total_amount_quote = self.child.config.total_amount_quote
-        leverage = self.child.config.leverage
+        total_amount_quote = self.config.total_amount_quote
+        leverage = self.config.leverage
 
         amount_quote = Decimal(total_amount_quote)
 
@@ -47,18 +54,18 @@ class PkStrategy:
         return self._get_best_ask_or_bid(PriceType.BestBid)
 
     def _get_best_ask_or_bid(self, price_type: PriceType) -> Decimal:
-        market_data_provider = self.child.market_data_provider
-        connector_name = self.child.config.connector_name
-        trading_pair = self.child.config.trading_pair
+        market_data_provider = self.market_data_provider
+        connector_name = self.config.connector_name
+        trading_pair = self.config.trading_pair
 
         return market_data_provider.get_price_by_type(connector_name, trading_pair, price_type)
 
     def get_executor_config(self, side: TradeType, entry_price: Decimal) -> PositionExecutorConfig:
-        market_data_provider = self.child.market_data_provider
-        connector_name = self.child.config.connector_name
-        trading_pair = self.child.config.trading_pair
-        leverage = self.child.config.leverage
-        triple_barrier_config = self.child.get_triple_barrier_config()
+        market_data_provider = self.market_data_provider
+        connector_name = self.config.connector_name
+        trading_pair = self.config.trading_pair
+        leverage = self.config.leverage
+        triple_barrier_config = self.get_triple_barrier_config()
 
         return PositionExecutorConfig(
             timestamp=market_data_provider.time(),
@@ -117,7 +124,7 @@ class PkStrategy:
         if executor_config.side == TradeType.SELL:
             self.is_a_sell_order_being_created = True
 
-            order_id = self.child.sell(connector_name, trading_pair, amount, open_order_type, entry_price)
+            order_id = self.sell(connector_name, trading_pair, amount, open_order_type, entry_price)
 
             self.tracked_orders.append(TrackedOrderDetails(
                 connector_name=connector_name,
@@ -135,7 +142,7 @@ class PkStrategy:
         else:
             self.is_a_buy_order_being_created = True
 
-            order_id = self.child.buy(connector_name, trading_pair, amount, open_order_type, entry_price)
+            order_id = self.buy(connector_name, trading_pair, amount, open_order_type, entry_price)
 
             self.tracked_orders.append(TrackedOrderDetails(
                 connector_name=connector_name,
@@ -151,9 +158,9 @@ class PkStrategy:
             self.is_a_buy_order_being_created = False
 
         # TODO: remove
-        self.child.logger().info(f"create_order | self.tracked_orders: {self.tracked_orders}")
+        self.logger().info(f"create_order | self.tracked_orders: {self.tracked_orders}")
 
-    def cancel_order(self, tracked_order: TrackedOrderDetails):
+    def cancel_tracked_order(self, tracked_order: TrackedOrderDetails):
         if tracked_order.last_filled_at:
             self.close_filled_order(tracked_order, OrderType.MARKET)
         else:
@@ -167,10 +174,10 @@ class PkStrategy:
         current_price = self.get_mid_price()
 
         # TODO: remove
-        self.child.logger().info(f"close_filled_order | tracked_order: {tracked_order}")
+        self.logger().info(f"close_filled_order | tracked_order: {tracked_order}")
 
         if tracked_order.side == TradeType.SELL:
-            self.child.buy(
+            self.buy(
                 connector_name,
                 trading_pair,
                 filled_amount,
@@ -179,7 +186,7 @@ class PkStrategy:
                 PositionAction.CLOSE
             )
         else:
-            self.child.sell(
+            self.sell(
                 connector_name,
                 trading_pair,
                 filled_amount,
@@ -190,7 +197,7 @@ class PkStrategy:
 
         for order in self.tracked_orders:
             if order.order_id == tracked_order.order_id:
-                market_data_provider = self.child.market_data_provider
+                market_data_provider = self.market_data_provider
                 order.terminated_at = market_data_provider.time()
                 break
 
@@ -200,13 +207,13 @@ class PkStrategy:
         order_id = tracked_order.order_id
 
         # TODO: remove
-        self.child.logger().info(f"cancel_unfilled_order | tracked_order: {tracked_order}")
+        self.logger().info(f"cancel_unfilled_order | tracked_order: {tracked_order}")
 
-        self.child.cancel(connector_name, trading_pair, order_id)
+        self.cancel(connector_name, trading_pair, order_id)
 
         for order in self.tracked_orders:
             if order.order_id == tracked_order.order_id:
-                market_data_provider = self.child.market_data_provider
+                market_data_provider = self.market_data_provider
                 order.terminated_at = market_data_provider.time()
                 break
 
@@ -223,7 +230,7 @@ class PkStrategy:
                 break
 
         # TODO: remove
-        self.child.logger().info(f"did_create_sell_order | self.tracked_orders: {self.tracked_orders}")
+        self.logger().info(f"did_create_sell_order | self.tracked_orders: {self.tracked_orders}")
 
     def did_create_buy_order(self, created_event: BuyOrderCreatedEvent):
         position = created_event.position
@@ -238,7 +245,7 @@ class PkStrategy:
                 break
 
         # TODO: remove
-        self.child.logger().info(f"did_create_buy_order | self.tracked_orders: {self.tracked_orders}")
+        self.logger().info(f"did_create_buy_order | self.tracked_orders: {self.tracked_orders}")
 
     def did_fill_order(self, filled_event: OrderFilledEvent):
         position = filled_event.position
@@ -253,18 +260,18 @@ class PkStrategy:
                 break
 
         # TODO: remove
-        self.child.logger().info(f"did_fill_order | self.tracked_orders: {self.tracked_orders}")
+        self.logger().info(f"did_fill_order | self.tracked_orders: {self.tracked_orders}")
 
     def can_create_order(self, side: TradeType) -> bool:
         if self.get_position_quote_amount(side) == 0:
             return False
 
         if side == TradeType.SELL and self.is_a_sell_order_being_created:
-            self.child.logger().info(f"Another SELL order is being created, avoiding a duplicate")
+            self.logger().info(f"Another SELL order is being created, avoiding a duplicate")
             return False
 
         if side == TradeType.BUY and self.is_a_buy_order_being_created:
-            self.child.logger().info(f"Another BUY order is being created, avoiding a duplicate")
+            self.logger().info(f"Another BUY order is being created, avoiding a duplicate")
             return False
 
         last_terminated_filled_order = self.find_last_terminated_filled_order()
@@ -272,11 +279,11 @@ class PkStrategy:
         if not last_terminated_filled_order:
             return True
 
-        market_data_provider = self.child.market_data_provider
-        cooldown_time_min = self.child.config.cooldown_time_min
+        market_data_provider = self.market_data_provider
+        cooldown_time_min = self.config.cooldown_time_min
 
         if last_terminated_filled_order.terminated_at + cooldown_time_min * 60 > market_data_provider.time():
-            self.child.logger().info("Cooldown not passed yet")
+            self.logger().info("Cooldown not passed yet")
             return False
 
         return True
@@ -286,8 +293,8 @@ class PkStrategy:
         self.check_trading_orders()
 
     def check_unfilled_orders(self):
-        unfilled_order_expiration_min = self.child.config.unfilled_order_expiration_min
-        market_data_provider = self.child.market_data_provider
+        unfilled_order_expiration_min = self.config.unfilled_order_expiration_min
+        market_data_provider = self.market_data_provider
 
         if not unfilled_order_expiration_min:
             return
@@ -296,7 +303,7 @@ class PkStrategy:
 
         for unfilled_order in unfilled_sell_orders + unfilled_buy_orders:
             if has_unfilled_order_expired(unfilled_order, unfilled_order_expiration_min, market_data_provider.time()):
-                self.child.logger().info("has_unfilled_order_expired")
+                self.logger().info("has_unfilled_order_expired")
                 self.cancel_unfilled_order(unfilled_order)
 
     def check_trading_orders(self):
@@ -305,20 +312,20 @@ class PkStrategy:
 
         for filled_order in filled_sell_orders + filled_buy_orders:
             if has_current_price_reached_stop_loss(filled_order, current_price):
-                self.child.logger().info("has_current_price_reached_stop_loss")
+                self.logger().info("has_current_price_reached_stop_loss")
                 stop_loss_order_type = filled_order.triple_barrier_config.stop_loss_order_type
                 self.close_filled_order(filled_order, stop_loss_order_type)
                 continue
 
             if has_current_price_reached_take_profit(filled_order, current_price):
-                self.child.logger().info("has_current_price_reached_take_profit")
+                self.logger().info("has_current_price_reached_take_profit")
                 take_profit_order_type = filled_order.triple_barrier_config.take_profit_order_type
                 self.close_filled_order(filled_order, take_profit_order_type)
                 continue
 
-            market_data_provider = self.child.market_data_provider
+            market_data_provider = self.market_data_provider
 
             if has_filled_order_reached_time_limit(filled_order, market_data_provider.time()):
-                self.child.logger().info("has_filled_order_reached_time_limit")
+                self.logger().info("has_filled_order_reached_time_limit")
                 time_limit_order_type = filled_order.triple_barrier_config.time_limit_order_type
                 self.close_filled_order(filled_order, time_limit_order_type)
