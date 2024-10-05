@@ -175,7 +175,11 @@ class ArthurStrategy(PkStrategy):
                     "normalized_rsi"
                 ]
 
-                custom_status.append(format_df_for_printout(self.processed_data[columns_to_display].tail(self.config.rsi_length), table_format="psql", ))
+                custom_status.append(format_df_for_printout(self.processed_data[columns_to_display].tail(self.config.rsi_length), table_format="psql"))
+
+            latest_normalized_rsis = list(self.latest_normalized_rsis)
+            latest_normalized_rsis_df = pd.DataFrame(latest_normalized_rsis, columns=["Normalized RSI"])
+            custom_status.append(format_df_for_printout(latest_normalized_rsis_df, table_format="psql"))
 
         return original_status + "\n".join(custom_status)
 
