@@ -38,7 +38,7 @@ class ArthurStrategy(PkStrategy):
             ))
 
         self.processed_data = pd.DataFrame()
-        self.latest_normalized_rsis = deque(maxlen=10)
+        self.latest_normalized_rsis = deque(maxlen=config.nb_seconds_to_calculate_end_of_rsi_trend)
 
     def start(self, clock: Clock, timestamp: float) -> None:
         self._last_timestamp = timestamp
@@ -164,7 +164,7 @@ class ArthurStrategy(PkStrategy):
 
     def format_status(self) -> str:
         original_status = super().format_status()
-        custom_status = []
+        custom_status = ["\n"]
 
         if self.ready_to_trade:
             if not self.processed_data.empty:
