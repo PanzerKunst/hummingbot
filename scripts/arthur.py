@@ -252,4 +252,6 @@ class ArthurStrategy(PkStrategy):
         close_price_2min_before = close_series.iloc[-3]
         delta = abs(latest_close_price - close_price_2min_before)
 
+        self.logger().info(f"compute_sl_and_tp() | latest_close_price:{latest_close_price} | close_price_2min_before:{close_price_2min_before}")
+
         return delta / 2
