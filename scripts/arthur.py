@@ -1,5 +1,6 @@
+from collections import deque
 from decimal import Decimal
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import pandas as pd
 
@@ -12,6 +13,7 @@ from hummingbot.strategy_v2.executors.position_executor.data_types import Triple
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 from scripts.pk.arthur_config import ArthurConfig
 from scripts.pk.pk_strategy import PkStrategy
+from scripts.pk.pk_utils import average
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
@@ -36,7 +38,8 @@ class ArthurStrategy(PkStrategy):
                 max_records=config.candles_length
             ))
 
-        self.processed_data = pd.DataFrame(columns=["timestamp", "timestamp_iso", "bbb_for_volatility", "normalized_rsi"])
+        self.processed_data = pd.DataFrame()
+        self.latest_normalized_rsis = deque(maxlen=10)
 
     def start(self, clock: Clock, timestamp: float) -> None:
         self._last_timestamp = timestamp
@@ -51,14 +54,19 @@ class ArthurStrategy(PkStrategy):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
     def get_triple_barrier_config(self) -> TripleBarrierConfig:
+        sl_tp_pct = self.compute_sl_and_tp()
+
+        # TODO: remove
+        self.logger().info(f"get_triple_barrier_config() | sl_tp_pct: {sl_tp_pct}")
+
         return TripleBarrierConfig(
-            stop_loss=Decimal(self.config.stop_loss_pct / 100),
-            take_profit=Decimal(self.config.take_profit_pct / 100),
+            stop_loss=Decimal(sl_tp_pct / 100),
+            take_profit=Decimal(sl_tp_pct / 100),
             time_limit=self.config.filled_order_expiration_min * 60,
             open_order_type=OrderType.LIMIT,
             take_profit_order_type=OrderType.LIMIT,
-            stop_loss_order_type=OrderType.MARKET,  # Only market orders are supported for time_limit and stop_loss
-            time_limit_order_type=OrderType.MARKET  # Only market orders are supported for time_limit and stop_loss
+            stop_loss_order_type=OrderType.MARKET,
+            time_limit_order_type=OrderType.LIMIT
         )
 
     def update_processed_data(self):
@@ -104,14 +112,14 @@ class ArthurStrategy(PkStrategy):
     #         self.processed_data = pd.concat([self.processed_data, new_rows], ignore_index=True)
     #         self.processed_data["index"] = self.processed_data["timestamp"]
     #         self.processed_data.set_index("index", inplace=True)
-
-    def _get_indicators_for_timestamp(self, timestamp: float) -> Optional[pd.Series]:
-        matching_row = self.processed_data.query(f"timestamp == {timestamp}")
-
-        if matching_row.empty:
-            return None
-        else:
-            return matching_row.iloc[0]
+    #
+    # def _get_indicators_for_timestamp(self, timestamp: float) -> Optional[pd.Series]:
+    #     matching_row = self.processed_data.query(f"timestamp == {timestamp}")
+    #
+    #     if matching_row.empty:
+    #         return None
+    #     else:
+    #         return matching_row.iloc[0]
 
     def create_actions_proposal(self) -> List[CreateExecutorAction]:
         self.update_processed_data()
@@ -121,19 +129,19 @@ class ArthurStrategy(PkStrategy):
         if processed_data_num_rows == 0:
             return []
 
+        self.save_latest_normalized_rsi()
+
         if self.is_high_volatility():
             return []
 
-        unfilled_sell_orders, unfilled_buy_orders = self.get_unfilled_tracked_orders_by_side()
+        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side()
 
-        if self.can_create(TradeType.SELL, unfilled_sell_orders):
-            delta_pct = Decimal(3)
-            entry_price: Decimal = self.get_mid_price() * (1 + delta_pct / 100)
+        if self.can_create(TradeType.SELL, active_sell_orders):
+            entry_price: Decimal = self.get_mid_price() * Decimal(1 + self.config.delta_with_mid_price_bps / 10000)
             self.create_order(TradeType.SELL, entry_price)
 
-        if self.can_create(TradeType.BUY, unfilled_buy_orders):
-            delta_pct = Decimal(5)
-            entry_price: Decimal = self.get_mid_price() * (1 - delta_pct / 100)
+        if self.can_create(TradeType.BUY, active_buy_orders):
+            entry_price: Decimal = self.get_mid_price() * Decimal(1 - self.config.delta_with_mid_price_bps / 10000)
             self.create_order(TradeType.BUY, entry_price)
 
         return []  # Always return []
@@ -168,7 +176,7 @@ class ArthurStrategy(PkStrategy):
                     "normalized_rsi"
                 ]
 
-                custom_status.append(format_df_for_printout(self.processed_data[columns_to_display].tail(self.config.candles_length), table_format="psql", ))
+                custom_status.append(format_df_for_printout(self.processed_data[columns_to_display].tail(self.config.rsi_length), table_format="psql", ))
 
         return original_status + "\n".join(custom_status)
 
@@ -176,14 +184,28 @@ class ArthurStrategy(PkStrategy):
     # Custom functions potentially interesting for other controllers
     #
 
-    def can_create(self, side: TradeType, unfilled_tracked_orders: List[TrackedOrderDetails]) -> bool:
+    def can_create(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
         if not self.can_create_order(side):
             return False
 
-        if len(unfilled_tracked_orders) > 0:
+        if len(active_tracked_orders) > 0:
             return False
 
-        return True
+        if (
+            side == TradeType.SELL and
+            self.get_latest_normalized_rsi() > self.normalize_rsi(self.config.rsi_threshold_sell) and
+            self.has_rsi_stopped_increasing()
+        ):
+            return True
+
+        if (
+            side == TradeType.BUY and
+            self.get_latest_normalized_rsi() < self.normalize_rsi(self.config.rsi_threshold_buy) and
+            self.has_rsi_stopped_decreasing()
+        ):
+            return True
+
+        return False
 
     #
     # Custom functions specific to this controller
@@ -195,9 +217,16 @@ class ArthurStrategy(PkStrategy):
 
     def get_latest_bbb(self) -> Decimal:
         bbb_series: pd.Series = self.processed_data["bbb_for_volatility"]
-        bbb_previous_full_minute = Decimal(bbb_series.iloc[-2])
         bbb_current_incomplete_minute = Decimal(bbb_series.iloc[-1])
-        return max(bbb_previous_full_minute, bbb_current_incomplete_minute)
+        bbb_previous_full_minute = Decimal(bbb_series.iloc[-2])
+        return max(bbb_current_incomplete_minute, bbb_previous_full_minute)
+
+    def get_avg_recent_bbb(self) -> Decimal:
+        bbb_series: pd.Series = self.processed_data["bbb_for_volatility"]
+        bbb_current_incomplete_minute = Decimal(bbb_series.iloc[-1])
+        bbb_previous_full_minute = Decimal(bbb_series.iloc[-2])
+        bbb_2_min_ago = Decimal(bbb_series.iloc[-3])
+        return average(bbb_current_incomplete_minute, bbb_previous_full_minute, bbb_2_min_ago)
 
     def is_high_volatility(self) -> bool:
         # TODO: remove
@@ -208,3 +237,25 @@ class ArthurStrategy(PkStrategy):
     def get_latest_normalized_rsi(self) -> Decimal:
         rsi_series: pd.Series = self.processed_data["normalized_rsi"]
         return Decimal(rsi_series.iloc[-1])
+
+    def save_latest_normalized_rsi(self):
+        latest_normalized_rsi = self.get_latest_normalized_rsi()
+        self.latest_normalized_rsis.append(latest_normalized_rsi)
+
+    def has_rsi_stopped_increasing(self):
+        current_rsi = self.latest_normalized_rsis[-1]
+        oldest_rsi = self.latest_normalized_rsis[0]
+
+        return current_rsi < oldest_rsi
+
+    def has_rsi_stopped_decreasing(self):
+        current_rsi = self.latest_normalized_rsis[-1]
+        oldest_rsi = self.latest_normalized_rsis[0]
+
+        return current_rsi > oldest_rsi
+
+    def compute_sl_and_tp(self):
+        avg_recent_bbb = self.get_avg_recent_bbb()
+
+        # For avg_recent_bbb = 3, let's set SL / TP to 1%
+        return avg_recent_bbb / 3

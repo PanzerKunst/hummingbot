@@ -5,14 +5,14 @@ config_update_interval: 10
 script_file_name: arthur_config.py
 connector_name: okx_perpetual
 trading_pair: POPCAT-USDT
-total_amount_quote: 5
+total_amount_quote: 10
 leverage: 20
 cooldown_time_min: 1
 unfilled_order_expiration_min: 1
 position_mode: HEDGE
 stop_loss_pct: 0.7
 take_profit_pct: 0.7
-filled_order_expiration_min: 1
+filled_order_expiration_min: 15
 bbands_length_for_volatility: 2
 bbands_std_dev_for_volatility: 3.0
 high_volatility_threshold: 3.0
@@ -21,3 +21,5 @@ candles_connector: okx_perpetual
 candles_interval: 1m
 candles_length: 40
 delta_with_mid_price_bps: 0
+rsi_threshold_sell: 60
+rsi_threshold_buy: 40

@@ -1,12 +1,16 @@
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Optional
 
 from hummingbot.connector.derivative.position import Position
 from hummingbot.core.data_type.common import TradeType
 from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
 from scripts.pk.tracked_order_details import TrackedOrderDetails
+
+
+def average(*args) -> Decimal:
+    result = sum(args) / len(args) if args else 0
+    return Decimal(result)
 
 
 def are_positions_equal(position_1: Position, position_2: Position) -> bool:

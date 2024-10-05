@@ -21,7 +21,7 @@ class ArthurConfig(StrategyV2ConfigBase):
     # Used by PkStrategy
     connector_name: str = "okx_perpetual"
     trading_pair: str = "POPCAT-USDT"
-    total_amount_quote: int = Field(5, client_data=ClientFieldData(is_updatable=True))
+    total_amount_quote: int = Field(10, client_data=ClientFieldData(is_updatable=True))
     leverage: int = 20
     cooldown_time_min: int = Field(1, client_data=ClientFieldData(is_updatable=True))
     unfilled_order_expiration_min: int = Field(1, client_data=ClientFieldData(is_updatable=True))
@@ -31,7 +31,7 @@ class ArthurConfig(StrategyV2ConfigBase):
     # Triple Barrier
     stop_loss_pct: Decimal = Field(0.7, client_data=ClientFieldData(is_updatable=True))
     take_profit_pct: Decimal = Field(0.7, client_data=ClientFieldData(is_updatable=True))
-    filled_order_expiration_min: int = Field(1, client_data=ClientFieldData(is_updatable=True))
+    filled_order_expiration_min: int = Field(15, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
     bbands_length_for_volatility: int = Field(2, client_data=ClientFieldData(is_updatable=True))
@@ -44,5 +44,7 @@ class ArthurConfig(StrategyV2ConfigBase):
     candles_interval: str = "1m"
     candles_length: int = 40
 
-    # Maker orders settings
+    # Order settings
     delta_with_mid_price_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
+    rsi_threshold_sell: int = Field(60, client_data=ClientFieldData(is_updatable=True))
+    rsi_threshold_buy: int = Field(40, client_data=ClientFieldData(is_updatable=True))
