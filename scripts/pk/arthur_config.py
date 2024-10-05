@@ -46,5 +46,5 @@ class ArthurConfig(StrategyV2ConfigBase):
 
     # Order settings
     delta_with_mid_price_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
-    rsi_threshold_sell: int = Field(60, client_data=ClientFieldData(is_updatable=True))
-    rsi_threshold_buy: int = Field(40, client_data=ClientFieldData(is_updatable=True))
+    rsi_threshold_sell: int = Field(67, client_data=ClientFieldData(is_updatable=True))
+    rsi_threshold_buy: int = Field(33, client_data=ClientFieldData(is_updatable=True))

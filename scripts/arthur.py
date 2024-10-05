@@ -13,7 +13,6 @@ from hummingbot.strategy_v2.executors.position_executor.data_types import Triple
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 from scripts.pk.arthur_config import ArthurConfig
 from scripts.pk.pk_strategy import PkStrategy
-from scripts.pk.pk_utils import average
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
@@ -131,8 +130,8 @@ class ArthurStrategy(PkStrategy):
 
         self.save_latest_normalized_rsi()
 
-        if self.is_high_volatility():
-            return []
+        # if self.is_high_volatility():
+        #     return []
 
         active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side()
 
@@ -154,12 +153,12 @@ class ArthurStrategy(PkStrategy):
 
         self.check_orders()
 
-        if self.is_high_volatility():
-            self.logger().info(f"##### is_high_volatility -> Stopping unfilled executors #####")
-            unfilled_sell_orders, unfilled_buy_orders = self.get_unfilled_tracked_orders_by_side()
-
-            for unfilled_order in unfilled_sell_orders + unfilled_buy_orders:
-                self.cancel_tracked_order(unfilled_order)
+        # if self.is_high_volatility():
+        #     self.logger().info(f"##### is_high_volatility -> Stopping unfilled executors #####")
+        #     unfilled_sell_orders, unfilled_buy_orders = self.get_unfilled_tracked_orders_by_side()
+        #
+        #     for unfilled_order in unfilled_sell_orders + unfilled_buy_orders:
+        #         self.cancel_tracked_order(unfilled_order)
 
         return []  # Always return []
 
@@ -221,13 +220,6 @@ class ArthurStrategy(PkStrategy):
         bbb_previous_full_minute = Decimal(bbb_series.iloc[-2])
         return max(bbb_current_incomplete_minute, bbb_previous_full_minute)
 
-    def get_avg_recent_bbb(self) -> Decimal:
-        bbb_series: pd.Series = self.processed_data["bbb_for_volatility"]
-        bbb_current_incomplete_minute = Decimal(bbb_series.iloc[-1])
-        bbb_previous_full_minute = Decimal(bbb_series.iloc[-2])
-        bbb_2_min_ago = Decimal(bbb_series.iloc[-3])
-        return average(bbb_current_incomplete_minute, bbb_previous_full_minute, bbb_2_min_ago)
-
     def is_high_volatility(self) -> bool:
         # TODO: remove
         self.logger().info(f"is_high_volatility() | latest_bbb: {self.get_latest_bbb()}")
@@ -254,8 +246,10 @@ class ArthurStrategy(PkStrategy):
 
         return current_rsi > oldest_rsi
 
-    def compute_sl_and_tp(self):
-        avg_recent_bbb = self.get_avg_recent_bbb()
+    def compute_sl_and_tp(self) -> Decimal:
+        close_series: pd.Series = self.processed_data["close"]
+        latest_close_price = close_series.iloc[-1]
+        close_price_2min_before = close_series.iloc[-3]
+        delta = abs(latest_close_price - close_price_2min_before)
 
-        # For avg_recent_bbb = 3, let's set SL / TP to 1%
-        return avg_recent_bbb / 3
+        return delta / 2
