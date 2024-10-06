@@ -253,9 +253,9 @@ class ArthurStrategy(PkStrategy):
     def compute_sl_and_tp(self) -> Decimal:
         close_series: pd.Series = self.processed_data["close"]
         latest_close_price = close_series.iloc[-1]
-        close_price_2min_before = close_series.iloc[-3]
-        delta = abs(latest_close_price - close_price_2min_before)
+        close_price_3min_before = close_series.iloc[-4]
+        delta_pct = (latest_close_price - close_price_3min_before) / latest_close_price * 100
 
-        self.logger().info(f"compute_sl_and_tp() | latest_close_price:{latest_close_price} | close_price_2min_before:{close_price_2min_before}")
+        self.logger().info(f"compute_sl_and_tp() | latest_close_price:{latest_close_price} | close_price_3min_before:{close_price_3min_before}")
 
-        return delta / 2
+        return abs(delta_pct) / 2

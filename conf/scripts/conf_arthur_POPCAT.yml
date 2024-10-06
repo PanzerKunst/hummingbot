@@ -7,7 +7,7 @@ connector_name: okx_perpetual
 trading_pair: POPCAT-USDT
 total_amount_quote: 10
 leverage: 20
-cooldown_time_min: 1
+cooldown_time_min: 3
 unfilled_order_expiration_min: 1
 position_mode: HEDGE
 stop_loss_pct: 0.7
@@ -21,6 +21,6 @@ candles_connector: okx_perpetual
 candles_interval: 1m
 candles_length: 40
 delta_with_mid_price_bps: 0
-rsi_threshold_sell: 67
-rsi_threshold_buy: 33
-nb_seconds_to_calculate_end_of_rsi_trend: 5
+rsi_threshold_sell: 72
+rsi_threshold_buy: 28
+nb_seconds_to_calculate_end_of_rsi_trend: 10
