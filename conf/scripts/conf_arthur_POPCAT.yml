@@ -21,6 +21,6 @@ candles_connector: okx_perpetual
 candles_interval: 1m
 candles_length: 40
 delta_with_mid_price_bps: 0
-rsi_threshold_sell: 72
-rsi_threshold_buy: 28
+rsi_threshold_sell: 74
+rsi_threshold_buy: 26
 nb_seconds_to_calculate_end_of_rsi_trend: 20
