@@ -23,7 +23,7 @@ class ArthurConfig(StrategyV2ConfigBase):
     trading_pair: str = "POPCAT-USDT"
     total_amount_quote: int = Field(10, client_data=ClientFieldData(is_updatable=True))
     leverage: int = 20
-    cooldown_time_min: int = Field(3, client_data=ClientFieldData(is_updatable=True))
+    cooldown_time_min: int = Field(10, client_data=ClientFieldData(is_updatable=True))
     unfilled_order_expiration_min: int = Field(1, client_data=ClientFieldData(is_updatable=True))
 
     position_mode: PositionMode = PositionMode.HEDGE
