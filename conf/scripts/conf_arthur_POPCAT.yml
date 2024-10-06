@@ -23,4 +23,4 @@ candles_length: 40
 delta_with_mid_price_bps: 0
 rsi_threshold_sell: 72
 rsi_threshold_buy: 28
-nb_seconds_to_calculate_end_of_rsi_trend: 10
+nb_seconds_to_calculate_end_of_rsi_trend: 20
