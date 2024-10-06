@@ -38,7 +38,7 @@ class ArthurStrategy(PkStrategy):
             ))
 
         self.processed_data = pd.DataFrame()
-        self.latest_normalized_rsis = deque(maxlen=config.nb_seconds_to_calculate_end_of_rsi_trend)
+        self.latest_close_prices = deque(maxlen=config.nb_seconds_to_calculate_end_of_trend)
 
     def start(self, clock: Clock, timestamp: float) -> None:
         self._last_timestamp = timestamp
@@ -128,7 +128,7 @@ class ArthurStrategy(PkStrategy):
         if processed_data_num_rows == 0:
             return []
 
-        self.save_latest_normalized_rsi()
+        self.save_latest_close_price()
 
         # if self.is_high_volatility():
         #     return []
@@ -177,9 +177,9 @@ class ArthurStrategy(PkStrategy):
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display].tail(self.config.rsi_length), table_format="psql"))
 
-            latest_normalized_rsis = list(self.latest_normalized_rsis)
-            latest_normalized_rsis_df = pd.DataFrame(latest_normalized_rsis, columns=["Normalized RSI"])
-            custom_status.append(format_df_for_printout(latest_normalized_rsis_df, table_format="psql"))
+            latest_close_prices = list(self.latest_close_prices)
+            latest_close_prices_df = pd.DataFrame(latest_close_prices, columns=["Close price"])
+            custom_status.append(format_df_for_printout(latest_close_prices_df, table_format="psql"))
 
         return original_status + "\n".join(custom_status)
 
@@ -197,14 +197,14 @@ class ArthurStrategy(PkStrategy):
         if (
             side == TradeType.SELL and
             self.get_latest_normalized_rsi() > self.normalize_rsi(self.config.rsi_threshold_sell) and
-            self.has_rsi_stopped_increasing()
+            self.has_price_stopped_climbing()
         ):
             return True
 
         if (
             side == TradeType.BUY and
             self.get_latest_normalized_rsi() < self.normalize_rsi(self.config.rsi_threshold_buy) and
-            self.has_rsi_stopped_decreasing()
+            self.has_price_stopped_dropping()
         ):
             return True
 
@@ -217,6 +217,10 @@ class ArthurStrategy(PkStrategy):
     @staticmethod
     def normalize_rsi(rsi: float) -> Decimal:
         return Decimal(rsi * 2 - 100)
+
+    def get_latest_close_price(self) -> Decimal:
+        close_series: pd.Series = self.processed_data["close"]
+        return Decimal(close_series.iloc[-1])
 
     def get_latest_bbb(self) -> Decimal:
         bbb_series: pd.Series = self.processed_data["bbb_for_volatility"]
@@ -234,21 +238,21 @@ class ArthurStrategy(PkStrategy):
         rsi_series: pd.Series = self.processed_data["normalized_rsi"]
         return Decimal(rsi_series.iloc[-1])
 
-    def save_latest_normalized_rsi(self):
-        latest_normalized_rsi = self.get_latest_normalized_rsi()
-        self.latest_normalized_rsis.append(latest_normalized_rsi)
+    def save_latest_close_price(self):
+        latest_close_price = self.get_latest_close_price()
+        self.latest_close_prices.append(latest_close_price)
 
-    def has_rsi_stopped_increasing(self):
-        current_rsi = self.latest_normalized_rsis[-1]
-        oldest_rsi = self.latest_normalized_rsis[0]
+    def has_price_stopped_climbing(self):
+        current_price = self.latest_close_prices[-1]
+        oldest_price = self.latest_close_prices[0]
 
-        return current_rsi < oldest_rsi
+        return current_price < oldest_price
 
-    def has_rsi_stopped_decreasing(self):
-        current_rsi = self.latest_normalized_rsis[-1]
-        oldest_rsi = self.latest_normalized_rsis[0]
+    def has_price_stopped_dropping(self):
+        current_price = self.latest_close_prices[-1]
+        oldest_price = self.latest_close_prices[0]
 
-        return current_rsi > oldest_rsi
+        return current_price > oldest_price
 
     def compute_sl_and_tp(self) -> Decimal:
         close_series: pd.Series = self.processed_data["close"]
