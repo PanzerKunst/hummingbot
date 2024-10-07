@@ -207,9 +207,9 @@ class ArthurStrategy(PkStrategy):
             return False
 
         close_series: pd.Series = self.processed_data["close"]
-        current_close_price = Decimal(close_series.iloc[-1])
-        previous_min_close_price = Decimal(close_series.iloc[-2])
-        delta_pct = (current_close_price - previous_min_close_price) / current_close_price * 100
+        close_price_latest_full_minute = Decimal(close_series.iloc[-2])
+        close_price_previous_minute = Decimal(close_series.iloc[-3])
+        delta_pct = (close_price_latest_full_minute - close_price_previous_minute) / close_price_latest_full_minute * 100
 
         if abs(delta_pct) < self.config.trend_reversal_candle_height_threshold_pct:
             return False
