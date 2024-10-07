@@ -22,9 +22,6 @@ class PkStrategy(StrategyV2Base):
 
         self.tracked_orders: List[TrackedOrderDetails] = []
 
-    def get_triple_barrier_config(self) -> TripleBarrierConfig:
-        raise NotImplementedError
-
     def get_position_quote_amount(self, side: TradeType) -> Decimal:
         total_amount_quote = self.config.total_amount_quote
         leverage = self.config.leverage
@@ -57,7 +54,7 @@ class PkStrategy(StrategyV2Base):
 
         return self.market_data_provider.get_price_by_type(connector_name, trading_pair, price_type)
 
-    def get_executor_config(self, side: TradeType, entry_price: Decimal) -> PositionExecutorConfig:
+    def get_executor_config(self, side: TradeType, entry_price: Decimal, triple_barrier_config: TripleBarrierConfig) -> PositionExecutorConfig:
         connector_name = self.config.connector_name
         trading_pair = self.config.trading_pair
         leverage = self.config.leverage
@@ -69,7 +66,7 @@ class PkStrategy(StrategyV2Base):
             side=side,
             entry_price=entry_price,
             amount=self.get_position_quote_amount(side) / entry_price,
-            triple_barrier_config=self.get_triple_barrier_config(),
+            triple_barrier_config=triple_barrier_config,
             leverage=leverage
         )
 
@@ -106,8 +103,8 @@ class PkStrategy(StrategyV2Base):
         filled_buy_orders = [order for order in active_buy_orders if order.last_filled_at]
         return filled_sell_orders, filled_buy_orders
 
-    def create_order(self, side: TradeType, entry_price: Decimal):
-        executor_config = self.get_executor_config(side, entry_price)
+    def create_order(self, side: TradeType, entry_price: Decimal, triple_barrier_config: TripleBarrierConfig):
+        executor_config = self.get_executor_config(side, entry_price, triple_barrier_config)
 
         connector_name = executor_config.connector_name
         trading_pair = executor_config.trading_pair
