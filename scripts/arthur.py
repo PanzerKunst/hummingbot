@@ -149,7 +149,7 @@ class ArthurStrategy(PkStrategy):
             sl_tp_pct: Decimal = self.compute_sl_and_tp_for_trend_reversal()
             triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct)
             self.create_order(TradeType.BUY, entry_price, triple_barrier_config)
-        elif self.can_create_trend_start_order(TradeType.BUY, active_sell_orders):
+        elif self.can_create_trend_start_order(TradeType.BUY, active_buy_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.delta_with_ref_price_bps / 10000)
             sl_tp_pct: Decimal = self.compute_sl_and_tp_for_trend_start()
             triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct)
@@ -207,12 +207,14 @@ class ArthurStrategy(PkStrategy):
             return False
 
         close_series: pd.Series = self.processed_data["close"]
-        close_price_latest_full_minute = Decimal(close_series.iloc[-2])
-        close_price_previous_minute = Decimal(close_series.iloc[-3])
-        delta_pct = (close_price_latest_full_minute - close_price_previous_minute) / close_price_latest_full_minute * 100
+        current_close_price = Decimal(close_series.iloc[-1])
+        previous_close_price = Decimal(close_series.iloc[-2])
+        delta_pct = (current_close_price - previous_close_price) / current_close_price * 100
 
         if abs(delta_pct) < self.config.trend_reversal_candle_height_threshold_pct:
             return False
+
+        self.logger().info(f"can_create_trend_reversal_order() | abs(delta_pct): {abs(delta_pct)}")
 
         if (
             side == TradeType.SELL and
@@ -238,26 +240,26 @@ class ArthurStrategy(PkStrategy):
             return False
 
         close_series: pd.Series = self.processed_data["close"]
-        current_close_price = Decimal(close_series.iloc[-1])
-        previous_min_close_price = Decimal(close_series.iloc[-2])
-        delta_pct = (current_close_price - previous_min_close_price) / current_close_price * 100
-
-        if abs(delta_pct) < self.config.trend_start_candle_height_threshold_pct:
-            return False
+        close_price_latest_full_minute = Decimal(close_series.iloc[-2])
+        close_price_previous_minute = Decimal(close_series.iloc[-3])
 
         if (
             side == TradeType.SELL and
             self.is_rsi_in_range_for_trend_start_order(TradeType.SELL) and
             self.has_price_not_dropped_recently()
         ):
-            return True
+            delta_pct = (close_price_previous_minute - close_price_latest_full_minute) / close_price_latest_full_minute * 100
+            self.logger().info(f"can_create_trend_start_order({side}) | delta_pct: {delta_pct}")
+            return delta_pct > self.config.trend_start_candle_height_threshold_pct
 
         if (
             side == TradeType.BUY and
             self.is_rsi_in_range_for_trend_start_order(TradeType.BUY) and
             self.has_price_not_climbed_recently()
         ):
-            return True
+            delta_pct = (close_price_latest_full_minute - close_price_previous_minute) / close_price_latest_full_minute * 100
+            self.logger().info(f"can_create_trend_start_order({side}) | delta_pct: {delta_pct}")
+            return delta_pct > self.config.trend_start_candle_height_threshold_pct
 
         return False
 
