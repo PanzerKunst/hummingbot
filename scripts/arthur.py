@@ -330,26 +330,16 @@ class ArthurStrategy(PkStrategy):
         current_normalized_rsi = Decimal(rsi_series.iloc[-1])
         previous_normalized_rsi = Decimal(rsi_series.iloc[-2])
 
-        self.logger().info(f"is_rsi_in_range_for_trend_start_order({side}) | previous_normalized_rsi:{previous_normalized_rsi} | current_normalized_rsi:{current_normalized_rsi}")
-
         if side == TradeType.SELL:
-            result: bool = (
+            return (
                 previous_normalized_rsi < self.normalize_rsi(self.config.trend_start_rsi_max_threshold_sell) and
                 current_normalized_rsi > self.normalize_rsi(self.config.trend_start_rsi_min_threshold_sell)
             )
 
-            self.logger().info(f"is_rsi_in_range_for_trend_start_order({side}) | returning: {result}")
-
-            return result
-
-        result: bool = (
+        return (
             previous_normalized_rsi > self.normalize_rsi(self.config.trend_start_rsi_min_threshold_buy) and
             current_normalized_rsi < self.normalize_rsi(self.config.trend_start_rsi_max_threshold_buy)
         )
-
-        self.logger().info(f"is_rsi_in_range_for_trend_start_order({side}) | returning: {result}")
-
-        return result
 
     def compute_sl_and_tp_for_trend_reversal(self) -> Decimal:
         close_series: pd.Series = self.processed_data["close"]
