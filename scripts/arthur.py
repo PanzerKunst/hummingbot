@@ -332,8 +332,8 @@ class ArthurStrategy(PkStrategy):
 
         if side == TradeType.SELL:
             result: bool = (
-                previous_normalized_rsi < self.config.trend_start_rsi_max_threshold_sell and
-                current_normalized_rsi > self.config.trend_start_rsi_min_threshold_sell
+                previous_normalized_rsi < self.normalize_rsi(self.config.trend_start_rsi_max_threshold_sell) and
+                current_normalized_rsi > self.normalize_rsi(self.config.trend_start_rsi_min_threshold_sell)
             )
 
             self.logger().info(f"is_rsi_in_range_for_trend_start_order({side}) | returning: {result}")
@@ -341,8 +341,8 @@ class ArthurStrategy(PkStrategy):
             return result
 
         result: bool = (
-            previous_normalized_rsi > self.config.trend_start_rsi_min_threshold_buy and
-            current_normalized_rsi < self.config.trend_start_rsi_max_threshold_buy
+            previous_normalized_rsi > self.normalize_rsi(self.config.trend_start_rsi_min_threshold_buy) and
+            current_normalized_rsi < self.normalize_rsi(self.config.trend_start_rsi_max_threshold_buy)
         )
 
         self.logger().info(f"is_rsi_in_range_for_trend_start_order({side}) | returning: {result}")
