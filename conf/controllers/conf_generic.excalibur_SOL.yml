@@ -4,7 +4,7 @@ controller_type: generic
 total_amount_quote: 5
 manual_kill_switch: null
 candles_config: []
-connector_name: okx_perpetual
+connector_name: kucoin_perpetual
 trading_pair: SOL-USDT
 leverage: 4
 position_mode: ONEWAY

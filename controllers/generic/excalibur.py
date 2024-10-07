@@ -19,7 +19,7 @@ from scripts.utility.my_utils import has_order_expired
 
 class ExcaliburConfig(ControllerConfigBase):
     controller_name: str = "excalibur"
-    connector_name: str = "okx_perpetual"  # Do not rename attribute - used by BacktestingEngineBase
+    connector_name: str = "kucoin_perpetual"  # Do not rename attribute - used by BacktestingEngineBase
     trading_pair: str = "SOL-USDT"  # Do not rename attribute - used by BacktestingEngineBase
 
     leverage: int = 4
