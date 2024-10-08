@@ -289,7 +289,7 @@ class MerlinStrategy(PkStrategy):
     def is_rsi_at_the_edges(self, normalized_rsi: Decimal) -> bool:
         rsi = self.denormalize_rsi(normalized_rsi)
         self.logger().info(f"is_rsi_at_the_edges? rsi: {rsi}")
-        return rsi > 50+18 or rsi < 50-18
+        return rsi > 50+18 or rsi < 50-18  # TODO: move to config
 
     def is_last_terminated_order_sl(self, side: TradeType) -> bool:
         last_terminated_filled_order = self.find_last_terminated_filled_order(side)
