@@ -196,6 +196,35 @@ class PkStrategy(StrategyV2Base):
                 order.close_type = close_type
                 break
 
+    # def add_take_profit_order(self, tracked_order: TrackedOrderDetails):
+    #     connector_name = tracked_order.connector_name
+    #     trading_pair = tracked_order.trading_pair
+    #     filled_amount = tracked_order.filled_amount
+    #     take_profit_order_type = tracked_order.triple_barrier_config.take_profit_order_type
+    #
+    #     take_profit_price = get_take_profit_price(tracked_order)
+    #
+    #     self.logger().info(f"add_take_profit_order:{tracked_order} | take_profit_price:{take_profit_price}")
+    #
+    #     if tracked_order.side == TradeType.SELL:
+    #         self.buy(
+    #             connector_name,
+    #             trading_pair,
+    #             filled_amount,
+    #             take_profit_order_type,
+    #             take_profit_price,
+    #             PositionAction.CLOSE
+    #         )
+    #     else:
+    #         self.sell(
+    #             connector_name,
+    #             trading_pair,
+    #             filled_amount,
+    #             take_profit_order_type,
+    #             take_profit_price,
+    #             PositionAction.CLOSE
+    #         )
+
     def cancel_unfilled_order(self, tracked_order: TrackedOrderDetails):
         connector_name = tracked_order.connector_name
         trading_pair = tracked_order.trading_pair
@@ -222,7 +251,6 @@ class PkStrategy(StrategyV2Base):
                 tracked_order.exchange_order_id = created_event.exchange_order_id,
                 self.logger().info(f"did_create_sell_order: {tracked_order}")
                 break
-
 
     def did_create_buy_order(self, created_event: BuyOrderCreatedEvent):
         position = created_event.position

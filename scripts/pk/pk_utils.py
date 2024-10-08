@@ -57,6 +57,20 @@ def has_current_price_reached_take_profit(tracked_order: TrackedOrderDetails, cu
     return current_price > entry_price * (1 + take_profit)
 
 
+def get_take_profit_price(tracked_order: TrackedOrderDetails) -> Decimal:
+    side = tracked_order.side
+    entry_price = tracked_order.entry_price
+    take_profit = tracked_order.triple_barrier_config.take_profit
+
+    if not take_profit:
+        return entry_price
+
+    if side == TradeType.SELL:
+        return entry_price * (1 - take_profit)
+
+    return entry_price * (1 + take_profit)
+
+
 def has_unfilled_order_expired(tracked_order: TrackedOrderDetails, expiration_min: int, current_timestamp: float) -> bool:
     created_at = tracked_order.created_at
 
