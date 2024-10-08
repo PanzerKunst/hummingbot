@@ -237,7 +237,7 @@ class MerlinStrategy(PkStrategy):
 
     def is_high_volatility(self) -> bool:
         # TODO: remove
-        self.logger().info(f"is_high_volatility() | latest_bbb: {self.get_latest_bbb()}")
+        self.logger().info(f"is_high_volatility() | latest_bbb: {self.get_latest_bbb():.2f}")
 
         return self.get_latest_bbb() > self.config.high_volatility_threshold
 

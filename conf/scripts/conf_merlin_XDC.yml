@@ -14,7 +14,7 @@ take_profit_pct: 0.3
 filled_order_expiration_min: 1000
 bbands_length_for_volatility: 2
 bbands_std_dev_for_volatility: 3.0
-high_volatility_threshold: 30.0
+high_volatility_threshold: 1.0
 bbands_length_for_trend: 6
 bbands_std_dev_for_trend: 2.0
 rsi_length: 50
