@@ -22,7 +22,7 @@ class ExcaliburConfig(ControllerConfigBase):
     connector_name: str = "kucoin_perpetual"  # Do not rename attribute - used by BacktestingEngineBase
     trading_pair: str = "SOL-USDT"  # Do not rename attribute - used by BacktestingEngineBase
 
-    leverage: int = 4
+    leverage: int = 20
     position_mode: PositionMode = PositionMode.ONEWAY
     total_amount_quote: int = Field(5, client_data=ClientFieldData(is_updatable=True))
     unfilled_order_expiration_min: int = 1
