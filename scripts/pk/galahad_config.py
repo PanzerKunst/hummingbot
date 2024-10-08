@@ -23,7 +23,7 @@ class GalahadConfig(StrategyV2ConfigBase):
     trading_pair: str = "POPCAT-USDT"
     total_amount_quote: int = Field(10, client_data=ClientFieldData(is_updatable=True))
     leverage: int = 20
-    cooldown_time_min: int = Field(10, client_data=ClientFieldData(is_updatable=True))
+    cooldown_time_min: int = Field(5, client_data=ClientFieldData(is_updatable=True))
     unfilled_order_expiration_min: int = Field(1, client_data=ClientFieldData(is_updatable=True))
 
     position_mode: PositionMode = PositionMode.HEDGE
@@ -31,7 +31,6 @@ class GalahadConfig(StrategyV2ConfigBase):
     # Triple Barrier
     stop_loss_pct: Decimal = Field(1.0, client_data=ClientFieldData(is_updatable=True))
     take_profit_pct: Decimal = Field(1.0, client_data=ClientFieldData(is_updatable=True))
-    filled_order_expiration_min: int = Field(1000, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
     macd_short: int = Field(12, client_data=ClientFieldData(is_updatable=True))

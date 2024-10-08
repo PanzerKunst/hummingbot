@@ -55,11 +55,9 @@ class GalahadStrategy(PkStrategy):
         return TripleBarrierConfig(
             stop_loss=Decimal(self.config.stop_loss_pct / 100),
             take_profit=Decimal(self.config.take_profit_pct / 100),
-            time_limit=self.config.filled_order_expiration_min * 60,
             open_order_type=OrderType.LIMIT,
-            take_profit_order_type=OrderType.LIMIT,
             stop_loss_order_type=OrderType.MARKET,
-            time_limit_order_type=OrderType.LIMIT
+            take_profit_order_type=OrderType.LIMIT
         )
 
     def update_processed_data(self):

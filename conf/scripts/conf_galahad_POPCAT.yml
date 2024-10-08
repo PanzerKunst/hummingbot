@@ -7,12 +7,11 @@ connector_name: okx_perpetual
 trading_pair: POPCAT-USDT
 total_amount_quote: 10
 leverage: 20
-cooldown_time_min: 10
+cooldown_time_min: 5
 unfilled_order_expiration_min: 1
 position_mode: HEDGE
 stop_loss_pct: 1.0
 take_profit_pct: 1.0
-filled_order_expiration_min: 1000
 macd_short: 12
 macd_long: 26
 macd_signal: 9
