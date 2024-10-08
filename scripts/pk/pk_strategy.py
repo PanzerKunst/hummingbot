@@ -167,9 +167,9 @@ class PkStrategy(StrategyV2Base):
         trading_pair = tracked_order.trading_pair
         filled_amount = tracked_order.filled_amount
 
-        current_price = self.get_mid_price()
+        close_price = self.get_best_bid() if tracked_order.side == TradeType.SELL else self.get_best_ask()
 
-        self.logger().info(f"close_filled_order: {tracked_order}")
+        self.logger().info(f"close_filled_order:{tracked_order} | close_price:{close_price}")
 
         if tracked_order.side == TradeType.SELL:
             self.buy(
@@ -177,7 +177,7 @@ class PkStrategy(StrategyV2Base):
                 trading_pair,
                 filled_amount,
                 order_type,
-                current_price,
+                close_price,
                 PositionAction.CLOSE
             )
         else:
@@ -186,7 +186,7 @@ class PkStrategy(StrategyV2Base):
                 trading_pair,
                 filled_amount,
                 order_type,
-                current_price,
+                close_price,
                 PositionAction.CLOSE
             )
 

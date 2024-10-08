@@ -10,6 +10,7 @@ from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.strategy_v2.executors.position_executor.data_types import TripleBarrierConfig
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
+from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.pk.galahad_config import GalahadConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.tracked_order_details import TrackedOrderDetails
@@ -141,6 +142,16 @@ class GalahadStrategy(PkStrategy):
             return []
 
         self.check_orders()
+
+        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side()
+
+        if len(filled_sell_orders) > 0 and self.has_macdh_turned_positive():
+            for filled_order in filled_sell_orders:
+                self.close_filled_order(filled_order, OrderType.LIMIT, CloseType.COMPLETED)
+
+        if len(filled_buy_orders) > 0 and self.has_macdh_turned_negative():
+            for filled_order in filled_buy_orders:
+                self.close_filled_order(filled_order, OrderType.LIMIT, CloseType.COMPLETED)
 
         return []  # Always return []
 
