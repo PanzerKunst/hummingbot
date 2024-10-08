@@ -211,6 +211,10 @@ class MerlinStrategy(PkStrategy):
         return Decimal(rsi * 2 - 100)
 
     @staticmethod
+    def denormalize_rsi(normalized_rsi: Decimal) -> Decimal:
+        return (normalized_rsi + 100) / 2
+
+    @staticmethod
     def normalize_bbp(bbp: float) -> Decimal:
         return Decimal(bbp - 0.5)
 
@@ -283,8 +287,9 @@ class MerlinStrategy(PkStrategy):
         )
 
     def is_rsi_at_the_edges(self, normalized_rsi: Decimal) -> bool:
-        self.logger().info(f"is_rsi_at_the_edges? normalized_rsi: {normalized_rsi}")
-        return normalized_rsi > self.normalize_rsi(68) or normalized_rsi < self.normalize_rsi(32)
+        rsi = self.denormalize_rsi(normalized_rsi)
+        self.logger().info(f"is_rsi_at_the_edges? rsi: {rsi}")
+        return rsi > 50+18 or rsi < 50-18
 
     def is_last_terminated_order_sl(self, side: TradeType) -> bool:
         last_terminated_filled_order = self.find_last_terminated_filled_order(side)
