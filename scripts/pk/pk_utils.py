@@ -27,15 +27,6 @@ def calculate_delta_bps(price_a: Decimal, price_b: Decimal) -> Decimal:
     return delta_bps
 
 
-def has_order_expired(executor: ExecutorInfo, time_limit: int, current_timestamp: int) -> bool:
-    """
-    :param time_limit: In seconds
-    :param current_timestamp: In seconds
-    """
-    delta = current_timestamp - executor.timestamp
-    return delta > time_limit
-
-
 def has_current_price_reached_stop_loss(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
     stop_loss = tracked_order.triple_barrier_config.stop_loss
 

@@ -6,14 +6,15 @@ from hummingbot.core.data_type.common import PriceType, TradeType, PositionActio
 from hummingbot.core.event.events import SellOrderCreatedEvent, BuyOrderCreatedEvent, OrderFilledEvent
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base
 from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig, TripleBarrierConfig
-from scripts.pk.arthur_config import ArthurConfig
+from hummingbot.strategy_v2.models.executors import CloseType
+from scripts.pk.merlin_config import MerlinConfig
 from scripts.pk.pk_utils import has_unfilled_order_expired, has_current_price_reached_stop_loss, has_current_price_reached_take_profit, \
     has_filled_order_reached_time_limit
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
 class PkStrategy(StrategyV2Base):
-    def __init__(self, connectors: Dict[str, ConnectorBase], config: ArthurConfig):
+    def __init__(self, connectors: Dict[str, ConnectorBase], config: MerlinConfig):
         super().__init__(connectors, config)
         self.config = config
 
@@ -54,10 +55,12 @@ class PkStrategy(StrategyV2Base):
 
         return self.market_data_provider.get_price_by_type(connector_name, trading_pair, price_type)
 
-    def get_executor_config(self, side: TradeType, entry_price: Decimal, triple_barrier_config: TripleBarrierConfig) -> PositionExecutorConfig:
+    def get_executor_config(self, side: TradeType, entry_price: Decimal, triple_barrier_config: TripleBarrierConfig, amount_multiplier: Decimal) -> PositionExecutorConfig:
         connector_name = self.config.connector_name
         trading_pair = self.config.trading_pair
         leverage = self.config.leverage
+
+        amount: Decimal = self.get_position_quote_amount(side) / entry_price * amount_multiplier
 
         return PositionExecutorConfig(
             timestamp=self.market_data_provider.time(),
@@ -65,7 +68,7 @@ class PkStrategy(StrategyV2Base):
             trading_pair=trading_pair,
             side=side,
             entry_price=entry_price,
-            amount=self.get_position_quote_amount(side) / entry_price,
+            amount=amount,
             triple_barrier_config=triple_barrier_config,
             leverage=leverage
         )
@@ -103,8 +106,8 @@ class PkStrategy(StrategyV2Base):
         filled_buy_orders = [order for order in active_buy_orders if order.last_filled_at]
         return filled_sell_orders, filled_buy_orders
 
-    def create_order(self, side: TradeType, entry_price: Decimal, triple_barrier_config: TripleBarrierConfig):
-        executor_config = self.get_executor_config(side, entry_price, triple_barrier_config)
+    def create_order(self, side: TradeType, entry_price: Decimal, triple_barrier_config: TripleBarrierConfig, amount_multiplier: Decimal = 1):
+        executor_config = self.get_executor_config(side, entry_price, triple_barrier_config, amount_multiplier)
 
         connector_name = executor_config.connector_name
         trading_pair = executor_config.trading_pair
@@ -153,11 +156,11 @@ class PkStrategy(StrategyV2Base):
 
     def cancel_tracked_order(self, tracked_order: TrackedOrderDetails):
         if tracked_order.last_filled_at:
-            self.close_filled_order(tracked_order, OrderType.MARKET)
+            self.close_filled_order(tracked_order, OrderType.MARKET, CloseType.EARLY_STOP)
         else:
             self.cancel_unfilled_order(tracked_order)
 
-    def close_filled_order(self, tracked_order: TrackedOrderDetails, order_type: OrderType):
+    def close_filled_order(self, tracked_order: TrackedOrderDetails, order_type: OrderType, close_type: CloseType):
         connector_name = tracked_order.connector_name
         trading_pair = tracked_order.trading_pair
         filled_amount = tracked_order.filled_amount
@@ -188,6 +191,7 @@ class PkStrategy(StrategyV2Base):
         for order in self.tracked_orders:
             if order.order_id == tracked_order.order_id:
                 order.terminated_at = self.market_data_provider.time()
+                order.close_type = close_type
                 break
 
     def cancel_unfilled_order(self, tracked_order: TrackedOrderDetails):
@@ -202,6 +206,7 @@ class PkStrategy(StrategyV2Base):
         for order in self.tracked_orders:
             if order.order_id == tracked_order.order_id:
                 order.terminated_at = self.market_data_provider.time()
+                order.close_type = CloseType.EXPIRED
                 break
 
     def did_create_sell_order(self, created_event: SellOrderCreatedEvent):
@@ -294,16 +299,16 @@ class PkStrategy(StrategyV2Base):
             if has_current_price_reached_stop_loss(filled_order, current_price):
                 self.logger().info("current_price_has_reached_stop_loss")
                 stop_loss_order_type = filled_order.triple_barrier_config.stop_loss_order_type
-                self.close_filled_order(filled_order, stop_loss_order_type)
+                self.close_filled_order(filled_order, stop_loss_order_type, CloseType.STOP_LOSS)
                 continue
 
             if has_current_price_reached_take_profit(filled_order, current_price):
                 self.logger().info("current_price_has_reached_take_profit")
                 take_profit_order_type = filled_order.triple_barrier_config.take_profit_order_type
-                self.close_filled_order(filled_order, take_profit_order_type)
+                self.close_filled_order(filled_order, take_profit_order_type, CloseType.TAKE_PROFIT)
                 continue
 
             if has_filled_order_reached_time_limit(filled_order, self.market_data_provider.time()):
                 self.logger().info("filled_order_has_reached_time_limit")
                 time_limit_order_type = filled_order.triple_barrier_config.time_limit_order_type
-                self.close_filled_order(filled_order, time_limit_order_type)
+                self.close_filled_order(filled_order, time_limit_order_type, CloseType.TIME_LIMIT)
