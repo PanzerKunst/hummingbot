@@ -27,8 +27,8 @@ class MerlinConfig(StrategyV2ConfigBase):
     unfilled_order_expiration_min: int = Field(5, client_data=ClientFieldData(is_updatable=True))
 
     # Triple Barrier
-    stop_loss_pct: Decimal = Field(0.5, client_data=ClientFieldData(is_updatable=True))
-    take_profit_pct: Decimal = Field(0.5, client_data=ClientFieldData(is_updatable=True))
+    stop_loss_pct: Decimal = Field(0.3, client_data=ClientFieldData(is_updatable=True))
+    take_profit_pct: Decimal = Field(0.3, client_data=ClientFieldData(is_updatable=True))
     filled_order_expiration_min: int = Field(1000, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
@@ -48,4 +48,4 @@ class MerlinConfig(StrategyV2ConfigBase):
     candles_length: int = 70
 
     # Order settings
-    default_spread_pct: Decimal = Field(0.4, client_data=ClientFieldData(is_updatable=True))
+    default_spread_pct: Decimal = Field(0.2, client_data=ClientFieldData(is_updatable=True))

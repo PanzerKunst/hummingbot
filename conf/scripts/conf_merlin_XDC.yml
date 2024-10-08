@@ -9,8 +9,8 @@ total_amount_quote: 20
 leverage: 1
 cooldown_time_min: 1
 unfilled_order_expiration_min: 5
-stop_loss_pct: 0.5
-take_profit_pct: 0.5
+stop_loss_pct: 0.3
+take_profit_pct: 0.3
 filled_order_expiration_min: 1000
 bbands_length_for_volatility: 2
 bbands_std_dev_for_volatility: 3.0
@@ -24,4 +24,4 @@ volume_for_1_pct_volatility_adjustment: 100000
 candles_connector: gate_io
 candles_interval: 1m
 candles_length: 70
-default_spread_pct: 0.4
+default_spread_pct: 0.2
