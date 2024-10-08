@@ -185,7 +185,7 @@ class MerlinStrategy(PkStrategy):
                     "normalized_bbp"
                 ]
 
-                custom_status.append(format_df_for_printout(self.processed_data[columns_to_display].tail(self.config.candles_length), table_format="psql"))
+                custom_status.append(format_df_for_printout(self.processed_data[columns_to_display].tail(20), table_format="psql"))
 
         return original_status + "\n".join(custom_status)
 
@@ -233,7 +233,7 @@ class MerlinStrategy(PkStrategy):
 
     def get_latest_normalized_rsi(self) -> Decimal:
         rsi_series: pd.Series = self.processed_data["normalized_rsi"]
-        return Decimal(rsi_series.iloc[-1])
+        return Decimal(rsi_series.iloc[-2])
 
     def is_high_volatility(self) -> bool:
         # TODO: remove
@@ -289,7 +289,7 @@ class MerlinStrategy(PkStrategy):
     def is_rsi_at_the_edges(self, normalized_rsi: Decimal) -> bool:
         rsi = self.denormalize_rsi(normalized_rsi)
         self.logger().info(f"is_rsi_at_the_edges? rsi: {rsi}")
-        return rsi > 50+18 or rsi < 50-18  # TODO: move to config
+        return rsi > self.config.rsi_top_edge or rsi < self.config.rsi_bottom_edge
 
     def is_last_terminated_order_sl(self, side: TradeType) -> bool:
         last_terminated_filled_order = self.find_last_terminated_filled_order(side)

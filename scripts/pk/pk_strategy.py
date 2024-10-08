@@ -129,7 +129,8 @@ class PkStrategy(StrategyV2Base):
                 position=PositionAction.OPEN.value,
                 amount=amount,
                 entry_price=entry_price,
-                triple_barrier_config=triple_barrier_config
+                triple_barrier_config=triple_barrier_config,
+                created_at=self.market_data_provider.time()  # Because some exchanges such as gate_io trigger the `did_create_xxx_order` event after 1s
             ))
 
             self.is_a_sell_order_being_created = False
@@ -147,7 +148,8 @@ class PkStrategy(StrategyV2Base):
                 position=PositionAction.OPEN.value,
                 amount = amount,
                 entry_price=entry_price,
-                triple_barrier_config=triple_barrier_config
+                triple_barrier_config=triple_barrier_config,
+                created_at=self.market_data_provider.time()
             ))
 
             self.is_a_buy_order_being_created = False
@@ -212,7 +214,7 @@ class PkStrategy(StrategyV2Base):
     def did_create_sell_order(self, created_event: SellOrderCreatedEvent):
         position = created_event.position
 
-        if not position or position != PositionAction.OPEN.value:
+        if not position or position == PositionAction.CLOSE.value:
             return
 
         for tracked_order in self.tracked_orders:
@@ -226,7 +228,7 @@ class PkStrategy(StrategyV2Base):
     def did_create_buy_order(self, created_event: BuyOrderCreatedEvent):
         position = created_event.position
 
-        if not position or position != PositionAction.OPEN.value:
+        if not position or position == PositionAction.CLOSE.value:
             return
 
         for tracked_order in self.tracked_orders:
@@ -239,7 +241,7 @@ class PkStrategy(StrategyV2Base):
     def did_fill_order(self, filled_event: OrderFilledEvent):
         position = filled_event.position
 
-        if not position or position != PositionAction.OPEN.value:
+        if not position or position == PositionAction.CLOSE.value:
             return
 
         for tracked_order in self.tracked_orders:
