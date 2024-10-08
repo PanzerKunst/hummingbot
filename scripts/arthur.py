@@ -54,7 +54,7 @@ class ArthurStrategy(PkStrategy):
 
     def get_triple_barrier_config(self, sl_tp_pct: Decimal) -> TripleBarrierConfig:
         # TODO: remove
-        self.logger().info(f"get_triple_barrier_config() | sl_tp_pct: {sl_tp_pct}")
+        self.logger().info(f"get_triple_barrier_config() | sl_tp_pct:{sl_tp_pct}")
 
         return TripleBarrierConfig(
             stop_loss=Decimal(sl_tp_pct / 100),
@@ -86,8 +86,8 @@ class ArthurStrategy(PkStrategy):
         bbands_for_volatility = candles_df.ta.bbands(length=self.config.bbands_length_for_volatility, std=self.config.bbands_std_dev_for_volatility)
         candles_df["bbb_for_volatility"] = bbands_for_volatility[f"BBB_{self.config.bbands_length_for_volatility}_{self.config.bbands_std_dev_for_volatility}"]
 
-        rsi = candles_df.ta.rsi(length=self.config.rsi_length)
-        candles_df["normalized_rsi"] = rsi.apply(self.normalize_rsi)
+        candles_df["rsi"] = candles_df.ta.rsi(length=self.config.rsi_length)
+        candles_df["normalized_rsi"] = candles_df["rsi"].apply(self.normalize_rsi)
 
         self.processed_data = candles_df
 
@@ -184,6 +184,7 @@ class ArthurStrategy(PkStrategy):
                     "timestamp_iso",
                     "close",
                     "bbb_for_volatility",
+                    "rsi",
                     "normalized_rsi"
                 ]
 
@@ -216,12 +217,18 @@ class ArthurStrategy(PkStrategy):
 
         self.logger().info(f"can_create_trend_reversal_order() | abs(delta_pct): {abs(delta_pct)}")
 
+        if side == TradeType.SELL:
+            self.logger().info(f"can_create_trend_reversal_order({side}) | latest_rsi: {self.denormalize_rsi(self.get_latest_normalized_rsi())} | has_price_stopped_climbing:{self.has_price_stopped_climbing()}")
+
         if (
             side == TradeType.SELL and
             self.get_latest_normalized_rsi() > self.normalize_rsi(self.config.trend_reversal_rsi_threshold_sell) and
             self.has_price_stopped_climbing()
         ):
             return True
+
+        if side == TradeType.BUY:
+            self.logger().info(f"can_create_trend_reversal_order({side}) | latest_rsi: {self.denormalize_rsi(self.get_latest_normalized_rsi())} | has_price_stopped_dropping:{self.has_price_stopped_dropping()}")
 
         if (
             side == TradeType.BUY and
@@ -243,23 +250,27 @@ class ArthurStrategy(PkStrategy):
         close_price_latest_full_minute = Decimal(close_series.iloc[-2])
         close_price_previous_minute = Decimal(close_series.iloc[-3])
 
-        if (
-            side == TradeType.SELL and
-            self.is_rsi_in_range_for_trend_start_order(TradeType.SELL) and
-            self.has_price_not_dropped_recently()
-        ):
-            delta_pct = (close_price_previous_minute - close_price_latest_full_minute) / close_price_latest_full_minute * 100
-            self.logger().info(f"can_create_trend_start_order({side}) | delta_pct: {delta_pct}")
-            return delta_pct > self.config.trend_start_candle_height_threshold_pct
+        delta_pct = (
+            (close_price_previous_minute - close_price_latest_full_minute) / close_price_latest_full_minute * 100 if side == TradeType.SELL else
+            (close_price_latest_full_minute - close_price_previous_minute) / close_price_latest_full_minute * 100
+        )
 
-        if (
-            side == TradeType.BUY and
-            self.is_rsi_in_range_for_trend_start_order(TradeType.BUY) and
-            self.has_price_not_climbed_recently()
-        ):
-            delta_pct = (close_price_latest_full_minute - close_price_previous_minute) / close_price_latest_full_minute * 100
+        if delta_pct > self.config.trend_start_candle_height_threshold_pct and self.has_price_remained_stable_recently():
             self.logger().info(f"can_create_trend_start_order({side}) | delta_pct: {delta_pct}")
-            return delta_pct > self.config.trend_start_candle_height_threshold_pct
+
+            if side == TradeType.SELL:
+                self.logger().info(
+                    f"can_create_trend_start_order({side}) | is_rsi_in_range_for_trend_start_order: {self.is_rsi_in_range_for_trend_start_order(TradeType.SELL)}")
+
+            if side == TradeType.SELL and self.is_rsi_in_range_for_trend_start_order(TradeType.SELL):
+                return True
+
+            if side == TradeType.BUY:
+                self.logger().info(
+                    f"can_create_trend_start_order({side}) | is_rsi_in_range_for_trend_start_order: {self.is_rsi_in_range_for_trend_start_order(TradeType.BUY)}")
+
+            if side == TradeType.BUY and self.is_rsi_in_range_for_trend_start_order(TradeType.BUY):
+                return True
 
         return False
 
@@ -270,6 +281,10 @@ class ArthurStrategy(PkStrategy):
     @staticmethod
     def normalize_rsi(rsi: float) -> Decimal:
         return Decimal(rsi * 2 - 100)
+
+    @staticmethod
+    def denormalize_rsi(normalized_rsi: Decimal) -> Decimal:
+        return (normalized_rsi + 100) / 2
 
     def get_latest_close_price(self) -> Decimal:
         close_series: pd.Series = self.processed_data["close"]
@@ -307,23 +322,15 @@ class ArthurStrategy(PkStrategy):
 
         return current_price > oldest_price
 
-    def has_price_not_dropped_recently(self):
+    def has_price_remained_stable_recently(self):
         close_series: pd.Series = self.processed_data["close"]
-        previous_close_price = close_series.iloc[-2]
+        close_price_2min_before = close_series.iloc[-3]
         close_price_3min_before = close_series.iloc[-4]
+        close_price_4min_before = close_series.iloc[-5]
+        delta_1_pct = (close_price_2min_before - close_price_3min_before) / close_price_2min_before * 100
+        delta_2_pct = (close_price_2min_before - close_price_4min_before) / close_price_2min_before * 100
 
-        self.logger().info(f"has_price_not_dropped_recently() | previous_close_price:{previous_close_price} | close_price_3min_before:{close_price_3min_before}")
-
-        return previous_close_price > close_price_3min_before
-
-    def has_price_not_climbed_recently(self):
-        close_series: pd.Series = self.processed_data["close"]
-        previous_close_price = close_series.iloc[-2]
-        close_price_3min_before = close_series.iloc[-4]
-
-        self.logger().info(f"has_price_not_climbed_recently() | previous_close_price:{previous_close_price} | close_price_3min_before:{close_price_3min_before}")
-
-        return previous_close_price < close_price_3min_before
+        return abs(delta_1_pct) < 0.1 and abs(delta_2_pct) < 0.2
 
     def is_rsi_in_range_for_trend_start_order(self, side: TradeType) -> bool:
         rsi_series: pd.Series = self.processed_data["normalized_rsi"]
@@ -332,13 +339,13 @@ class ArthurStrategy(PkStrategy):
 
         if side == TradeType.SELL:
             return (
-                previous_normalized_rsi < self.normalize_rsi(self.config.trend_start_rsi_max_threshold_sell) and
-                current_normalized_rsi > self.normalize_rsi(self.config.trend_start_rsi_min_threshold_sell)
+                self.denormalize_rsi(previous_normalized_rsi) < self.config.trend_start_rsi_max_threshold_sell and
+                self.denormalize_rsi(current_normalized_rsi) > self.config.trend_start_rsi_min_threshold_sell
             )
 
         return (
-            previous_normalized_rsi > self.normalize_rsi(self.config.trend_start_rsi_min_threshold_buy) and
-            current_normalized_rsi < self.normalize_rsi(self.config.trend_start_rsi_max_threshold_buy)
+            self.denormalize_rsi(previous_normalized_rsi) > self.config.trend_start_rsi_min_threshold_buy and
+            self.denormalize_rsi(current_normalized_rsi) < self.config.trend_start_rsi_max_threshold_buy
         )
 
     def compute_sl_and_tp_for_trend_reversal(self) -> Decimal:
@@ -354,9 +361,9 @@ class ArthurStrategy(PkStrategy):
     def compute_sl_and_tp_for_trend_start(self) -> Decimal:
         close_series: pd.Series = self.processed_data["close"]
         latest_close_price = close_series.iloc[-1]
-        close_price_3min_before = close_series.iloc[-4]
-        delta_pct = (latest_close_price - close_price_3min_before) / latest_close_price * 100
+        previous_close_price = close_series.iloc[-2]
+        delta_pct = (latest_close_price - previous_close_price) / latest_close_price * 100
 
-        self.logger().info(f"compute_sl_and_tp_for_trend_start() | latest_close_price:{latest_close_price} | close_price_3min_before:{close_price_3min_before}")
+        self.logger().info(f"compute_sl_and_tp_for_trend_start() | latest_close_price:{latest_close_price} | previous_close_price:{previous_close_price}")
 
         return abs(delta_pct) * 0.75
