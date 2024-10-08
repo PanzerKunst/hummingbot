@@ -220,7 +220,6 @@ class PkStrategy(StrategyV2Base):
         for tracked_order in self.tracked_orders:
             if tracked_order.order_id == created_event.order_id:
                 tracked_order.exchange_order_id = created_event.exchange_order_id,
-                tracked_order.created_at = created_event.creation_timestamp
                 self.logger().info(f"did_create_sell_order: {tracked_order}")
                 break
 
@@ -234,7 +233,6 @@ class PkStrategy(StrategyV2Base):
         for tracked_order in self.tracked_orders:
             if tracked_order.order_id == created_event.order_id:
                 tracked_order.exchange_order_id = created_event.exchange_order_id,
-                tracked_order.created_at = created_event.creation_timestamp
                 self.logger().info(f"did_create_buy_order: {tracked_order}")
                 break
 
