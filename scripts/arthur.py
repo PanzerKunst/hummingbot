@@ -83,40 +83,10 @@ class ArthurStrategy(PkStrategy):
 
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
 
-        bbands_for_volatility = candles_df.ta.bbands(length=self.config.bbands_length_for_volatility, std=self.config.bbands_std_dev_for_volatility)
-        candles_df["bbb_for_volatility"] = bbands_for_volatility[f"BBB_{self.config.bbands_length_for_volatility}_{self.config.bbands_std_dev_for_volatility}"]
-
-        candles_df["rsi"] = candles_df.ta.rsi(length=self.config.rsi_length)
-        candles_df["normalized_rsi"] = candles_df["rsi"].apply(self.normalize_rsi)
+        candles_df["RSI"] = candles_df.ta.rsi(length=self.config.rsi_length)
+        candles_df["normalized_RSI"] = candles_df["RSI"].apply(self.normalize_rsi)
 
         self.processed_data = candles_df
-
-    # TODO: Currently bugged
-    # def update_indicators(self, df: pd.DataFrame):
-    #     rows_to_add = []
-    #
-    #     for _, row in df.iterrows():
-    #         timestamp = row["timestamp"]
-    #         bbb_for_volatility = row["bbb_for_volatility"]
-    #         normalized_rsi = row["normalized_rsi"]
-    #
-    #         if pd.notna(bbb_for_volatility) and pd.notna(normalized_rsi):
-    #             if self._get_indicators_for_timestamp(timestamp) is None:  # Do not refactor to `if not [...]`
-    #                 rows_to_add.append(row)
-    #
-    #     if len(rows_to_add) > 0:
-    #         new_rows = pd.DataFrame(rows_to_add)
-    #         self.processed_data = pd.concat([self.processed_data, new_rows], ignore_index=True)
-    #         self.processed_data["index"] = self.processed_data["timestamp"]
-    #         self.processed_data.set_index("index", inplace=True)
-    #
-    # def _get_indicators_for_timestamp(self, timestamp: float) -> Optional[pd.Series]:
-    #     matching_row = self.processed_data.query(f"timestamp == {timestamp}")
-    #
-    #     if matching_row.empty:
-    #         return None
-    #     else:
-    #         return matching_row.iloc[0]
 
     def create_actions_proposal(self) -> List[CreateExecutorAction]:
         self.update_processed_data()
@@ -173,9 +143,8 @@ class ArthurStrategy(PkStrategy):
                 columns_to_display = [
                     "timestamp_iso",
                     "close",
-                    "bbb_for_volatility",
-                    "rsi",
-                    "normalized_rsi"
+                    "RSI",
+                    "normalized_RSI"
                 ]
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display].tail(self.config.rsi_length), table_format="psql"))
@@ -279,21 +248,9 @@ class ArthurStrategy(PkStrategy):
         close_series: pd.Series = self.processed_data["close"]
         return Decimal(close_series.iloc[-1])
 
-    def get_latest_bbb(self) -> Decimal:
-        bbb_series: pd.Series = self.processed_data["bbb_for_volatility"]
-        bbb_current_incomplete_minute = Decimal(bbb_series.iloc[-1])
-        bbb_previous_full_minute = Decimal(bbb_series.iloc[-2])
-        return max(bbb_current_incomplete_minute, bbb_previous_full_minute)
-
     def get_latest_normalized_rsi(self) -> Decimal:
-        rsi_series: pd.Series = self.processed_data["normalized_rsi"]
+        rsi_series: pd.Series = self.processed_data["normalized_RSI"]
         return Decimal(rsi_series.iloc[-1])
-
-    def is_high_volatility(self) -> bool:
-        # TODO: remove
-        self.logger().info(f"is_high_volatility() | latest_bbb: {self.get_latest_bbb()}")
-
-        return self.get_latest_bbb() > self.config.high_volatility_threshold
 
     def save_latest_close_price(self):
         latest_close_price = self.get_latest_close_price()
@@ -322,7 +279,7 @@ class ArthurStrategy(PkStrategy):
         return abs(delta_1_pct) < 0.1 and abs(delta_2_pct) < 0.2
 
     def is_rsi_in_range_for_trend_start_order(self, side: TradeType) -> bool:
-        rsi_series: pd.Series = self.processed_data["normalized_rsi"]
+        rsi_series: pd.Series = self.processed_data["normalized_RSI"]
         current_normalized_rsi = Decimal(rsi_series.iloc[-1])
         previous_normalized_rsi = Decimal(rsi_series.iloc[-2])
 
@@ -350,9 +307,9 @@ class ArthurStrategy(PkStrategy):
     def compute_sl_and_tp_for_trend_start(self) -> Decimal:
         close_series: pd.Series = self.processed_data["close"]
         latest_close_price = close_series.iloc[-1]
-        previous_close_price = close_series.iloc[-2]
-        delta_pct = (latest_close_price - previous_close_price) / latest_close_price * 100
+        close_price_2min_before = close_series.iloc[-3]
+        delta_pct = (latest_close_price - close_price_2min_before) / latest_close_price * 100
 
-        self.logger().info(f"compute_sl_and_tp_for_trend_start() | latest_close_price:{latest_close_price} | previous_close_price:{previous_close_price}")
+        self.logger().info(f"compute_sl_and_tp_for_trend_start() | latest_close_price:{latest_close_price} | close_price_2min_before:{close_price_2min_before}")
 
         return abs(delta_pct) * 0.75

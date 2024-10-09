@@ -35,9 +35,6 @@ class ArthurConfig(StrategyV2ConfigBase):
     filled_order_expiration_min: int = Field(15, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
-    bbands_length_for_volatility: int = Field(2, client_data=ClientFieldData(is_updatable=True))
-    bbands_std_dev_for_volatility: Decimal = Field(3.0, client_data=ClientFieldData(is_updatable=True))
-    high_volatility_threshold: Decimal = Field(3.0, client_data=ClientFieldData(is_updatable=True))
     rsi_length: int = Field(20, client_data=ClientFieldData(is_updatable=True))
 
     # Candles
