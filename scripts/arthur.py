@@ -128,29 +128,26 @@ class ArthurStrategy(PkStrategy):
 
         self.save_latest_close_price()
 
-        # if self.is_high_volatility():
-        #     return []
-
         active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side()
 
         if self.can_create_trend_reversal_order(TradeType.SELL, active_sell_orders):
-            entry_price: Decimal = self.get_best_bid() * Decimal(1 + self.config.delta_with_ref_price_bps / 10000)
+            entry_price: Decimal = self.get_best_bid() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
             sl_tp_pct: Decimal = self.compute_sl_and_tp_for_trend_reversal()
             triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct)
             self.create_order(TradeType.SELL, entry_price, triple_barrier_config)
         elif self.can_create_trend_start_order(TradeType.SELL, active_sell_orders):
-            entry_price: Decimal = self.get_best_bid() * Decimal(1 + self.config.delta_with_ref_price_bps / 10000)
+            entry_price: Decimal = self.get_best_bid() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
             sl_tp_pct: Decimal = self.compute_sl_and_tp_for_trend_start()
             triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct)
             self.create_order(TradeType.SELL, entry_price, triple_barrier_config)
 
         if self.can_create_trend_reversal_order(TradeType.BUY, active_buy_orders):
-            entry_price: Decimal = self.get_best_ask() * Decimal(1 - self.config.delta_with_ref_price_bps / 10000)
+            entry_price: Decimal = self.get_best_ask() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
             sl_tp_pct: Decimal = self.compute_sl_and_tp_for_trend_reversal()
             triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct)
             self.create_order(TradeType.BUY, entry_price, triple_barrier_config)
         elif self.can_create_trend_start_order(TradeType.BUY, active_buy_orders):
-            entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.delta_with_ref_price_bps / 10000)
+            entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
             sl_tp_pct: Decimal = self.compute_sl_and_tp_for_trend_start()
             triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct)
             self.create_order(TradeType.BUY, entry_price, triple_barrier_config)
@@ -164,13 +161,6 @@ class ArthurStrategy(PkStrategy):
             return []
 
         self.check_orders()
-
-        # if self.is_high_volatility():
-        #     self.logger().info(f"##### is_high_volatility -> Stopping unfilled executors #####")
-        #     unfilled_sell_orders, unfilled_buy_orders = self.get_unfilled_tracked_orders_by_side()
-        #
-        #     for unfilled_order in unfilled_sell_orders + unfilled_buy_orders:
-        #         self.cancel_tracked_order(unfilled_order)
 
         return []  # Always return []
 
@@ -250,10 +240,9 @@ class ArthurStrategy(PkStrategy):
         close_price_latest_full_minute = Decimal(close_series.iloc[-2])
         close_price_previous_minute = Decimal(close_series.iloc[-3])
 
-        delta_pct = (
-            (close_price_previous_minute - close_price_latest_full_minute) / close_price_latest_full_minute * 100 if side == TradeType.SELL else
-            (close_price_latest_full_minute - close_price_previous_minute) / close_price_latest_full_minute * 100
-        )
+        delta_pct_sell = (close_price_previous_minute - close_price_latest_full_minute) / close_price_latest_full_minute * 100
+        delta_pct_buy = (close_price_latest_full_minute - close_price_previous_minute) / close_price_latest_full_minute * 100
+        delta_pct = delta_pct_sell if side == TradeType.SELL else delta_pct_buy
 
         if delta_pct > self.config.trend_start_candle_height_threshold_pct and self.has_price_remained_stable_recently():
             self.logger().info(f"can_create_trend_start_order({side}) | delta_pct: {delta_pct}")

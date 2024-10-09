@@ -25,6 +25,7 @@ class ArthurConfig(StrategyV2ConfigBase):
     leverage: int = 20
     cooldown_time_min: int = Field(10, client_data=ClientFieldData(is_updatable=True))
     unfilled_order_expiration_min: int = Field(1, client_data=ClientFieldData(is_updatable=True))
+    limit_take_profit_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
 
     position_mode: PositionMode = PositionMode.HEDGE
 
@@ -45,12 +46,12 @@ class ArthurConfig(StrategyV2ConfigBase):
     candles_length: int = 40
 
     # Order settings
-    delta_with_ref_price_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
-    trend_reversal_candle_height_threshold_pct: Decimal = Field(1.0, client_data=ClientFieldData(is_updatable=True))
+    entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
+    trend_reversal_candle_height_threshold_pct: Decimal = Field(0.8, client_data=ClientFieldData(is_updatable=True))
     trend_reversal_rsi_threshold_sell: int = Field(72, client_data=ClientFieldData(is_updatable=True))
     trend_reversal_rsi_threshold_buy: int = Field(28, client_data=ClientFieldData(is_updatable=True))
     trend_reversal_nb_seconds_to_calculate_end_of_trend: int = Field(10, client_data=ClientFieldData(is_updatable=True))
-    trend_start_candle_height_threshold_pct: Decimal = Field(0.6, client_data=ClientFieldData(is_updatable=True))
+    trend_start_candle_height_threshold_pct: Decimal = Field(0.4, client_data=ClientFieldData(is_updatable=True))
     trend_start_rsi_max_threshold_sell: int = Field(60, client_data=ClientFieldData(is_updatable=True))
     trend_start_rsi_min_threshold_sell: int = Field(40, client_data=ClientFieldData(is_updatable=True))
     trend_start_rsi_min_threshold_buy: int = Field(40, client_data=ClientFieldData(is_updatable=True))

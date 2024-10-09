@@ -27,15 +27,6 @@ def calculate_delta_bps(price_a: Decimal, price_b: Decimal) -> Decimal:
     return delta_bps
 
 
-def has_order_expired(executor: ExecutorInfo, time_limit: int, current_timestamp: int) -> bool:
-    """
-    :param time_limit: In seconds
-    :param current_timestamp: In seconds
-    """
-    delta = current_timestamp - executor.timestamp
-    return delta > time_limit
-
-
 def has_current_price_reached_stop_loss(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
     stop_loss = tracked_order.triple_barrier_config.stop_loss
 
@@ -64,6 +55,47 @@ def has_current_price_reached_take_profit(tracked_order: TrackedOrderDetails, cu
         return current_price < entry_price * (1 - take_profit)
 
     return current_price > entry_price * (1 + take_profit)
+
+
+def has_current_price_activated_trailing_stop(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
+    trailing_stop = tracked_order.triple_barrier_config.trailing_stop
+
+    if not trailing_stop:
+        return False
+
+    if tracked_order.trailing_stop_best_price:  # Already activated
+        return False
+
+    activation_price = trailing_stop.activation_price
+
+    if tracked_order.side == TradeType.SELL:
+        return current_price < activation_price
+
+    return current_price > activation_price
+
+
+def should_close_trailing_stop(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
+    trailing_stop = tracked_order.triple_barrier_config.trailing_stop
+
+    if not trailing_stop:
+        return False
+
+    if not tracked_order.trailing_stop_best_price:
+        return False
+
+    trailing_delta = trailing_stop.trailing_delta
+
+    if tracked_order.side == TradeType.SELL:
+        return current_price > tracked_order.trailing_stop_best_price * (1 + trailing_delta)
+
+    return current_price < tracked_order.trailing_stop_best_price * (1 - trailing_delta)
+
+
+def get_take_profit_price(side: TradeType, entry_price: Decimal, take_profit_pct: Decimal) -> Decimal:
+    if side == TradeType.SELL:
+        return entry_price * (1 - take_profit_pct / 100)
+
+    return entry_price * (1 + take_profit_pct / 100)
 
 
 def has_unfilled_order_expired(tracked_order: TrackedOrderDetails, expiration_min: int, current_timestamp: float) -> bool:
