@@ -23,3 +23,4 @@ class TrackedOrderDetails:
     last_filled_at: Optional[float] = None
     terminated_at: Optional[float] = None
     close_type: Optional[CloseType] = None
+    trailing_stop_best_price: Optional[Decimal] = None

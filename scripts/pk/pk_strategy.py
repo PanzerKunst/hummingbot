@@ -9,7 +9,7 @@ from hummingbot.strategy_v2.executors.position_executor.data_types import Positi
 from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.pk.galahad_config import GalahadConfig
 from scripts.pk.pk_utils import has_unfilled_order_expired, has_current_price_reached_stop_loss, has_current_price_reached_take_profit, \
-    has_filled_order_reached_time_limit
+    has_filled_order_reached_time_limit, has_current_price_activated_trailing_stop, should_close_trailing_stop
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
@@ -167,9 +167,10 @@ class PkStrategy(StrategyV2Base):
         trading_pair = tracked_order.trading_pair
         filled_amount = tracked_order.filled_amount
 
-        close_price = self.get_best_bid() if tracked_order.side == TradeType.SELL else self.get_best_ask()
+        close_price_sell = self.get_best_bid() * Decimal(1 - self.config.limit_take_profit_price_delta_bps / 10000)
+        close_price_buy = self.get_best_ask() * Decimal(1 + self.config.limit_take_profit_price_delta_bps / 10000)
 
-        self.logger().info(f"close_filled_order:{tracked_order} | close_price:{close_price}")
+        self.logger().info(f"close_filled_order:{tracked_order} | close_price:{close_price_sell if tracked_order.side == TradeType.SELL else close_price_buy}")
 
         if tracked_order.side == TradeType.SELL:
             self.buy(
@@ -177,7 +178,7 @@ class PkStrategy(StrategyV2Base):
                 trading_pair,
                 filled_amount,
                 order_type,
-                close_price,
+                close_price_sell,
                 PositionAction.CLOSE
             )
         else:
@@ -186,7 +187,7 @@ class PkStrategy(StrategyV2Base):
                 trading_pair,
                 filled_amount,
                 order_type,
-                close_price,
+                close_price_buy,
                 PositionAction.CLOSE
             )
 
@@ -332,6 +333,17 @@ class PkStrategy(StrategyV2Base):
 
             if has_current_price_reached_take_profit(filled_order, current_price):
                 self.logger().info("current_price_has_reached_take_profit")
+                take_profit_order_type = filled_order.triple_barrier_config.take_profit_order_type
+                self.close_filled_order(filled_order, take_profit_order_type, CloseType.TAKE_PROFIT)
+                continue
+
+            if has_current_price_activated_trailing_stop(filled_order, current_price):
+                self.logger().info("has_current_price_activated_trailing_stop")
+                filled_order.trailing_stop_best_price = current_price
+                continue
+
+            if should_close_trailing_stop(filled_order, current_price):
+                self.logger().info("should_close_trailing_stop")
                 take_profit_order_type = filled_order.triple_barrier_config.take_profit_order_type
                 self.close_filled_order(filled_order, take_profit_order_type, CloseType.TAKE_PROFIT)
                 continue

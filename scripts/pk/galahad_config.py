@@ -23,14 +23,16 @@ class GalahadConfig(StrategyV2ConfigBase):
     trading_pair: str = "POPCAT-USDT"
     total_amount_quote: int = Field(10, client_data=ClientFieldData(is_updatable=True))
     leverage: int = 20
-    cooldown_time_min: int = Field(5, client_data=ClientFieldData(is_updatable=True))
+    cooldown_time_min: int = Field(0, client_data=ClientFieldData(is_updatable=True))
     unfilled_order_expiration_min: int = Field(1, client_data=ClientFieldData(is_updatable=True))
+    limit_take_profit_price_delta_bps: int = Field(2, client_data=ClientFieldData(is_updatable=True))
 
     position_mode: PositionMode = PositionMode.HEDGE
 
     # Triple Barrier
-    stop_loss_pct: Decimal = Field(1.0, client_data=ClientFieldData(is_updatable=True))
-    take_profit_pct: Decimal = Field(1.0, client_data=ClientFieldData(is_updatable=True))
+    stop_loss_pct: Decimal = Field(0.5, client_data=ClientFieldData(is_updatable=True))
+    trailing_stop_activation_pct: Decimal = Field(0.6, client_data=ClientFieldData(is_updatable=True))
+    trailing_stop_close_delta_bps: int = Field(10, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
     macd_short: int = Field(12, client_data=ClientFieldData(is_updatable=True))
@@ -38,9 +40,10 @@ class GalahadConfig(StrategyV2ConfigBase):
     macd_signal: int = Field(9, client_data=ClientFieldData(is_updatable=True))
 
     # Candles
-    candles_connector: str = "okx_perpetual"
+    candles_connector: str = "binance_perpetual"
+    candles_pair: str = "POPCAT-USDT"
     candles_interval: str = "1m"
     candles_length: int = 52
 
     # Order settings
-    delta_with_ref_price_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
+    entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
