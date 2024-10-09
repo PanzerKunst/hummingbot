@@ -88,6 +88,9 @@ class GalahadStrategy(PkStrategy):
         candles_df["MACDs"] = macd_df[f"MACDs_{self.config.macd_short}_{self.config.macd_long}_{self.config.macd_signal}"]
         candles_df["MACDh"] = macd_df[f"MACDh_{self.config.macd_short}_{self.config.macd_long}_{self.config.macd_signal}"]
 
+        candles_df["RSI"] = candles_df.ta.rsi(length=self.config.rsi_length)
+        candles_df["normalized_RSI"] = candles_df["RSI"].apply(self.normalize_rsi)
+
         self.processed_data = candles_df
 
     # TODO: Currently bugged
@@ -171,7 +174,9 @@ class GalahadStrategy(PkStrategy):
                     "close",
                     "MACD",
                     "MACDs",
-                    "MACDh"
+                    "MACDh",
+                    "RSI",
+                    "normalized_RSI"
                 ]
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display].tail(20), table_format="psql"))
@@ -189,17 +194,41 @@ class GalahadStrategy(PkStrategy):
         if len(active_tracked_orders) > 0:
             return False
 
-        if (
-            side == TradeType.SELL and self.has_macdh_turned_negative() or
-            side == TradeType.BUY and self.has_macdh_turned_positive()
-        ):
-            return True
+        normalized_rsi_series: pd.Series = self.processed_data["normalized_RSI"]
+        current_normalized_rsi = Decimal(normalized_rsi_series.iloc[-1])
 
-        return False
+        if side == TradeType.SELL:
+            if self.is_rsi_above_top_edge(current_normalized_rsi):
+                return self.has_macdh_turned_negative()
+            else:
+                return self.has_macdh_turned_negative() and self.has_price_decreased_significantly_previous_minute()
+
+        if self.is_rsi_below_bottom_edge(current_normalized_rsi):
+            return self.has_macdh_turned_positive()
+        else:
+            return self.has_macdh_turned_positive() and self.has_price_increased_significantly_previous_minute()
 
     #
     # Custom functions specific to this controller
     #
+
+    @staticmethod
+    def normalize_rsi(rsi: float) -> Decimal:
+        return Decimal(rsi * 2 - 100)
+
+    @staticmethod
+    def denormalize_rsi(normalized_rsi: Decimal) -> Decimal:
+        return (normalized_rsi + 100) / 2
+
+    def is_rsi_above_top_edge(self, normalized_rsi: Decimal) -> bool:
+        rsi = self.denormalize_rsi(normalized_rsi)
+        self.logger().info(f"is_rsi_above_top_edge? rsi: {rsi}")
+        return rsi > self.config.rsi_top_edge
+
+    def is_rsi_below_bottom_edge(self, normalized_rsi: Decimal) -> bool:
+        rsi = self.denormalize_rsi(normalized_rsi)
+        self.logger().info(f"is_rsi_below_bottom_edge? rsi: {rsi}")
+        return rsi < self.config.rsi_bottom_edge
 
     def has_macdh_turned_positive(self) -> bool:
         macdh_series: pd.Series = self.processed_data["MACDh"]
@@ -212,3 +241,23 @@ class GalahadStrategy(PkStrategy):
         macd_latest_full_minute = Decimal(macdh_series.iloc[-2])
         macd_previous_minute = Decimal(macdh_series.iloc[-3])
         return macd_previous_minute > 0 > macd_latest_full_minute
+
+    def has_price_decreased_significantly_previous_minute(self) -> bool:
+        close_series: pd.Series = self.processed_data["close"]
+        close_latest_full_minute = Decimal(close_series.iloc[-2])
+        close_previous_minute = Decimal(close_series.iloc[-3])
+        delta_pct = (close_previous_minute - close_latest_full_minute) / close_latest_full_minute * 100
+
+        self.logger().info(f"has_price_decreased_significantly_previous_minute() | delta_pct:{delta_pct}")
+
+        return delta_pct > 0.35
+
+    def has_price_increased_significantly_previous_minute(self) -> bool:
+        close_series: pd.Series = self.processed_data["close"]
+        close_latest_full_minute = Decimal(close_series.iloc[-2])
+        close_previous_minute = Decimal(close_series.iloc[-3])
+        delta_pct = (close_latest_full_minute - close_previous_minute) / close_latest_full_minute * 100
+
+        self.logger().info(f"has_price_increased_significantly_previous_minute() | delta_pct:{delta_pct}")
+
+        return delta_pct > 0.35

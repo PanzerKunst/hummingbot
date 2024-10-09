@@ -38,6 +38,9 @@ class GalahadConfig(StrategyV2ConfigBase):
     macd_short: int = Field(12, client_data=ClientFieldData(is_updatable=True))
     macd_long: int = Field(26, client_data=ClientFieldData(is_updatable=True))
     macd_signal: int = Field(9, client_data=ClientFieldData(is_updatable=True))
+    rsi_length: int = Field(12, client_data=ClientFieldData(is_updatable=True))
+    rsi_top_edge: int = Field(65, client_data=ClientFieldData(is_updatable=True))
+    rsi_bottom_edge: int = Field(35, client_data=ClientFieldData(is_updatable=True))
 
     # Candles
     candles_connector: str = "binance_perpetual"
