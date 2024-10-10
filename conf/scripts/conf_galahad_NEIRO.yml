@@ -20,7 +20,7 @@ macd_signal: 9
 rsi_length: 12
 rsi_top_edge: 65
 rsi_bottom_edge: 35
-significant_price_change_pct: 0.6
+significant_price_change_pct: 0.8
 candles_connector: binance_perpetual
 candles_pair: NEIRO-USDT
 candles_interval: 1m
