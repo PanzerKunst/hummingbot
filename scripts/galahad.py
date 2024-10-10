@@ -17,9 +17,10 @@ from scripts.pk.pk_utils import get_take_profit_price
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
+# Follows MACD signals
 # Generate config file: create --script-config galahad
-# Start the bot: start --script galahad.py --conf conf_galahad_POPCAT.yml
-# Quickstart script: -p=a -f galahad.py -c conf_galahad_POPCAT.yml
+# Start the bot: start --script galahad.py --conf conf_galahad_NEIRO.yml
+# Quickstart script: -p=a -f galahad.py -c conf_galahad_NEIRO.yml
 
 
 class GalahadStrategy(PkStrategy):
@@ -201,12 +202,12 @@ class GalahadStrategy(PkStrategy):
             if self.is_rsi_above_top_edge(current_normalized_rsi):
                 return self.has_macdh_turned_negative()
             else:
-                return self.has_macdh_turned_negative() and self.has_price_decreased_significantly_previous_minute()
+                return self.has_macdh_turned_negative() and self.has_price_recently_dropped()
 
         if self.is_rsi_below_bottom_edge(current_normalized_rsi):
             return self.has_macdh_turned_positive()
         else:
-            return self.has_macdh_turned_positive() and self.has_price_increased_significantly_previous_minute()
+            return self.has_macdh_turned_positive() and self.has_price_recently_climbed()
 
     #
     # Custom functions specific to this controller
@@ -242,22 +243,22 @@ class GalahadStrategy(PkStrategy):
         macd_previous_minute = Decimal(macdh_series.iloc[-3])
         return macd_previous_minute > 0 > macd_latest_full_minute
 
-    def has_price_decreased_significantly_previous_minute(self) -> bool:
+    def has_price_recently_dropped(self) -> bool:
         close_series: pd.Series = self.processed_data["close"]
         close_latest_full_minute = Decimal(close_series.iloc[-2])
-        close_previous_minute = Decimal(close_series.iloc[-3])
-        delta_pct = (close_previous_minute - close_latest_full_minute) / close_latest_full_minute * 100
+        close_3min_ago = Decimal(close_series.iloc[-4])
+        delta_pct = (close_3min_ago - close_latest_full_minute) / close_latest_full_minute * 100
 
-        self.logger().info(f"has_price_decreased_significantly_previous_minute() | delta_pct:{delta_pct}")
+        self.logger().info(f"has_price_recently_dropped() | delta_pct:{delta_pct}")
 
-        return delta_pct > 0.35
+        return delta_pct > self.config.significant_price_change_pct
 
-    def has_price_increased_significantly_previous_minute(self) -> bool:
+    def has_price_recently_climbed(self) -> bool:
         close_series: pd.Series = self.processed_data["close"]
         close_latest_full_minute = Decimal(close_series.iloc[-2])
-        close_previous_minute = Decimal(close_series.iloc[-3])
-        delta_pct = (close_latest_full_minute - close_previous_minute) / close_latest_full_minute * 100
+        close_3min_ago = Decimal(close_series.iloc[-4])
+        delta_pct = (close_latest_full_minute - close_3min_ago) / close_latest_full_minute * 100
 
-        self.logger().info(f"has_price_increased_significantly_previous_minute() | delta_pct:{delta_pct}")
+        self.logger().info(f"has_price_recently_climbed() | delta_pct:{delta_pct}")
 
-        return delta_pct > 0.35
+        return delta_pct > self.config.significant_price_change_pct

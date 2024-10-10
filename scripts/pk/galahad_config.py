@@ -20,7 +20,7 @@ class GalahadConfig(StrategyV2ConfigBase):
 
     # Used by PkStrategy
     connector_name: str = "okx_perpetual"
-    trading_pair: str = "POPCAT-USDT"
+    trading_pair: str = "NEIRO-USDT"
     total_amount_quote: int = Field(10, client_data=ClientFieldData(is_updatable=True))
     leverage: int = 20
     cooldown_time_min: int = Field(0, client_data=ClientFieldData(is_updatable=True))
@@ -41,10 +41,11 @@ class GalahadConfig(StrategyV2ConfigBase):
     rsi_length: int = Field(12, client_data=ClientFieldData(is_updatable=True))
     rsi_top_edge: int = Field(65, client_data=ClientFieldData(is_updatable=True))
     rsi_bottom_edge: int = Field(35, client_data=ClientFieldData(is_updatable=True))
+    significant_price_change_pct: Decimal = Field(0.6, client_data=ClientFieldData(is_updatable=True))
 
     # Candles
     candles_connector: str = "binance_perpetual"
-    candles_pair: str = "POPCAT-USDT"
+    candles_pair: str = "NEIRO-USDT"
     candles_interval: str = "1m"
     candles_length: int = 52
 
