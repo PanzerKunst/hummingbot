@@ -16,6 +16,7 @@ from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
+# Trend start and reversals, dependant on sudden price movements and RSI
 # Generate config file: create --script-config arthur
 # Start the bot: start --script arthur.py --conf conf_arthur_POPCAT.yml
 # Quickstart script: -p=a -f arthur.py -c conf_arthur_POPCAT.yml
@@ -61,7 +62,7 @@ class ArthurStrategy(PkStrategy):
             take_profit=Decimal(sl_tp_pct / 100),
             time_limit=self.config.filled_order_expiration_min * 60,
             open_order_type=OrderType.LIMIT,
-            take_profit_order_type=OrderType.LIMIT,
+            take_profit_order_type=OrderType.MARKET,  # TODO: LIMIT
             stop_loss_order_type=OrderType.MARKET,
             time_limit_order_type=OrderType.LIMIT
         )
