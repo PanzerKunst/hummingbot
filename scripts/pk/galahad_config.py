@@ -30,8 +30,8 @@ class GalahadConfig(StrategyV2ConfigBase):
     position_mode: PositionMode = PositionMode.HEDGE
 
     # Triple Barrier
-    stop_loss_pct: Decimal = Field(0.5, client_data=ClientFieldData(is_updatable=True))
-    trailing_stop_activation_pct: Decimal = Field(0.6, client_data=ClientFieldData(is_updatable=True))
+    stop_loss_pct: Decimal = Field(0.7, client_data=ClientFieldData(is_updatable=True))
+    trailing_stop_activation_pct: Decimal = Field(0.8, client_data=ClientFieldData(is_updatable=True))
     trailing_stop_close_delta_bps: int = Field(10, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
@@ -41,7 +41,7 @@ class GalahadConfig(StrategyV2ConfigBase):
     rsi_length: int = Field(12, client_data=ClientFieldData(is_updatable=True))
     rsi_top_edge: int = Field(65, client_data=ClientFieldData(is_updatable=True))
     rsi_bottom_edge: int = Field(35, client_data=ClientFieldData(is_updatable=True))
-    significant_price_change_pct: Decimal = Field(0.8, client_data=ClientFieldData(is_updatable=True))
+    significant_price_change_pct: Decimal = Field(1.0, client_data=ClientFieldData(is_updatable=True))
 
     # Candles
     candles_connector: str = "binance_perpetual"
