@@ -19,9 +19,9 @@ candles_connector: okx_perpetual
 candles_interval: 1m
 candles_length: 40
 entry_price_delta_bps: 0
-trend_reversal_candle_height_threshold_pct: 0.8
-trend_reversal_rsi_threshold_sell: 72
-trend_reversal_rsi_threshold_buy: 28
+trend_reversal_candle_height_threshold_pct: 1.0
+trend_reversal_rsi_threshold_sell: 74
+trend_reversal_rsi_threshold_buy: 26
 trend_reversal_nb_seconds_to_calculate_end_of_trend: 10
 trend_start_candle_height_threshold_pct: 0.6
 trend_start_rsi_max_threshold_sell: 60
