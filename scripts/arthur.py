@@ -169,30 +169,33 @@ class ArthurStrategy(PkStrategy):
 
         close_series: pd.Series = self.processed_data["close"]
         current_close_price = Decimal(close_series.iloc[-1])
-        previous_close_price = Decimal(close_series.iloc[-2])
-        delta_pct = (current_close_price - previous_close_price) / current_close_price * 100
+        close_price_2min_before = Decimal(close_series.iloc[-3])
+        delta_pct = (current_close_price - close_price_2min_before) / current_close_price * 100
 
         if abs(delta_pct) < self.config.trend_reversal_candle_height_threshold_pct:
             return False
 
-        self.logger().info(f"can_create_trend_reversal_order() | abs(delta_pct): {abs(delta_pct)}")
+        rsi_series: pd.Series = self.processed_data["RSI"]
+        current_rsi = Decimal(rsi_series.iloc[-1])
+
+        self.logger().info(f"can_create_trend_reversal_order() | abs(delta_pct): {abs(delta_pct)} | RSI:{current_rsi}")
 
         if side == TradeType.SELL:
-            self.logger().info(f"can_create_trend_reversal_order({side}) | latest_rsi: {self.denormalize_rsi(self.get_latest_normalized_rsi())} | has_price_stopped_climbing:{self.has_price_stopped_climbing()}")
+            self.logger().info(f"can_create_trend_reversal_order({side}) | has_price_stopped_climbing:{self.has_price_stopped_climbing()}")
 
         if (
             side == TradeType.SELL and
-            self.get_latest_normalized_rsi() > self.normalize_rsi(self.config.trend_reversal_rsi_threshold_sell) and
+            current_rsi > self.config.trend_reversal_rsi_threshold_sell and
             self.has_price_stopped_climbing()
         ):
             return True
 
         if side == TradeType.BUY:
-            self.logger().info(f"can_create_trend_reversal_order({side}) | latest_rsi: {self.denormalize_rsi(self.get_latest_normalized_rsi())} | has_price_stopped_dropping:{self.has_price_stopped_dropping()}")
+            self.logger().info(f"can_create_trend_reversal_order({side}) | has_price_stopped_dropping:{self.has_price_stopped_dropping()}")
 
         if (
             side == TradeType.BUY and
-            self.get_latest_normalized_rsi() < self.normalize_rsi(self.config.trend_reversal_rsi_threshold_buy) and
+            current_rsi < self.config.trend_reversal_rsi_threshold_buy and
             self.has_price_stopped_dropping()
         ):
             return True
@@ -249,10 +252,6 @@ class ArthurStrategy(PkStrategy):
         close_series: pd.Series = self.processed_data["close"]
         return Decimal(close_series.iloc[-1])
 
-    def get_latest_normalized_rsi(self) -> Decimal:
-        rsi_series: pd.Series = self.processed_data["normalized_RSI"]
-        return Decimal(rsi_series.iloc[-1])
-
     def save_latest_close_price(self):
         latest_close_price = self.get_latest_close_price()
         self.latest_close_prices.append(latest_close_price)
@@ -290,13 +289,13 @@ class ArthurStrategy(PkStrategy):
 
     def compute_sl_and_tp_for_trend_reversal(self) -> Decimal:
         close_series: pd.Series = self.processed_data["close"]
-        latest_close_price = close_series.iloc[-1]
-        close_price_3min_before = close_series.iloc[-4]
-        delta_pct = (latest_close_price - close_price_3min_before) / latest_close_price * 100
+        current_close_price = close_series.iloc[-1]
+        close_price_2min_before = close_series.iloc[-3]
+        delta_pct = (current_close_price - close_price_2min_before) / current_close_price * 100
 
-        self.logger().info(f"compute_sl_and_tp_for_trend_reversal() | latest_close_price:{latest_close_price} | close_price_3min_before:{close_price_3min_before}")
+        self.logger().info(f"compute_sl_and_tp_for_trend_reversal() | current_close_price:{current_close_price} | close_price_2min_before:{close_price_2min_before}")
 
-        return abs(delta_pct) * 0.5
+        return abs(delta_pct)
 
     def compute_sl_and_tp_for_trend_start(self) -> Decimal:
         close_series: pd.Series = self.processed_data["close"]
