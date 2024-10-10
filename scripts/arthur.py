@@ -167,37 +167,36 @@ class ArthurStrategy(PkStrategy):
         if len(active_tracked_orders) > 0:
             return False
 
-        close_series: pd.Series = self.processed_data["close"]
-        current_close_price = Decimal(close_series.iloc[-1])
-        close_price_2min_before = Decimal(close_series.iloc[-3])
-        delta_pct = (current_close_price - close_price_2min_before) / current_close_price * 100
+        current_close_price = Decimal(self.processed_data["close"].iloc[-1])
+        highest_price_1min_before = Decimal(self.processed_data["high"].iloc[-2])
+        lowest_price_1min_before = Decimal(self.processed_data["low"].iloc[-2])
 
-        if abs(delta_pct) < self.config.trend_reversal_candle_height_threshold_pct:
+        delta_pct_sell = (current_close_price - lowest_price_1min_before) / current_close_price * 100
+        delta_pct_buy = (highest_price_1min_before - current_close_price) / current_close_price * 100
+        delta_pct = delta_pct_sell if side == TradeType.SELL else delta_pct_buy
+
+        if delta_pct < self.config.trend_start_candle_height_threshold_pct:
             return False
 
         rsi_series: pd.Series = self.processed_data["RSI"]
         current_rsi = Decimal(rsi_series.iloc[-1])
 
-        self.logger().info(f"can_create_trend_reversal_order() | abs(delta_pct): {abs(delta_pct)} | RSI:{current_rsi}")
-
-        if side == TradeType.SELL:
-            self.logger().info(f"can_create_trend_reversal_order({side}) | has_price_stopped_climbing:{self.has_price_stopped_climbing()}")
+        self.logger().info(f"can_create_trend_reversal_order() | delta_pct: {delta_pct} | RSI:{current_rsi}")
 
         if (
             side == TradeType.SELL and
             current_rsi > self.config.trend_reversal_rsi_threshold_sell and
             self.has_price_stopped_climbing()
         ):
+            self.logger().info(f"can_create_trend_reversal_order({side}) | has_price_stopped_climbing:{self.has_price_stopped_climbing()}")
             return True
-
-        if side == TradeType.BUY:
-            self.logger().info(f"can_create_trend_reversal_order({side}) | has_price_stopped_dropping:{self.has_price_stopped_dropping()}")
 
         if (
             side == TradeType.BUY and
             current_rsi < self.config.trend_reversal_rsi_threshold_buy and
             self.has_price_stopped_dropping()
         ):
+            self.logger().info(f"can_create_trend_reversal_order({side}) | has_price_stopped_dropping:{self.has_price_stopped_dropping()}")
             return True
 
         return False
@@ -209,30 +208,32 @@ class ArthurStrategy(PkStrategy):
         if len(active_tracked_orders) > 0:
             return False
 
-        close_series: pd.Series = self.processed_data["close"]
-        close_price_latest_full_minute = Decimal(close_series.iloc[-2])
-        close_price_2min_before = Decimal(close_series.iloc[-4])
+        close_price_latest_full_minute = Decimal(self.processed_data["close"].iloc[-2])
+        highest_price_1min_before = Decimal(self.processed_data["high"].iloc[-3])
+        lowest_price_1min_before = Decimal(self.processed_data["low"].iloc[-3])
 
-        delta_pct_sell = (close_price_2min_before - close_price_latest_full_minute) / close_price_latest_full_minute * 100
-        delta_pct_buy = (close_price_latest_full_minute - close_price_2min_before) / close_price_latest_full_minute * 100
+        delta_pct_sell = (highest_price_1min_before - close_price_latest_full_minute) / close_price_latest_full_minute * 100
+        delta_pct_buy = (close_price_latest_full_minute - lowest_price_1min_before) / close_price_latest_full_minute * 100
         delta_pct = delta_pct_sell if side == TradeType.SELL else delta_pct_buy
 
-        if delta_pct > self.config.trend_start_candle_height_threshold_pct:
-            self.logger().info(f"can_create_trend_start_order({side}) | delta_pct: {delta_pct}")
+        if delta_pct < self.config.trend_start_candle_height_threshold_pct:
+            return False
 
-            if side == TradeType.SELL:
-                self.logger().info(
-                    f"can_create_trend_start_order({side}) | is_rsi_in_range_for_trend_start_order: {self.is_rsi_in_range_for_trend_start_order(TradeType.SELL)}")
+        self.logger().info(f"can_create_trend_start_order({side}) | delta_pct: {delta_pct}")
 
-            if side == TradeType.SELL and self.is_rsi_in_range_for_trend_start_order(TradeType.SELL):
-                return True
+        if side == TradeType.SELL:
+            self.logger().info(
+                f"can_create_trend_start_order({side}) | is_rsi_in_range_for_trend_start_order: {self.is_rsi_in_range_for_trend_start_order(TradeType.SELL)}")
 
-            if side == TradeType.BUY:
-                self.logger().info(
-                    f"can_create_trend_start_order({side}) | is_rsi_in_range_for_trend_start_order: {self.is_rsi_in_range_for_trend_start_order(TradeType.BUY)}")
+        if side == TradeType.SELL and self.is_rsi_in_range_for_trend_start_order(TradeType.SELL):
+            return True
 
-            if side == TradeType.BUY and self.is_rsi_in_range_for_trend_start_order(TradeType.BUY):
-                return True
+        if side == TradeType.BUY:
+            self.logger().info(
+                f"can_create_trend_start_order({side}) | is_rsi_in_range_for_trend_start_order: {self.is_rsi_in_range_for_trend_start_order(TradeType.BUY)}")
+
+        if side == TradeType.BUY and self.is_rsi_in_range_for_trend_start_order(TradeType.BUY):
+            return True
 
         return False
 
