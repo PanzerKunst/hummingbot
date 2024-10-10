@@ -195,16 +195,16 @@ class GalahadStrategy(PkStrategy):
         if len(active_tracked_orders) > 0:
             return False
 
-        normalized_rsi_series: pd.Series = self.processed_data["normalized_RSI"]
-        current_normalized_rsi = Decimal(normalized_rsi_series.iloc[-1])
+        rsi_series: pd.Series = self.processed_data["RSI"]
+        current_rsi = Decimal(rsi_series.iloc[-1])
 
         if side == TradeType.SELL:
-            if self.is_rsi_above_top_edge(current_normalized_rsi):
+            if self.is_rsi_above_top_edge(current_rsi):
                 return self.has_macdh_turned_negative()
             else:
                 return self.has_macdh_turned_negative() and self.has_price_recently_dropped()
 
-        if self.is_rsi_below_bottom_edge(current_normalized_rsi):
+        if self.is_rsi_below_bottom_edge(current_rsi):
             return self.has_macdh_turned_positive()
         else:
             return self.has_macdh_turned_positive() and self.has_price_recently_climbed()
@@ -221,13 +221,11 @@ class GalahadStrategy(PkStrategy):
     def denormalize_rsi(normalized_rsi: Decimal) -> Decimal:
         return (normalized_rsi + 100) / 2
 
-    def is_rsi_above_top_edge(self, normalized_rsi: Decimal) -> bool:
-        rsi = self.denormalize_rsi(normalized_rsi)
+    def is_rsi_above_top_edge(self, rsi: Decimal) -> bool:
         self.logger().info(f"is_rsi_above_top_edge? rsi: {rsi}")
         return rsi > self.config.rsi_top_edge
 
-    def is_rsi_below_bottom_edge(self, normalized_rsi: Decimal) -> bool:
-        rsi = self.denormalize_rsi(normalized_rsi)
+    def is_rsi_below_bottom_edge(self, rsi: Decimal) -> bool:
         self.logger().info(f"is_rsi_below_bottom_edge? rsi: {rsi}")
         return rsi < self.config.rsi_bottom_edge
 

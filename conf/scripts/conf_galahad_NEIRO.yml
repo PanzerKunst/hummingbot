@@ -17,7 +17,7 @@ trailing_stop_close_delta_bps: 10
 macd_short: 12
 macd_long: 26
 macd_signal: 9
-rsi_length: 12
+rsi_length: 20
 rsi_top_edge: 65
 rsi_bottom_edge: 35
 significant_price_change_pct: 1.0
