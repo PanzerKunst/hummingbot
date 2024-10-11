@@ -190,11 +190,17 @@ class GalahadStrategy(PkStrategy):
         current_rsi = Decimal(rsi_series.iloc[-1])
 
         if side == TradeType.SELL:
+            if self.is_rsi_below_bottom_edge(current_rsi):
+                return False
+
             if self.is_rsi_above_top_edge(current_rsi):
                 self.logger().info(f"rsi_is_above_top_edge: {current_rsi}")
                 return self.has_macdh_turned_bearish() and self.has_psar_turned_bearish()
             else:
                 return self.has_macdh_turned_bearish() and self.has_psar_turned_bearish() and self.has_price_recently_dropped()
+
+        if self.is_rsi_above_top_edge(current_rsi):
+            return False
 
         if self.is_rsi_below_bottom_edge(current_rsi):
             self.logger().info(f"rsi_is_below_bottom_edge: {current_rsi}")
