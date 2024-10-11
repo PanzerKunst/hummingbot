@@ -220,27 +220,33 @@ class GalahadStrategy(PkStrategy):
 
     def has_macdh_turned_bullish(self) -> bool:
         macdh_series: pd.Series = self.processed_data["MACDh"]
+        current_macd = Decimal(macdh_series.iloc[-1])
         macd_latest_complete_candle = Decimal(macdh_series.iloc[-2])
         macd_1candle_before = Decimal(macdh_series.iloc[-3])
-        delta = (macd_latest_complete_candle - macd_1candle_before) / abs(macd_latest_complete_candle)
+
+        is_macd_increasing_enough: bool = current_macd > macd_latest_complete_candle * Decimal(1.5)
 
         # TODO: remove
-        if macd_1candle_before < 0 and macd_latest_complete_candle > 0:
+        if macd_1candle_before < 0 and macd_latest_complete_candle > 0 and is_macd_increasing_enough:
+            delta = (macd_latest_complete_candle - macd_1candle_before) / abs(macd_latest_complete_candle)
             self.logger().info(f"has_macdh_turned_bullish | delta:{delta}")
 
-        return macd_1candle_before < 0 and macd_latest_complete_candle > 0
+        return macd_1candle_before < 0 and macd_latest_complete_candle > 0 and is_macd_increasing_enough
 
     def has_macdh_turned_bearish(self) -> bool:
         macdh_series: pd.Series = self.processed_data["MACDh"]
+        current_macd = Decimal(macdh_series.iloc[-1])
         macd_latest_complete_candle = Decimal(macdh_series.iloc[-2])
         macd_1candle_before = Decimal(macdh_series.iloc[-3])
-        delta = (macd_1candle_before - macd_latest_complete_candle) / abs(macd_latest_complete_candle)
+
+        is_macd_decreasing_enough: bool = current_macd < macd_latest_complete_candle * Decimal(1.5)
 
         # TODO: remove
-        if macd_1candle_before > 0 and macd_latest_complete_candle < 0:
+        if macd_1candle_before > 0 and macd_latest_complete_candle < 0 and is_macd_decreasing_enough:
+            delta = (macd_1candle_before - macd_latest_complete_candle) / abs(macd_latest_complete_candle)
             self.logger().info(f"has_macdh_turned_bearish | delta:{delta}")
 
-        return macd_1candle_before > 0 and macd_latest_complete_candle < 0
+        return macd_1candle_before > 0 and macd_latest_complete_candle < 0 and is_macd_decreasing_enough
 
     def has_price_recently_dropped(self) -> bool:
         close_series: pd.Series = self.processed_data["close"]
