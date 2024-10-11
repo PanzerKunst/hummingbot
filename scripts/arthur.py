@@ -194,4 +194,4 @@ class ArthurStrategy(PkStrategy):
 
     def compute_sl_and_tp_for_trend_start(self, side: TradeType) -> Decimal:
         delta_pct = self.compute_delta_pct(side)
-        return delta_pct
+        return delta_pct * Decimal(0.8)
