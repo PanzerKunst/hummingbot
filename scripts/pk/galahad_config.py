@@ -23,7 +23,7 @@ class GalahadConfig(StrategyV2ConfigBase):
     trading_pair: str = "NEIRO-USDT"
     total_amount_quote: int = Field(10, client_data=ClientFieldData(is_updatable=True))
     leverage: int = 20
-    cooldown_time_min: int = Field(0, client_data=ClientFieldData(is_updatable=True))
+    cooldown_time_min: int = Field(3, client_data=ClientFieldData(is_updatable=True))
     unfilled_order_expiration_min: int = Field(1, client_data=ClientFieldData(is_updatable=True))
     limit_take_profit_price_delta_bps: int = Field(2, client_data=ClientFieldData(is_updatable=True))
 
@@ -31,16 +31,18 @@ class GalahadConfig(StrategyV2ConfigBase):
 
     # Triple Barrier
     stop_loss_pct: Decimal = Field(0.7, client_data=ClientFieldData(is_updatable=True))
-    trailing_stop_activation_pct: Decimal = Field(0.8, client_data=ClientFieldData(is_updatable=True))
-    trailing_stop_close_delta_bps: int = Field(10, client_data=ClientFieldData(is_updatable=True))
+    trailing_stop_activation_pct: Decimal = Field(0.85, client_data=ClientFieldData(is_updatable=True))
+    trailing_stop_close_delta_bps: int = Field(15, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
     macd_short: int = Field(12, client_data=ClientFieldData(is_updatable=True))
     macd_long: int = Field(26, client_data=ClientFieldData(is_updatable=True))
     macd_signal: int = Field(9, client_data=ClientFieldData(is_updatable=True))
     rsi_length: int = Field(20, client_data=ClientFieldData(is_updatable=True))
-    rsi_top_edge: int = Field(65, client_data=ClientFieldData(is_updatable=True))
-    rsi_bottom_edge: int = Field(35, client_data=ClientFieldData(is_updatable=True))
+    rsi_top_edge: int = Field(68, client_data=ClientFieldData(is_updatable=True))
+    rsi_bottom_edge: int = Field(32, client_data=ClientFieldData(is_updatable=True))
+    psar_af: Decimal = Field(0.02, client_data=ClientFieldData(is_updatable=True))
+    psar_max_af: Decimal = Field(0.2, client_data=ClientFieldData(is_updatable=True))
     significant_price_change_pct: Decimal = Field(1.0, client_data=ClientFieldData(is_updatable=True))
 
     # Candles

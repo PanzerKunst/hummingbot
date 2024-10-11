@@ -10,14 +10,13 @@ from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.strategy_v2.executors.position_executor.data_types import TripleBarrierConfig, TrailingStop
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
-from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.pk.galahad_config import GalahadConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_utils import get_take_profit_price
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
-# Follows MACD signals
+# Follows MACD and Parabolic SAR signals
 # Generate config file: create --script-config galahad
 # Start the bot: start --script galahad.py --conf conf_galahad_NEIRO.yml
 # Quickstart script: -p=a -f galahad.py -c conf_galahad_NEIRO.yml
@@ -84,13 +83,16 @@ class GalahadStrategy(PkStrategy):
 
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
 
+        candles_df["RSI"] = candles_df.ta.rsi(length=self.config.rsi_length)
+
         macd_df = candles_df.ta.macd(fast=self.config.macd_short, slow=self.config.macd_long, signal=self.config.macd_signal)
         candles_df["MACD"] = macd_df[f"MACD_{self.config.macd_short}_{self.config.macd_long}_{self.config.macd_signal}"]
         candles_df["MACDs"] = macd_df[f"MACDs_{self.config.macd_short}_{self.config.macd_long}_{self.config.macd_signal}"]
         candles_df["MACDh"] = macd_df[f"MACDh_{self.config.macd_short}_{self.config.macd_long}_{self.config.macd_signal}"]
 
-        candles_df["RSI"] = candles_df.ta.rsi(length=self.config.rsi_length)
-        candles_df["normalized_RSI"] = candles_df["RSI"].apply(self.normalize_rsi)
+        psar_df = candles_df.ta.psar(af=self.config.psar_af, max_af=self.config.psar_max_af)
+        candles_df["PSARl"] = psar_df[f"PSARl_{self.config.psar_af}_{self.config.psar_max_af}"]
+        candles_df["PSARs"] = psar_df[f"PSARs_{self.config.psar_af}_{self.config.psar_max_af}"]
 
         self.processed_data = candles_df
 
@@ -152,16 +154,6 @@ class GalahadStrategy(PkStrategy):
 
         self.check_orders()
 
-        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side()
-
-        if len(filled_sell_orders) > 0 and self.has_macdh_turned_positive():
-            for filled_order in filled_sell_orders:
-                self.close_filled_order(filled_order, OrderType.LIMIT, CloseType.COMPLETED)
-
-        if len(filled_buy_orders) > 0 and self.has_macdh_turned_negative():
-            for filled_order in filled_buy_orders:
-                self.close_filled_order(filled_order, OrderType.LIMIT, CloseType.COMPLETED)
-
         return []  # Always return []
 
     def format_status(self) -> str:
@@ -173,11 +165,10 @@ class GalahadStrategy(PkStrategy):
                 columns_to_display = [
                     "timestamp_iso",
                     "close",
-                    "MACD",
-                    "MACDs",
-                    "MACDh",
                     "RSI",
-                    "normalized_RSI"
+                    "MACDh",
+                    "PSARl",
+                    "PSARs"
                 ]
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display].tail(20), table_format="psql"))
@@ -200,52 +191,59 @@ class GalahadStrategy(PkStrategy):
 
         if side == TradeType.SELL:
             if self.is_rsi_above_top_edge(current_rsi):
-                return self.has_macdh_turned_negative()
+                self.logger().info(f"rsi_is_above_top_edge: {current_rsi}")
+                return self.has_macdh_turned_bearish() and self.has_psar_turned_bearish()
             else:
-                return self.has_macdh_turned_negative() and self.has_price_recently_dropped()
+                return self.has_macdh_turned_bearish() and self.has_psar_turned_bearish() and self.has_price_recently_dropped()
 
         if self.is_rsi_below_bottom_edge(current_rsi):
-            return self.has_macdh_turned_positive()
+            self.logger().info(f"rsi_is_below_bottom_edge: {current_rsi}")
+            return self.has_macdh_turned_bullish() and self.has_psar_turned_bullish()
         else:
-            return self.has_macdh_turned_positive() and self.has_price_recently_climbed()
+            return self.has_macdh_turned_bullish() and self.has_psar_turned_bullish() and self.has_price_recently_climbed()
 
     #
     # Custom functions specific to this controller
     #
 
-    @staticmethod
-    def normalize_rsi(rsi: float) -> Decimal:
-        return Decimal(rsi * 2 - 100)
-
-    @staticmethod
-    def denormalize_rsi(normalized_rsi: Decimal) -> Decimal:
-        return (normalized_rsi + 100) / 2
-
     def is_rsi_above_top_edge(self, rsi: Decimal) -> bool:
-        self.logger().info(f"is_rsi_above_top_edge? rsi: {rsi}")
         return rsi > self.config.rsi_top_edge
 
     def is_rsi_below_bottom_edge(self, rsi: Decimal) -> bool:
-        self.logger().info(f"is_rsi_below_bottom_edge? rsi: {rsi}")
         return rsi < self.config.rsi_bottom_edge
 
-    def has_macdh_turned_positive(self) -> bool:
+    def has_macdh_turned_bullish(self) -> bool:
         macdh_series: pd.Series = self.processed_data["MACDh"]
-        macd_latest_full_minute = Decimal(macdh_series.iloc[-2])
-        macd_previous_minute = Decimal(macdh_series.iloc[-3])
-        return macd_previous_minute < 0 < macd_latest_full_minute
+        macd_latest_complete_candle = Decimal(macdh_series.iloc[-2])
+        macd_1candle_before = Decimal(macdh_series.iloc[-3])
+        delta = (macd_latest_complete_candle - macd_1candle_before) / macd_latest_complete_candle
 
-    def has_macdh_turned_negative(self) -> bool:
+        # TODO: remove
+        if macd_1candle_before < 0 and macd_latest_complete_candle > 0:
+            self.logger().info(f"has_macdh_turned_bullish | delta:{delta}")
+
+        return macd_1candle_before < 0 and macd_latest_complete_candle > 0
+
+    def has_macdh_turned_bearish(self) -> bool:
         macdh_series: pd.Series = self.processed_data["MACDh"]
-        macd_latest_full_minute = Decimal(macdh_series.iloc[-2])
-        macd_previous_minute = Decimal(macdh_series.iloc[-3])
-        return macd_previous_minute > 0 > macd_latest_full_minute
+        macd_latest_complete_candle = Decimal(macdh_series.iloc[-2])
+        macd_1candle_before = Decimal(macdh_series.iloc[-3])
+        delta = (macd_1candle_before - macd_latest_complete_candle) / macd_latest_complete_candle
+
+        # TODO: remove
+        if macd_1candle_before > 0 and macd_latest_complete_candle < 0:
+            self.logger().info(f"has_macdh_turned_bearish | delta:{delta}")
+
+        return macd_1candle_before > 0 and macd_latest_complete_candle < 0
 
     def has_price_recently_dropped(self) -> bool:
         close_series: pd.Series = self.processed_data["close"]
-        close_latest_full_minute = Decimal(close_series.iloc[-2])
-        close_3min_ago = Decimal(close_series.iloc[-4])
-        delta_pct = (close_3min_ago - close_latest_full_minute) / close_latest_full_minute * 100
+        current_close = Decimal(close_series.iloc[-1])
+
+        high_series: pd.Series = self.processed_data["high"]
+        high_2candles_before = Decimal(high_series.iloc[-3])
+
+        delta_pct = (high_2candles_before - current_close) / current_close * 100
 
         self.logger().info(f"has_price_recently_dropped() | delta_pct:{delta_pct}")
 
@@ -253,10 +251,37 @@ class GalahadStrategy(PkStrategy):
 
     def has_price_recently_climbed(self) -> bool:
         close_series: pd.Series = self.processed_data["close"]
-        close_latest_full_minute = Decimal(close_series.iloc[-2])
-        close_3min_ago = Decimal(close_series.iloc[-4])
-        delta_pct = (close_latest_full_minute - close_3min_ago) / close_latest_full_minute * 100
+        current_close = Decimal(close_series.iloc[-1])
+
+        low_series: pd.Series = self.processed_data["low"]
+        low_2candles_before = Decimal(low_series.iloc[-3])
+
+        delta_pct = (current_close - low_2candles_before) / current_close * 100
 
         self.logger().info(f"has_price_recently_climbed() | delta_pct:{delta_pct}")
 
         return delta_pct > self.config.significant_price_change_pct
+
+    def has_psar_turned_bullish(self) -> bool:
+        psarl_series: pd.Series = self.processed_data["PSARl"]
+        psarl_latest_complete_candle = Decimal(psarl_series.iloc[-2])
+        psarl_1candle_before = Decimal(psarl_series.iloc[-3])
+
+        # TODO: remove
+        result = psarl_latest_complete_candle > 0 and pd.isna(psarl_1candle_before)
+        if result:
+            self.logger().info("psar_has_turned_bullish")
+
+        return result
+
+    def has_psar_turned_bearish(self) -> bool:
+        psars_series: pd.Series = self.processed_data["PSARs"]
+        psars_latest_complete_candle = Decimal(psars_series.iloc[-2])
+        psars_1candle_before = Decimal(psars_series.iloc[-3])
+
+        # TODO: remove
+        result = psars_latest_complete_candle > 0 and pd.isna(psars_1candle_before)
+        if result:
+            self.logger().info("psar_has_turned_bearish")
+
+        return result
