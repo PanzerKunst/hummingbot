@@ -249,30 +249,34 @@ class GalahadStrategy(PkStrategy):
         return macd_1candle_before > 0 and macd_latest_complete_candle < 0 and is_macd_decreasing_enough
 
     def has_price_recently_dropped(self) -> bool:
-        close_series: pd.Series = self.processed_data["close"]
-        current_close = Decimal(close_series.iloc[-1])
+        return True
 
-        high_series: pd.Series = self.processed_data["high"]
-        high_2candles_before = Decimal(high_series.iloc[-3])
-
-        delta_pct = (high_2candles_before - current_close) / current_close * 100
-
-        self.logger().info(f"has_price_recently_dropped() | delta_pct:{delta_pct}")
-
-        return delta_pct > self.config.significant_price_change_pct
+        # close_series: pd.Series = self.processed_data["close"]
+        # current_close = Decimal(close_series.iloc[-1])
+        #
+        # high_series: pd.Series = self.processed_data["high"]
+        # high_2candles_before = Decimal(high_series.iloc[-3])
+        #
+        # delta_pct = (high_2candles_before - current_close) / current_close * 100
+        #
+        # self.logger().info(f"has_price_recently_dropped() | delta_pct:{delta_pct}")
+        #
+        # return delta_pct > self.config.significant_price_change_pct
 
     def has_price_recently_climbed(self) -> bool:
-        close_series: pd.Series = self.processed_data["close"]
-        current_close = Decimal(close_series.iloc[-1])
+        return True
 
-        low_series: pd.Series = self.processed_data["low"]
-        low_2candles_before = Decimal(low_series.iloc[-3])
-
-        delta_pct = (current_close - low_2candles_before) / current_close * 100
-
-        self.logger().info(f"has_price_recently_climbed() | delta_pct:{delta_pct}")
-
-        return delta_pct > self.config.significant_price_change_pct
+        # close_series: pd.Series = self.processed_data["close"]
+        # current_close = Decimal(close_series.iloc[-1])
+        #
+        # low_series: pd.Series = self.processed_data["low"]
+        # low_2candles_before = Decimal(low_series.iloc[-3])
+        #
+        # delta_pct = (current_close - low_2candles_before) / current_close * 100
+        #
+        # self.logger().info(f"has_price_recently_climbed() | delta_pct:{delta_pct}")
+        #
+        # return delta_pct > self.config.significant_price_change_pct
 
     def has_psar_turned_bullish(self) -> bool:
         psarl_series: pd.Series = self.processed_data["PSARl"]
