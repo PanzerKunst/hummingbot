@@ -60,7 +60,8 @@ class ArthurStrategy(PkStrategy):
             take_profit=Decimal(sl_tp_pct / 100),
             open_order_type=OrderType.LIMIT,
             take_profit_order_type=OrderType.MARKET,  # TODO: LIMIT
-            stop_loss_order_type=OrderType.MARKET
+            stop_loss_order_type=OrderType.MARKET,
+            time_limit=self.config.filled_order_expiration_min * 60
         )
 
     def update_processed_data(self):

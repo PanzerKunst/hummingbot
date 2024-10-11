@@ -11,6 +11,7 @@ cooldown_time_min: 10
 unfilled_order_expiration_min: 1
 limit_take_profit_price_delta_bps: 0
 position_mode: HEDGE
+filled_order_expiration_min: 10
 rsi_length: 20
 candles_connector: okx_perpetual
 candles_interval: 1m
