@@ -1,4 +1,3 @@
-from collections import deque
 from decimal import Decimal
 from typing import Dict, List
 
@@ -11,23 +10,23 @@ from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.strategy_v2.executors.position_executor.data_types import TripleBarrierConfig
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
-from scripts.pk.arthur_config_3m import ArthurConfig3m
+from scripts.pk.arthur_config import ArthurConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
 # Trend start and reversals, dependant on sudden price movements and RSI
 # Generate config file: create --script-config arthur
-# Start the bot: start --script arthur.py --conf conf_arthur_POPCAT_3m.yml
-# Quickstart script: -p=a -f arthur.py -c conf_arthur_POPCAT_3m.yml
+# Start the bot: start --script arthur.py --conf conf_arthur_POPCAT.yml
+# Quickstart script: -p=a -f arthur.py -c conf_arthur_POPCAT.yml
 
 
 class ArthurStrategy(PkStrategy):
     @classmethod
-    def init_markets(cls, config: ArthurConfig3m):
+    def init_markets(cls, config: ArthurConfig):
         cls.markets = {config.connector_name: {config.trading_pair}}
 
-    def __init__(self, connectors: Dict[str, ConnectorBase], config: ArthurConfig3m):
+    def __init__(self, connectors: Dict[str, ConnectorBase], config: ArthurConfig):
         super().__init__(connectors, config)
 
         if len(config.candles_config) == 0:
@@ -39,7 +38,6 @@ class ArthurStrategy(PkStrategy):
             ))
 
         self.processed_data = pd.DataFrame()
-        self.latest_close_prices = deque(maxlen=config.trend_reversal_nb_seconds_to_calculate_end_of_trend)
 
     def start(self, clock: Clock, timestamp: float) -> None:
         self._last_timestamp = timestamp
@@ -60,11 +58,9 @@ class ArthurStrategy(PkStrategy):
         return TripleBarrierConfig(
             stop_loss=Decimal(sl_tp_pct / 100),
             take_profit=Decimal(sl_tp_pct / 100),
-            time_limit=self.config.filled_order_expiration_min * 60,
             open_order_type=OrderType.LIMIT,
             take_profit_order_type=OrderType.MARKET,  # TODO: LIMIT
-            stop_loss_order_type=OrderType.MARKET,
-            time_limit_order_type=OrderType.LIMIT
+            stop_loss_order_type=OrderType.MARKET
         )
 
     def update_processed_data(self):
@@ -85,7 +81,6 @@ class ArthurStrategy(PkStrategy):
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
 
         candles_df["RSI"] = candles_df.ta.rsi(length=self.config.rsi_length)
-        candles_df["normalized_RSI"] = candles_df["RSI"].apply(self.normalize_rsi)
 
         self.processed_data = candles_df
 
@@ -97,29 +92,17 @@ class ArthurStrategy(PkStrategy):
         if processed_data_num_rows == 0:
             return []
 
-        self.save_latest_close_price()
-
         active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side()
 
-        if self.can_create_trend_reversal_order(TradeType.SELL, active_sell_orders):
+        if self.can_create_trend_start_order(TradeType.SELL, active_sell_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
-            sl_tp_pct: Decimal = self.compute_sl_and_tp_for_trend_reversal()
-            triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct)
-            self.create_order(TradeType.SELL, entry_price, triple_barrier_config)
-        elif self.can_create_trend_start_order(TradeType.SELL, active_sell_orders):
-            entry_price: Decimal = self.get_best_bid() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
-            sl_tp_pct: Decimal = self.compute_sl_and_tp_for_trend_start()
+            sl_tp_pct: Decimal = self.compute_sl_and_tp_for_trend_start(TradeType.SELL)
             triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct)
             self.create_order(TradeType.SELL, entry_price, triple_barrier_config)
 
-        if self.can_create_trend_reversal_order(TradeType.BUY, active_buy_orders):
-            entry_price: Decimal = self.get_best_ask() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
-            sl_tp_pct: Decimal = self.compute_sl_and_tp_for_trend_reversal()
-            triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct)
-            self.create_order(TradeType.BUY, entry_price, triple_barrier_config)
-        elif self.can_create_trend_start_order(TradeType.BUY, active_buy_orders):
+        if self.can_create_trend_start_order(TradeType.BUY, active_buy_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
-            sl_tp_pct: Decimal = self.compute_sl_and_tp_for_trend_start()
+            sl_tp_pct: Decimal = self.compute_sl_and_tp_for_trend_start(TradeType.BUY)
             triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct)
             self.create_order(TradeType.BUY, entry_price, triple_barrier_config)
 
@@ -144,62 +127,18 @@ class ArthurStrategy(PkStrategy):
                 columns_to_display = [
                     "timestamp_iso",
                     "close",
-                    "RSI",
-                    "normalized_RSI"
+                    "high",
+                    "low",
+                    "RSI"
                 ]
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display].tail(self.config.rsi_length), table_format="psql"))
-
-            latest_close_prices = list(self.latest_close_prices)
-            latest_close_prices_df = pd.DataFrame(latest_close_prices, columns=["Close price"])
-            custom_status.append(format_df_for_printout(latest_close_prices_df, table_format="psql"))
 
         return original_status + "\n".join(custom_status)
 
     #
     # Custom functions potentially interesting for other controllers
     #
-
-    def can_create_trend_reversal_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side):
-            return False
-
-        if len(active_tracked_orders) > 0:
-            return False
-
-        current_close_price = Decimal(self.processed_data["close"].iloc[-1])
-        highest_price_1candle_before = Decimal(self.processed_data["high"].iloc[-2])
-        lowest_price_1candle_before = Decimal(self.processed_data["low"].iloc[-2])
-
-        delta_pct_sell = (current_close_price - lowest_price_1candle_before) / current_close_price * 100
-        delta_pct_buy = (highest_price_1candle_before - current_close_price) / current_close_price * 100
-        delta_pct = delta_pct_sell if side == TradeType.SELL else delta_pct_buy
-
-        if delta_pct < self.config.trend_start_candle_height_threshold_pct:
-            return False
-
-        rsi_series: pd.Series = self.processed_data["RSI"]
-        current_rsi = Decimal(rsi_series.iloc[-1])
-
-        self.logger().info(f"can_create_trend_reversal_order() | delta_pct: {delta_pct} | RSI:{current_rsi}")
-
-        if (
-            side == TradeType.SELL and
-            current_rsi > self.config.trend_reversal_rsi_threshold_sell and
-            self.has_price_stopped_climbing()
-        ):
-            self.logger().info(f"can_create_trend_reversal_order({side}) | has_price_stopped_climbing:{self.has_price_stopped_climbing()}")
-            return True
-
-        if (
-            side == TradeType.BUY and
-            current_rsi < self.config.trend_reversal_rsi_threshold_buy and
-            self.has_price_stopped_dropping()
-        ):
-            self.logger().info(f"can_create_trend_reversal_order({side}) | has_price_stopped_dropping:{self.has_price_stopped_dropping()}")
-            return True
-
-        return False
 
     def can_create_trend_start_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
         if not self.can_create_order(side):
@@ -208,13 +147,7 @@ class ArthurStrategy(PkStrategy):
         if len(active_tracked_orders) > 0:
             return False
 
-        close_price_latest_finished_candle = Decimal(self.processed_data["close"].iloc[-2])
-        highest_price_1candle_before = Decimal(self.processed_data["high"].iloc[-3])
-        lowest_price_1candle_before = Decimal(self.processed_data["low"].iloc[-3])
-
-        delta_pct_sell = (highest_price_1candle_before - close_price_latest_finished_candle) / close_price_latest_finished_candle * 100
-        delta_pct_buy = (close_price_latest_finished_candle - lowest_price_1candle_before) / close_price_latest_finished_candle * 100
-        delta_pct = delta_pct_sell if side == TradeType.SELL else delta_pct_buy
+        delta_pct = self.compute_delta_pct(side)
 
         if delta_pct < self.config.trend_start_candle_height_threshold_pct:
             return False
@@ -241,59 +174,24 @@ class ArthurStrategy(PkStrategy):
     # Custom functions specific to this controller
     #
 
-    @staticmethod
-    def normalize_rsi(rsi: float) -> Decimal:
-        return Decimal(rsi * 2 - 100)
-
-    @staticmethod
-    def denormalize_rsi(normalized_rsi: Decimal) -> Decimal:
-        return (normalized_rsi + 100) / 2
-
-    def get_latest_close_price(self) -> Decimal:
-        close_series: pd.Series = self.processed_data["close"]
-        return Decimal(close_series.iloc[-1])
-
-    def save_latest_close_price(self):
-        latest_close_price = self.get_latest_close_price()
-        self.latest_close_prices.append(latest_close_price)
-
-    def has_price_stopped_climbing(self):
-        current_price = self.latest_close_prices[-1]
-        oldest_price = self.latest_close_prices[0]
-
-        return current_price < oldest_price
-
-    def has_price_stopped_dropping(self):
-        current_price = self.latest_close_prices[-1]
-        oldest_price = self.latest_close_prices[0]
-
-        return current_price > oldest_price
-
     def is_rsi_in_range_for_trend_start_order(self, side: TradeType) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI"]
         rsi_last_full_candle = Decimal(rsi_series.iloc[-2])
 
         if side == TradeType.SELL:
-            return rsi_last_full_candle > 50-5
+            return rsi_last_full_candle > self.config.trend_start_min_rsi_sell
 
-        return rsi_last_full_candle < 50+5
+        return rsi_last_full_candle < self.config.trend_start_max_rsi_buy
 
-    def compute_sl_and_tp_for_trend_reversal(self) -> Decimal:
-        close_series: pd.Series = self.processed_data["close"]
-        current_close_price = close_series.iloc[-1]
-        close_price_2candles_before = close_series.iloc[-3]
-        delta_pct = (current_close_price - close_price_2candles_before) / current_close_price * 100
+    def compute_delta_pct(self, side: TradeType) -> Decimal:
+        current_close_price = Decimal(self.processed_data["close"].iloc[-1])
+        highest_price_4candles_before = Decimal(self.processed_data["high"].iloc[-5])
+        lowest_price_4candles_before = Decimal(self.processed_data["low"].iloc[-5])
 
-        self.logger().info(f"compute_sl_and_tp_for_trend_reversal() | current_close_price:{current_close_price} | close_price_2candles_before:{close_price_2candles_before}")
+        delta_pct_sell = (highest_price_4candles_before - current_close_price) / current_close_price * 100
+        delta_pct_buy = (current_close_price - lowest_price_4candles_before) / current_close_price * 100
+        return delta_pct_sell if side == TradeType.SELL else delta_pct_buy
 
-        return abs(delta_pct)
-
-    def compute_sl_and_tp_for_trend_start(self) -> Decimal:
-        close_series: pd.Series = self.processed_data["close"]
-        close_price_latest_full_candle = close_series.iloc[-2]
-        close_price_2candles_before = close_series.iloc[-4]
-        delta_pct = (close_price_latest_full_candle - close_price_2candles_before) / close_price_latest_full_candle * 100
-
-        self.logger().info(f"compute_sl_and_tp_for_trend_start() | close_price_latest_full_candle:{close_price_latest_full_candle} | close_price_2candles_before:{close_price_2candles_before}")
-
-        return abs(delta_pct)
+    def compute_sl_and_tp_for_trend_start(self, side: TradeType) -> Decimal:
+        delta_pct = self.compute_delta_pct(side)
+        return delta_pct

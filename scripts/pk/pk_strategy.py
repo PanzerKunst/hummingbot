@@ -7,14 +7,14 @@ from hummingbot.core.event.events import SellOrderCreatedEvent, BuyOrderCreatedE
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base
 from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig, TripleBarrierConfig
 from hummingbot.strategy_v2.models.executors import CloseType
-from scripts.pk.arthur_config_3m import ArthurConfig3m
+from scripts.pk.arthur_config import ArthurConfig
 from scripts.pk.pk_utils import has_unfilled_order_expired, has_current_price_reached_stop_loss, has_current_price_reached_take_profit, \
     has_filled_order_reached_time_limit, has_current_price_activated_trailing_stop, should_close_trailing_stop
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
 class PkStrategy(StrategyV2Base):
-    def __init__(self, connectors: Dict[str, ConnectorBase], config: ArthurConfig3m):
+    def __init__(self, connectors: Dict[str, ConnectorBase], config: ArthurConfig):
         super().__init__(connectors, config)
         self.config = config
 

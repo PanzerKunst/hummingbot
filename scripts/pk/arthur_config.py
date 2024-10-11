@@ -23,14 +23,13 @@ class ArthurConfig(StrategyV2ConfigBase):
     trading_pair: str = "POPCAT-USDT"
     total_amount_quote: int = Field(10, client_data=ClientFieldData(is_updatable=True))
     leverage: int = 20
-    cooldown_time_min: int = Field(10, client_data=ClientFieldData(is_updatable=True))
+    cooldown_time_min: int = Field(20, client_data=ClientFieldData(is_updatable=True))
     unfilled_order_expiration_min: int = Field(1, client_data=ClientFieldData(is_updatable=True))
     limit_take_profit_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
 
     position_mode: PositionMode = PositionMode.HEDGE
 
     # Triple Barrier
-    filled_order_expiration_min: int = Field(15, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
     rsi_length: int = Field(20, client_data=ClientFieldData(is_updatable=True))
@@ -42,8 +41,6 @@ class ArthurConfig(StrategyV2ConfigBase):
 
     # Order settings
     entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
-    trend_reversal_candle_height_threshold_pct: Decimal = Field(1.0, client_data=ClientFieldData(is_updatable=True))
-    trend_reversal_rsi_threshold_sell: int = Field(74, client_data=ClientFieldData(is_updatable=True))
-    trend_reversal_rsi_threshold_buy: int = Field(26, client_data=ClientFieldData(is_updatable=True))
-    trend_reversal_nb_seconds_to_calculate_end_of_trend: int = Field(10, client_data=ClientFieldData(is_updatable=True))
-    trend_start_candle_height_threshold_pct: Decimal = Field(0.9, client_data=ClientFieldData(is_updatable=True))
+    trend_start_candle_height_threshold_pct: Decimal = Field(0.95, client_data=ClientFieldData(is_updatable=True))
+    trend_start_min_rsi_sell: int = Field(45, client_data=ClientFieldData(is_updatable=True))
+    trend_start_max_rsi_buy: int = Field(55, client_data=ClientFieldData(is_updatable=True))
