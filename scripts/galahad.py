@@ -222,7 +222,7 @@ class GalahadStrategy(PkStrategy):
         macdh_series: pd.Series = self.processed_data["MACDh"]
         macd_latest_complete_candle = Decimal(macdh_series.iloc[-2])
         macd_1candle_before = Decimal(macdh_series.iloc[-3])
-        delta = (macd_latest_complete_candle - macd_1candle_before) / macd_latest_complete_candle
+        delta = (macd_latest_complete_candle - macd_1candle_before) / abs(macd_latest_complete_candle)
 
         # TODO: remove
         if macd_1candle_before < 0 and macd_latest_complete_candle > 0:
@@ -234,7 +234,7 @@ class GalahadStrategy(PkStrategy):
         macdh_series: pd.Series = self.processed_data["MACDh"]
         macd_latest_complete_candle = Decimal(macdh_series.iloc[-2])
         macd_1candle_before = Decimal(macdh_series.iloc[-3])
-        delta = (macd_1candle_before - macd_latest_complete_candle) / macd_latest_complete_candle
+        delta = (macd_1candle_before - macd_latest_complete_candle) / abs(macd_latest_complete_candle)
 
         # TODO: remove
         if macd_1candle_before > 0 and macd_latest_complete_candle < 0:
@@ -274,7 +274,7 @@ class GalahadStrategy(PkStrategy):
         psarl_1candle_before = Decimal(psarl_series.iloc[-3])
 
         # TODO: remove
-        result = psarl_latest_complete_candle > 0 and pd.isna(psarl_1candle_before)
+        result = not pd.isna(psarl_latest_complete_candle) and pd.isna(psarl_1candle_before)
         if result:
             self.logger().info("psar_has_turned_bullish")
 
@@ -286,7 +286,7 @@ class GalahadStrategy(PkStrategy):
         psars_1candle_before = Decimal(psars_series.iloc[-3])
 
         # TODO: remove
-        result = psars_latest_complete_candle > 0 and pd.isna(psars_1candle_before)
+        result = not pd.isna(psars_latest_complete_candle) and pd.isna(psars_1candle_before)
         if result:
             self.logger().info("psar_has_turned_bearish")
 
