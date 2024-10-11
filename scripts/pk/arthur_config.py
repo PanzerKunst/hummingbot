@@ -23,7 +23,7 @@ class ArthurConfig(StrategyV2ConfigBase):
     trading_pair: str = "POPCAT-USDT"
     total_amount_quote: int = Field(10, client_data=ClientFieldData(is_updatable=True))
     leverage: int = 20
-    cooldown_time_min: int = Field(20, client_data=ClientFieldData(is_updatable=True))
+    cooldown_time_min: int = Field(10, client_data=ClientFieldData(is_updatable=True))
     unfilled_order_expiration_min: int = Field(1, client_data=ClientFieldData(is_updatable=True))
     limit_take_profit_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
 
@@ -42,5 +42,5 @@ class ArthurConfig(StrategyV2ConfigBase):
     # Order settings
     entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
     trend_start_candle_height_threshold_pct: Decimal = Field(0.95, client_data=ClientFieldData(is_updatable=True))
-    trend_start_min_rsi_sell: int = Field(45, client_data=ClientFieldData(is_updatable=True))
-    trend_start_max_rsi_buy: int = Field(55, client_data=ClientFieldData(is_updatable=True))
+    trend_start_min_rsi_sell: int = Field(50, client_data=ClientFieldData(is_updatable=True))
+    trend_start_max_rsi_buy: int = Field(50, client_data=ClientFieldData(is_updatable=True))
