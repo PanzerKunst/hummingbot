@@ -271,11 +271,11 @@ class GalahadStrategy(PkStrategy):
 
     def has_psar_turned_bullish(self) -> bool:
         psarl_series: pd.Series = self.processed_data["PSARl"]
-        current_psarl = Decimal(psarl_series.iloc[-1])
         psarl_latest_complete_candle = Decimal(psarl_series.iloc[-2])
+        psarl_1candle_before = Decimal(psarl_series.iloc[-3])
 
         # TODO: remove
-        result = not pd.isna(current_psarl) and pd.isna(psarl_latest_complete_candle)
+        result = not pd.isna(psarl_latest_complete_candle) and pd.isna(psarl_1candle_before)
         if result:
             self.logger().info("psar_has_turned_bullish")
 
@@ -283,11 +283,11 @@ class GalahadStrategy(PkStrategy):
 
     def has_psar_turned_bearish(self) -> bool:
         psars_series: pd.Series = self.processed_data["PSARs"]
-        current_psars = Decimal(psars_series.iloc[-1])
         psars_latest_complete_candle = Decimal(psars_series.iloc[-2])
+        psars_1candle_before = Decimal(psars_series.iloc[-3])
 
         # TODO: remove
-        result = not pd.isna(current_psars) and pd.isna(psars_latest_complete_candle)
+        result = not pd.isna(psars_latest_complete_candle) and pd.isna(psars_1candle_before)
         if result:
             self.logger().info("psar_has_turned_bearish")
 
