@@ -156,20 +156,13 @@ class ArthurStrategy(PkStrategy):
         self.logger().info(f"can_create_trend_start_order({side}) | delta_pct: {delta_pct}")
 
         if side == TradeType.SELL:
-            self.logger().info(
-                f"can_create_trend_start_order({side}) | is_rsi_in_range_for_trend_start_order: {self.is_rsi_in_range_for_trend_start_order(TradeType.SELL)}")
+            is_rsi_in_range = self.is_rsi_in_range_for_trend_start_order(TradeType.SELL)
+            self.logger().info(f"is_rsi_in_range: {is_rsi_in_range}")
+            return is_rsi_in_range
 
-        if side == TradeType.SELL and self.is_rsi_in_range_for_trend_start_order(TradeType.SELL):
-            return True
-
-        if side == TradeType.BUY:
-            self.logger().info(
-                f"can_create_trend_start_order({side}) | is_rsi_in_range_for_trend_start_order: {self.is_rsi_in_range_for_trend_start_order(TradeType.BUY)}")
-
-        if side == TradeType.BUY and self.is_rsi_in_range_for_trend_start_order(TradeType.BUY):
-            return True
-
-        return False
+        is_rsi_in_range = self.is_rsi_in_range_for_trend_start_order(TradeType.BUY)
+        self.logger().info(f"is_rsi_in_range: {is_rsi_in_range}")
+        return is_rsi_in_range
 
     #
     # Custom functions specific to this controller
@@ -185,13 +178,31 @@ class ArthurStrategy(PkStrategy):
         return rsi_last_full_candle < self.config.trend_start_max_rsi_buy
 
     def compute_delta_pct(self, side: TradeType) -> Decimal:
-        current_close_price = Decimal(self.processed_data["close"].iloc[-1])
-        highest_price_4candles_before = Decimal(self.processed_data["high"].iloc[-5])
-        lowest_price_4candles_before = Decimal(self.processed_data["low"].iloc[-5])
+        close_series: pd.Series = self.processed_data["close"]
+        current_close_price = Decimal(close_series.iloc[-1])
 
-        delta_pct_sell = (highest_price_4candles_before - current_close_price) / current_close_price * 100
-        delta_pct_buy = (current_close_price - lowest_price_4candles_before) / current_close_price * 100
-        return delta_pct_sell if side == TradeType.SELL else delta_pct_buy
+        high_series: pd.Series = self.processed_data["high"]
+        high_1candles_before = Decimal(high_series.iloc[-2])
+        high_2candles_before = Decimal(high_series.iloc[-3])
+        high_3candles_before = Decimal(high_series.iloc[-4])
+        high_4candles_before = Decimal(high_series.iloc[-5])
+
+        highest_price = max(high_1candles_before, high_2candles_before, high_3candles_before, high_4candles_before)
+        delta_pct_sell = (highest_price - current_close_price) / current_close_price * 100
+
+        if side == TradeType.SELL:
+            return delta_pct_sell
+
+        low_series: pd.Series = self.processed_data["low"]
+        low_1candles_before = Decimal(low_series.iloc[-2])
+        low_2candles_before = Decimal(low_series.iloc[-3])
+        low_3candles_before = Decimal(low_series.iloc[-4])
+        low_4candles_before = Decimal(low_series.iloc[-5])
+
+        lowest_price = min(low_1candles_before, low_2candles_before, low_3candles_before, low_4candles_before)
+        delta_pct_buy = (current_close_price - lowest_price) / current_close_price * 100
+
+        return delta_pct_buy
 
     def compute_sl_and_tp_for_trend_start(self, side: TradeType) -> Decimal:
         delta_pct = self.compute_delta_pct(side)
