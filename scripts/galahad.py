@@ -8,11 +8,10 @@ from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.clock import Clock
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
-from hummingbot.strategy_v2.executors.position_executor.data_types import TripleBarrierConfig, TrailingStop
+from hummingbot.strategy_v2.executors.position_executor.data_types import TripleBarrierConfig
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 from scripts.pk.galahad_config import GalahadConfig
 from scripts.pk.pk_strategy import PkStrategy
-from scripts.pk.pk_utils import get_take_profit_price
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
@@ -52,18 +51,14 @@ class GalahadStrategy(PkStrategy):
                 for trading_pair in self.market_data_provider.get_trading_pairs(connector_name):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
-    def get_triple_barrier_config(self, side: TradeType, entry_price: Decimal) -> TripleBarrierConfig:
-        trailing_stop = TrailingStop(
-            activation_price=get_take_profit_price(side, entry_price, self.config.trailing_stop_activation_pct),
-            trailing_delta=self.config.trailing_stop_close_delta_bps / 10000
-        )
-
+    def get_triple_barrier_config(self) -> TripleBarrierConfig:
         return TripleBarrierConfig(
             stop_loss=Decimal(self.config.stop_loss_pct / 100),
-            trailing_stop=trailing_stop,
+            take_profit=Decimal(self.config.take_profit_pct / 100),
             open_order_type=OrderType.LIMIT,
             stop_loss_order_type=OrderType.MARKET,
-            take_profit_order_type=OrderType.MARKET
+            take_profit_order_type=OrderType.MARKET,  # TODO: LIMIT
+            time_limit=self.config.filled_order_expiration_min * 60
         )
 
     def update_processed_data(self):
@@ -93,6 +88,9 @@ class GalahadStrategy(PkStrategy):
         psar_df = candles_df.ta.psar(af=self.config.psar_af, max_af=self.config.psar_max_af)
         candles_df["PSARl"] = psar_df[f"PSARl_{self.config.psar_af}_{self.config.psar_max_af}"]
         candles_df["PSARs"] = psar_df[f"PSARs_{self.config.psar_af}_{self.config.psar_max_af}"]
+
+        bbands_df = candles_df.ta.bbands(length=self.config.bbands_length, std=self.config.bbands_std_dev)
+        candles_df["BBB"] = bbands_df[f"BBB_{self.config.bbands_length}_{self.config.bbands_std_dev}"]
 
         self.processed_data = candles_df
 
@@ -136,12 +134,12 @@ class GalahadStrategy(PkStrategy):
 
         if self.can_create(TradeType.SELL, active_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
-            triple_barrier_config = self.get_triple_barrier_config(TradeType.SELL, entry_price)
+            triple_barrier_config = self.get_triple_barrier_config()
             self.create_order(TradeType.SELL, entry_price, triple_barrier_config)
 
         if self.can_create(TradeType.BUY, active_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
-            triple_barrier_config = self.get_triple_barrier_config(TradeType.BUY, entry_price)
+            triple_barrier_config = self.get_triple_barrier_config()
             self.create_order(TradeType.BUY, entry_price, triple_barrier_config)
 
         return []  # Always return []
@@ -168,7 +166,8 @@ class GalahadStrategy(PkStrategy):
                     "RSI",
                     "MACDh",
                     "PSARl",
-                    "PSARs"
+                    "PSARs",
+                    "BBB"
                 ]
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display].tail(20), table_format="psql"))
@@ -193,20 +192,12 @@ class GalahadStrategy(PkStrategy):
             if self.is_rsi_below_bottom_edge(current_rsi):
                 return False
 
-            if self.is_rsi_above_top_edge(current_rsi):
-                self.logger().info(f"rsi_is_above_top_edge: {current_rsi}")
-                return self.has_macdh_turned_bearish() and self.has_psar_turned_bearish()
-            else:
-                return self.has_macdh_turned_bearish() and self.has_psar_turned_bearish() and self.has_price_recently_dropped()
+            return self.has_macdh_turned_bearish() and self.has_psar_turned_bearish() and self.is_volatile_enough()
 
         if self.is_rsi_above_top_edge(current_rsi):
             return False
 
-        if self.is_rsi_below_bottom_edge(current_rsi):
-            self.logger().info(f"rsi_is_below_bottom_edge: {current_rsi}")
-            return self.has_macdh_turned_bullish() and self.has_psar_turned_bullish()
-        else:
-            return self.has_macdh_turned_bullish() and self.has_psar_turned_bullish() and self.has_price_recently_climbed()
+        return self.has_macdh_turned_bullish() and self.has_psar_turned_bullish() and self.is_volatile_enough()
 
     #
     # Custom functions specific to this controller
@@ -220,63 +211,63 @@ class GalahadStrategy(PkStrategy):
 
     def has_macdh_turned_bullish(self) -> bool:
         macdh_series: pd.Series = self.processed_data["MACDh"]
-        current_macd = Decimal(macdh_series.iloc[-1])
         macd_latest_complete_candle = Decimal(macdh_series.iloc[-2])
         macd_1candle_before = Decimal(macdh_series.iloc[-3])
 
-        is_macd_increasing_enough: bool = current_macd > macd_latest_complete_candle * Decimal(1.5)
-
         # TODO: remove
-        if macd_1candle_before < 0 and macd_latest_complete_candle > 0 and is_macd_increasing_enough:
+        if macd_1candle_before < 0 and macd_latest_complete_candle > 0 and self.is_macd_increasing_enough():
             delta = (macd_latest_complete_candle - macd_1candle_before) / abs(macd_latest_complete_candle)
             self.logger().info(f"has_macdh_turned_bullish | delta:{delta}")
 
-        return macd_1candle_before < 0 and macd_latest_complete_candle > 0 and is_macd_increasing_enough
+        return macd_1candle_before < 0 and macd_latest_complete_candle > 0 and self.is_macd_increasing_enough()
 
     def has_macdh_turned_bearish(self) -> bool:
         macdh_series: pd.Series = self.processed_data["MACDh"]
-        current_macd = Decimal(macdh_series.iloc[-1])
         macd_latest_complete_candle = Decimal(macdh_series.iloc[-2])
         macd_1candle_before = Decimal(macdh_series.iloc[-3])
 
-        is_macd_decreasing_enough: bool = current_macd < macd_latest_complete_candle * Decimal(1.5)
-
         # TODO: remove
-        if macd_1candle_before > 0 and macd_latest_complete_candle < 0 and is_macd_decreasing_enough:
+        if macd_1candle_before > 0 and macd_latest_complete_candle < 0 and self.is_macd_decreasing_enough():
             delta = (macd_1candle_before - macd_latest_complete_candle) / abs(macd_latest_complete_candle)
             self.logger().info(f"has_macdh_turned_bearish | delta:{delta}")
 
-        return macd_1candle_before > 0 and macd_latest_complete_candle < 0 and is_macd_decreasing_enough
+        return macd_1candle_before > 0 and macd_latest_complete_candle < 0 and self.is_macd_decreasing_enough()
 
-    def has_price_recently_dropped(self) -> bool:
-        return True
+    def is_macd_increasing_enough(self) -> bool:
+        macdh_series: pd.Series = self.processed_data["MACDh"]
+        current_macd = Decimal(macdh_series.iloc[-1])
+        macd_latest_complete_candle = Decimal(macdh_series.iloc[-2])
 
-        # close_series: pd.Series = self.processed_data["close"]
-        # current_close = Decimal(close_series.iloc[-1])
-        #
-        # high_series: pd.Series = self.processed_data["high"]
-        # high_2candles_before = Decimal(high_series.iloc[-3])
-        #
-        # delta_pct = (high_2candles_before - current_close) / current_close * 100
-        #
-        # self.logger().info(f"has_price_recently_dropped() | delta_pct:{delta_pct}")
-        #
-        # return delta_pct > self.config.significant_price_change_pct
+        if current_macd < macd_latest_complete_candle * Decimal(1.5):
+            return False
 
-    def has_price_recently_climbed(self) -> bool:
-        return True
+        close_series: pd.Series = self.processed_data["close"]
+        current_close = Decimal(close_series.iloc[-1])
 
-        # close_series: pd.Series = self.processed_data["close"]
-        # current_close = Decimal(close_series.iloc[-1])
-        #
-        # low_series: pd.Series = self.processed_data["low"]
-        # low_2candles_before = Decimal(low_series.iloc[-3])
-        #
-        # delta_pct = (current_close - low_2candles_before) / current_close * 100
-        #
-        # self.logger().info(f"has_price_recently_climbed() | delta_pct:{delta_pct}")
-        #
-        # return delta_pct > self.config.significant_price_change_pct
+        high_series: pd.Series = self.processed_data["high"]
+        high_latest_complete_candle = Decimal(high_series.iloc[-2])
+
+        self.logger().info(f"is_macd_increasing_enough() | current_macd:{current_macd} | macd_latest_complete_candle:{macd_latest_complete_candle} | current_close:{current_close} | high_latest_complete_candle:{high_latest_complete_candle}")
+
+        return current_close > high_latest_complete_candle
+
+    def is_macd_decreasing_enough(self) -> bool:
+        macdh_series: pd.Series = self.processed_data["MACDh"]
+        current_macd = Decimal(macdh_series.iloc[-1])
+        macd_latest_complete_candle = Decimal(macdh_series.iloc[-2])
+
+        if current_macd > macd_latest_complete_candle * Decimal(1.5):
+            return False
+
+        close_series: pd.Series = self.processed_data["close"]
+        current_close = Decimal(close_series.iloc[-1])
+
+        low_series: pd.Series = self.processed_data["low"]
+        low_latest_complete_candle = Decimal(low_series.iloc[-2])
+
+        self.logger().info(f"is_macd_decreasing_enough() | current_macd:{current_macd} | macd_latest_complete_candle:{macd_latest_complete_candle} | current_close:{current_close} | low_latest_complete_candle:{low_latest_complete_candle}")
+
+        return current_close < low_latest_complete_candle
 
     def has_psar_turned_bullish(self) -> bool:
         psarl_series: pd.Series = self.processed_data["PSARl"]
@@ -301,3 +292,21 @@ class GalahadStrategy(PkStrategy):
             self.logger().info("psar_has_turned_bearish")
 
         return result
+
+    def is_volatile_enough(self) -> bool:
+        bbb_series: pd.Series = self.processed_data["BBB"]
+        current_bbb = Decimal(bbb_series.iloc[-1])
+        bbb_latest_complete_candle = Decimal(bbb_series.iloc[-2])
+        bbb_1candle_before = Decimal(bbb_series.iloc[-3])
+        bbb_2candles_before = Decimal(bbb_series.iloc[-4])
+
+        if current_bbb > self.config.min_bbb_instant_volatility:
+            self.logger().info(f"is_volatile_enough | current_bbb:{current_bbb}")
+            return True
+
+        max_bbb = max(bbb_latest_complete_candle, bbb_1candle_before, bbb_2candles_before)
+
+        # TODO: remove
+        self.logger().info(f"is_volatile_enough | max_bbb:{max_bbb}")
+
+        return max_bbb > self.config.min_bbb_past_volatility
