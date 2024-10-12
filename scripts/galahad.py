@@ -238,7 +238,7 @@ class GalahadStrategy(PkStrategy):
         current_macd = Decimal(macdh_series.iloc[-1])
         macd_latest_complete_candle = Decimal(macdh_series.iloc[-2])
 
-        if current_macd < macd_latest_complete_candle * Decimal(1.5):
+        if current_macd < macd_latest_complete_candle * 2:
             return False
 
         close_series: pd.Series = self.processed_data["close"]
@@ -256,7 +256,7 @@ class GalahadStrategy(PkStrategy):
         current_macd = Decimal(macdh_series.iloc[-1])
         macd_latest_complete_candle = Decimal(macdh_series.iloc[-2])
 
-        if current_macd > macd_latest_complete_candle * Decimal(1.5):
+        if current_macd > macd_latest_complete_candle * 2:
             return False
 
         close_series: pd.Series = self.processed_data["close"]
