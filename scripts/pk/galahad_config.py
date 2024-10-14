@@ -53,5 +53,6 @@ class GalahadConfig(StrategyV2ConfigBase):
 
     # Order settings
     entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
+    trend_start_price_change_threshold_pct: Decimal = Field(0.6, client_data=ClientFieldData(is_updatable=True))
     min_bbb_instant_volatility: Decimal = Field(3, client_data=ClientFieldData(is_updatable=True))
     min_bbb_past_volatility: Decimal = Field(1.5, client_data=ClientFieldData(is_updatable=True))

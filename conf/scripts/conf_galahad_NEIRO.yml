@@ -28,5 +28,6 @@ candles_pair: NEIRO-USDT
 candles_interval: 1m
 candles_length: 52
 entry_price_delta_bps: 0
+trend_start_price_change_threshold_pct: 0.6
 min_bbb_instant_volatility: 3
 min_bbb_past_volatility: 1.5

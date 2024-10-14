@@ -278,7 +278,16 @@ class GalahadStrategy(PkStrategy):
 
         self.logger().info(f"is_macd_increasing_enough() | current_macd:{current_macd} | macd_latest_complete_candle:{macd_latest_complete_candle} | current_close:{current_close} | high_latest_complete_candle:{high_latest_complete_candle}")
 
-        return current_close > high_latest_complete_candle
+        if current_close < high_latest_complete_candle:
+            return False
+
+        low_series: pd.Series = self.processed_data["low"]
+        low_latest_complete_candle = Decimal(low_series.iloc[-2])
+        low_1candle_before = Decimal(low_series.iloc[-3])
+
+        self.logger().info(f"is_macd_increasing_enough() | min(low_latest_complete_candle, low_1candle_before):{min(low_latest_complete_candle, low_1candle_before)}")
+
+        return current_close - min(low_latest_complete_candle, low_1candle_before) > self.config.trend_start_price_change_threshold_pct
 
     def is_macd_decreasing_enough(self, current_macd: Decimal, macd_latest_complete_candle: Decimal) -> bool:
         delta = macd_latest_complete_candle - current_macd
@@ -296,7 +305,16 @@ class GalahadStrategy(PkStrategy):
 
         self.logger().info(f"is_macd_decreasing_enough() | current_macd:{current_macd} | macd_latest_complete_candle:{macd_latest_complete_candle} | current_close:{current_close} | low_latest_complete_candle:{low_latest_complete_candle}")
 
-        return current_close < low_latest_complete_candle
+        if current_close > low_latest_complete_candle:
+            return False
+
+        high_series: pd.Series = self.processed_data["high"]
+        high_latest_complete_candle = Decimal(high_series.iloc[-2])
+        high_1candle_before = Decimal(high_series.iloc[-3])
+
+        self.logger().info(f"is_macd_increasing_enough() | max(high_latest_complete_candle, high_1candle_before):{max(high_latest_complete_candle, high_1candle_before)}")
+
+        return max(high_latest_complete_candle, high_1candle_before) - current_close > self.config.trend_start_price_change_threshold_pct
 
     def has_psar_turned_bullish(self) -> bool:
         psarl_series: pd.Series = self.processed_data["PSARl"]
