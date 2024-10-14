@@ -32,10 +32,10 @@ def compute_recent_price_delta_pct(low_series: pd.Series, high_series: pd.Series
     start_index = nb_candles_to_consider + nb_excluded
     end_index = nb_excluded
 
-    last_lows = low_series.iloc[-start_index:-end_index]
+    last_lows = low_series.iloc[-start_index:-end_index] if end_index > 0 else low_series.tail(start_index)
     lowest_price = Decimal(last_lows.min())
 
-    last_highs = high_series.iloc[-start_index:-end_index]
+    last_highs = high_series.iloc[-start_index:-end_index] if end_index > 0 else high_series.tail(start_index)
     highest_price = Decimal(last_highs.max())
 
     return (highest_price - lowest_price) / highest_price * 100

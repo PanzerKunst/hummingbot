@@ -201,12 +201,12 @@ class GalahadStrategy(PkStrategy):
             if self.is_rsi_below_bottom_edge(current_rsi):
                 return False
 
-            return self.is_volatile_enough() and self.has_macdh_turned_bearish() and self.has_psar_turned_bearish()
+            return self.has_macdh_turned_bearish() and self.has_psar_turned_bearish() and self.is_volatile_enough()
 
         if self.is_rsi_above_top_edge(current_rsi):
             return False
 
-        return self.is_volatile_enough() and self.has_macdh_turned_bullish() and self.has_psar_turned_bullish()
+        return self.has_macdh_turned_bullish() and self.has_psar_turned_bullish() and self.is_volatile_enough()
 
     #
     # Custom functions specific to this controller
