@@ -243,7 +243,9 @@ class GalahadStrategy(PkStrategy):
 
         self.logger().info(f"is_macd_increasing_enough() | min(low_latest_complete_candle, low_1candle_before):{min(low_latest_complete_candle, low_1candle_before)}")
 
-        return current_close - min(low_latest_complete_candle, low_1candle_before) > self.config.trend_start_price_change_threshold_pct
+        delta_pct = (current_close - min(low_latest_complete_candle, low_1candle_before)) / current_close * 100
+
+        return delta_pct > self.config.trend_start_price_change_threshold_pct
 
     def is_trend_negative_enough(self) -> bool:
         close_series: pd.Series = self.processed_data["close"]
@@ -263,7 +265,9 @@ class GalahadStrategy(PkStrategy):
 
         self.logger().info(f"is_macd_increasing_enough() | max(high_latest_complete_candle, high_1candle_before):{max(high_latest_complete_candle, high_1candle_before)}")
 
-        return max(high_latest_complete_candle, high_1candle_before) - current_close > self.config.trend_start_price_change_threshold_pct
+        delta_pct = (max(high_latest_complete_candle, high_1candle_before) - current_close) / current_close * 100
+
+        return delta_pct > self.config.trend_start_price_change_threshold_pct
 
     def has_psar_turned_bullish(self) -> bool:
         psarl_series: pd.Series = self.processed_data["PSARl"]
