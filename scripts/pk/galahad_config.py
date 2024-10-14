@@ -30,8 +30,6 @@ class GalahadConfig(StrategyV2ConfigBase):
     position_mode: PositionMode = PositionMode.HEDGE
 
     # Triple Barrier
-    stop_loss_pct: Decimal = Field(0.8, client_data=ClientFieldData(is_updatable=True))
-    take_profit_pct: Decimal = Field(0.8, client_data=ClientFieldData(is_updatable=True))
     filled_order_expiration_min: int = Field(10, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis

@@ -39,6 +39,9 @@ class GalahadStrategy(PkStrategy):
 
         self.processed_data = pd.DataFrame()
 
+        self.nb_seconds_macd_turned_positive = 0
+        self.nb_seconds_macd_turned_negative = 0
+
     def start(self, clock: Clock, timestamp: float) -> None:
         self._last_timestamp = timestamp
         self.apply_initial_setting()
@@ -51,10 +54,13 @@ class GalahadStrategy(PkStrategy):
                 for trading_pair in self.market_data_provider.get_trading_pairs(connector_name):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
-    def get_triple_barrier_config(self) -> TripleBarrierConfig:
+    def get_triple_barrier_config(self, sl_tp_pct: Decimal) -> TripleBarrierConfig:
+        # TODO: remove
+        self.logger().info(f"get_triple_barrier_config() | sl_tp_pct:{sl_tp_pct}")
+
         return TripleBarrierConfig(
-            stop_loss=Decimal(self.config.stop_loss_pct / 100),
-            take_profit=Decimal(self.config.take_profit_pct / 100),
+            stop_loss=Decimal(sl_tp_pct / 100),
+            take_profit=Decimal(sl_tp_pct / 100),
             open_order_type=OrderType.LIMIT,
             stop_loss_order_type=OrderType.MARKET,
             take_profit_order_type=OrderType.MARKET,  # TODO: LIMIT
@@ -134,12 +140,14 @@ class GalahadStrategy(PkStrategy):
 
         if self.can_create(TradeType.SELL, active_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
-            triple_barrier_config = self.get_triple_barrier_config()
+            sl_tp_pct: Decimal = self.compute_sl_and_tp()
+            triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct)
             self.create_order(TradeType.SELL, entry_price, triple_barrier_config)
 
         if self.can_create(TradeType.BUY, active_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
-            triple_barrier_config = self.get_triple_barrier_config()
+            sl_tp_pct: Decimal = self.compute_sl_and_tp()
+            triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct)
             self.create_order(TradeType.BUY, entry_price, triple_barrier_config)
 
         return []  # Always return []
@@ -170,7 +178,7 @@ class GalahadStrategy(PkStrategy):
                     "BBB"
                 ]
 
-                custom_status.append(format_df_for_printout(self.processed_data[columns_to_display].tail(20), table_format="psql"))
+                custom_status.append(format_df_for_printout(self.processed_data[columns_to_display].tail(self.config.candles_length), table_format="psql"))
 
         return original_status + "\n".join(custom_status)
 
@@ -214,30 +222,50 @@ class GalahadStrategy(PkStrategy):
         current_macd = Decimal(macdh_series.iloc[-1])
         macd_latest_complete_candle = Decimal(macdh_series.iloc[-2])
 
+        has_macdh_turned_positive = current_macd > 0 and macd_latest_complete_candle < 0
+
+        if not has_macdh_turned_positive and self.nb_seconds_macd_turned_positive > 0:
+            self.logger().info("Reseting nb_seconds_macd_turned_positive to zero")
+            self.nb_seconds_macd_turned_positive = 0
+
+        if has_macdh_turned_positive:
+            self.nb_seconds_macd_turned_positive += 1
+            self.logger().info(f"Incremented nb_seconds_macd_turned_positive to {self.nb_seconds_macd_turned_positive}")
+
         # TODO: remove
-        if current_macd > 0 and macd_latest_complete_candle < 0 and self.is_macd_increasing_enough(current_macd, macd_latest_complete_candle):
+        if self.nb_seconds_macd_turned_positive > 9 and self.is_macd_increasing_enough(current_macd, macd_latest_complete_candle):
             delta = (current_macd - macd_latest_complete_candle) / abs(current_macd)
             self.logger().info(f"has_macdh_turned_bullish | delta:{delta}")
 
-        return macd_latest_complete_candle < 0 and current_macd > 0 and self.is_macd_increasing_enough(current_macd, macd_latest_complete_candle)
+        return has_macdh_turned_positive and self.is_macd_increasing_enough(current_macd, macd_latest_complete_candle)
 
     def has_macdh_turned_bearish(self) -> bool:
         macdh_series: pd.Series = self.processed_data["MACDh"]
         current_macd = Decimal(macdh_series.iloc[-1])
         macd_latest_complete_candle = Decimal(macdh_series.iloc[-2])
 
+        has_macdh_turned_negative = current_macd < 0 and macd_latest_complete_candle > 0
+
+        if not has_macdh_turned_negative and self.nb_seconds_macd_turned_negative > 0:
+            self.logger().info("Reseting nb_seconds_macd_turned_negative to zero")
+            self.nb_seconds_macd_turned_negative = 0
+
+        if has_macdh_turned_negative:
+            self.nb_seconds_macd_turned_negative += 1
+            self.logger().info(f"Incremented nb_seconds_macd_turned_negative to {self.nb_seconds_macd_turned_negative}")
+
         # TODO: remove
-        if current_macd < 0 and macd_latest_complete_candle > 0 and self.is_macd_decreasing_enough(current_macd, macd_latest_complete_candle):
+        if self.nb_seconds_macd_turned_negative > 9 and self.is_macd_decreasing_enough(current_macd, macd_latest_complete_candle):
             delta = (macd_latest_complete_candle - current_macd) / abs(current_macd)
             self.logger().info(f"has_macdh_turned_bearish | delta:{delta}")
 
-        return macd_latest_complete_candle > 0 and current_macd < 0 and self.is_macd_decreasing_enough(current_macd, macd_latest_complete_candle)
+        return has_macdh_turned_negative and self.is_macd_decreasing_enough(current_macd, macd_latest_complete_candle)
 
     def is_macd_increasing_enough(self, current_macd: Decimal, macd_latest_complete_candle: Decimal) -> bool:
-        delta = (current_macd - macd_latest_complete_candle) / abs(current_macd)
+        delta = current_macd - macd_latest_complete_candle
         self.logger().info(f"is_macd_increasing_enough | delta:{delta}")
 
-        if delta < 2:
+        if delta < 0:  # TODO
             self.logger().info("Not enough")
             return False
 
@@ -252,10 +280,10 @@ class GalahadStrategy(PkStrategy):
         return current_close > high_latest_complete_candle
 
     def is_macd_decreasing_enough(self, current_macd: Decimal, macd_latest_complete_candle: Decimal) -> bool:
-        delta = (macd_latest_complete_candle - current_macd) / abs(current_macd)
+        delta = macd_latest_complete_candle - current_macd
         self.logger().info(f"is_macd_decreasing_enough | delta:{delta}")
 
-        if delta < 2:
+        if delta < 0:  # TODO
             self.logger().info("Not enough")
             return False
 
@@ -308,3 +336,14 @@ class GalahadStrategy(PkStrategy):
             return True
 
         return max_bbb > self.config.min_bbb_past_volatility
+
+    def compute_sl_and_tp(self) -> Decimal:
+        nb_candles_to_consider = 20
+
+        high_series: pd.Series = self.processed_data["high"]
+        last_20_highs = high_series.tail(nb_candles_to_consider)
+
+        low_series: pd.Series = self.processed_data["low"]
+        last_20_lows = low_series.tail(nb_candles_to_consider)
+
+        return (last_20_highs.max() - last_20_lows.min()) * 0.5
