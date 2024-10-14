@@ -322,6 +322,12 @@ class GalahadStrategy(PkStrategy):
         return result
 
     def is_volatile_enough(self) -> bool:
+        sl_and_tp = self.compute_sl_and_tp()
+
+        if sl_and_tp < 0.5:
+            self.logger().info(f"Not volatile enough | sl_and_tp:{sl_and_tp}")
+            return False
+
         bbb_series: pd.Series = self.processed_data["BBB"]
         current_bbb = Decimal(bbb_series.iloc[-1])
         bbb_latest_complete_candle = Decimal(bbb_series.iloc[-2])
