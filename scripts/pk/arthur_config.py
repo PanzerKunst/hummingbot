@@ -30,7 +30,7 @@ class ArthurConfig(StrategyV2ConfigBase):
     position_mode: PositionMode = PositionMode.HEDGE
 
     # Triple Barrier
-    filled_order_expiration_min: int = Field(10, client_data=ClientFieldData(is_updatable=True))
+    filled_order_expiration_min: int = Field(8, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
     rsi_length: int = Field(20, client_data=ClientFieldData(is_updatable=True))
