@@ -160,7 +160,7 @@ class ArthurStrategy(PkStrategy):
 
         self.logger().info(f"can_create_trend_start_order({side}) | delta_pct: {delta_pct} | recent_price_delta_pct:{recent_price_delta_pct}")
 
-        if delta_pct > recent_price_delta_pct * Decimal(0.7):
+        if delta_pct > recent_price_delta_pct * Decimal(0.5):
             return False
 
         if side == TradeType.SELL:
