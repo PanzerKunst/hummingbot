@@ -156,11 +156,11 @@ class ArthurStrategy(PkStrategy):
 
         low_series = self.processed_data["low"]
         high_series = self.processed_data["high"]
-        recent_price_delta_pct = compute_recent_price_delta_pct(low_series, high_series, 15, 2)
+        recent_price_delta_pct = compute_recent_price_delta_pct(low_series, high_series, 25, 4)
 
         self.logger().info(f"can_create_trend_start_order({side}) | delta_pct: {delta_pct} | recent_price_delta_pct:{recent_price_delta_pct}")
 
-        if delta_pct < recent_price_delta_pct:
+        if delta_pct > recent_price_delta_pct * Decimal(0.7):
             return False
 
         if side == TradeType.SELL:
