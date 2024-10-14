@@ -42,5 +42,6 @@ class ArthurConfig(StrategyV2ConfigBase):
 
     # Order settings
     entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
+    trend_start_price_change_threshold_pct: Decimal = Field(0.7, client_data=ClientFieldData(is_updatable=True))
     trend_start_sell_min_rsi: int = Field(40, client_data=ClientFieldData(is_updatable=True))
     trend_start_buy_max_rsi: int = Field(60, client_data=ClientFieldData(is_updatable=True))

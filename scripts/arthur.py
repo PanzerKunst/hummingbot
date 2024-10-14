@@ -151,6 +151,9 @@ class ArthurStrategy(PkStrategy):
 
         delta_pct = self.compute_delta_pct(side)
 
+        if delta_pct < self.config.trend_start_price_change_threshold_pct:
+            return False
+
         low_series = self.processed_data["low"]
         high_series = self.processed_data["high"]
         recent_price_delta_pct = compute_recent_price_delta_pct(low_series, high_series, 15, 2)
