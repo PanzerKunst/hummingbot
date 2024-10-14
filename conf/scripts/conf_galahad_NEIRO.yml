@@ -21,13 +21,9 @@ rsi_bottom_edge: 32
 psar_start: 0.02
 psar_increment: 0.02
 psar_max: 0.2
-bbands_length: 6
-bbands_std_dev: 2.0
 candles_connector: binance_perpetual
 candles_pair: NEIRO-USDT
 candles_interval: 1m
 candles_length: 52
 entry_price_delta_bps: 0
 trend_start_price_change_threshold_pct: 0.6
-min_bbb_instant_volatility: 3
-min_bbb_past_volatility: 1.5

@@ -42,8 +42,6 @@ class GalahadConfig(StrategyV2ConfigBase):
     psar_start: Decimal = Field(0.02, client_data=ClientFieldData(is_updatable=True))
     psar_increment: Decimal = Field(0.02, client_data=ClientFieldData(is_updatable=True))
     psar_max: Decimal = Field(0.2, client_data=ClientFieldData(is_updatable=True))
-    bbands_length: int = Field(6, client_data=ClientFieldData(is_updatable=True))
-    bbands_std_dev: Decimal = Field(2.0, client_data=ClientFieldData(is_updatable=True))
 
     # Candles
     candles_connector: str = "binance_perpetual"
@@ -54,5 +52,3 @@ class GalahadConfig(StrategyV2ConfigBase):
     # Order settings
     entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
     trend_start_price_change_threshold_pct: Decimal = Field(0.6, client_data=ClientFieldData(is_updatable=True))
-    min_bbb_instant_volatility: Decimal = Field(3, client_data=ClientFieldData(is_updatable=True))
-    min_bbb_past_volatility: Decimal = Field(1.5, client_data=ClientFieldData(is_updatable=True))
