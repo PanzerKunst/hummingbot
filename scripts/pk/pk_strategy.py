@@ -33,7 +33,7 @@ class PkStrategy(StrategyV2Base):
         position_quote_amount = amount_quote * leverage / 4
 
         if side == TradeType.SELL:
-            position_quote_amount = position_quote_amount * Decimal(0.67)  # Less, because closing a Short position on SL costs significantly more
+            position_quote_amount = position_quote_amount * Decimal("0.67")  # Less, because closing a Short position on SL costs significantly more
 
         return position_quote_amount
 

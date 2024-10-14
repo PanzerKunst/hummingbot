@@ -325,7 +325,7 @@ class GalahadStrategy(PkStrategy):
     def is_volatile_enough(self) -> bool:
         delta_pct = self.compute_delta_pct()
 
-        if delta_pct < Decimal(1):
+        if delta_pct < Decimal("1"):
             self.logger().info(f"Not volatile enough | delta_pct:{delta_pct}")
             return False
 
@@ -351,4 +351,4 @@ class GalahadStrategy(PkStrategy):
         return compute_recent_price_delta_pct(low_series, high_series, 20)
 
     def compute_sl_and_tp(self) -> Decimal:
-        return self.compute_delta_pct() * Decimal(0.5)
+        return self.compute_delta_pct() * Decimal("0.5")
