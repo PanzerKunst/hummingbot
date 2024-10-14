@@ -201,12 +201,12 @@ class GalahadStrategy(PkStrategy):
             if self.is_rsi_below_bottom_edge(current_rsi):
                 return False
 
-            return self.has_macdh_turned_bearish() and self.has_psar_turned_bearish() and self.is_volatile_enough()
+            return self.is_volatile_enough() and self.has_macdh_turned_bearish() and self.has_psar_turned_bearish()
 
         if self.is_rsi_above_top_edge(current_rsi):
             return False
 
-        return self.has_macdh_turned_bullish() and self.has_psar_turned_bullish() and self.is_volatile_enough()
+        return self.is_volatile_enough() and self.has_macdh_turned_bullish() and self.has_psar_turned_bullish()
 
     #
     # Custom functions specific to this controller
@@ -325,7 +325,7 @@ class GalahadStrategy(PkStrategy):
     def is_volatile_enough(self) -> bool:
         delta_pct = self.compute_delta_pct()
 
-        if delta_pct < Decimal("1"):
+        if delta_pct < 1:
             self.logger().info(f"Not volatile enough | delta_pct:{delta_pct}")
             return False
 
@@ -351,4 +351,4 @@ class GalahadStrategy(PkStrategy):
         return compute_recent_price_delta_pct(low_series, high_series, 20)
 
     def compute_sl_and_tp(self) -> Decimal:
-        return self.compute_delta_pct() * Decimal("0.5")
+        return self.compute_delta_pct() * Decimal(0.5)

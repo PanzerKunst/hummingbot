@@ -29,7 +29,7 @@ def calculate_delta_bps(price_a: Decimal, price_b: Decimal) -> Decimal:
 
 
 def compute_recent_price_delta_pct(low_series: pd.Series, high_series: pd.Series, nb_candles_to_consider: int, nb_excluded: int = 0) -> Decimal:
-    start_index = nb_candles_to_consider - nb_excluded
+    start_index = nb_candles_to_consider + nb_excluded
     end_index = nb_excluded
 
     last_lows = low_series.iloc[-start_index:-end_index]
