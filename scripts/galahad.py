@@ -211,34 +211,34 @@ class GalahadStrategy(PkStrategy):
 
     def has_macdh_turned_bullish(self) -> bool:
         macdh_series: pd.Series = self.processed_data["MACDh"]
+        current_macd = Decimal(macdh_series.iloc[-1])
         macd_latest_complete_candle = Decimal(macdh_series.iloc[-2])
-        macd_1candle_before = Decimal(macdh_series.iloc[-3])
 
         # TODO: remove
-        if macd_1candle_before < 0 and macd_latest_complete_candle > 0 and self.is_macd_increasing_enough():
-            delta = (macd_latest_complete_candle - macd_1candle_before) / abs(macd_latest_complete_candle)
+        if current_macd > 0 and macd_latest_complete_candle < 0 and self.is_macd_increasing_enough(current_macd, macd_latest_complete_candle):
+            delta = (current_macd - macd_latest_complete_candle) / abs(current_macd)
             self.logger().info(f"has_macdh_turned_bullish | delta:{delta}")
 
-        return macd_1candle_before < 0 and macd_latest_complete_candle > 0 and self.is_macd_increasing_enough()
+        return macd_latest_complete_candle < 0 and current_macd > 0 and self.is_macd_increasing_enough(current_macd, macd_latest_complete_candle)
 
     def has_macdh_turned_bearish(self) -> bool:
-        macdh_series: pd.Series = self.processed_data["MACDh"]
-        macd_latest_complete_candle = Decimal(macdh_series.iloc[-2])
-        macd_1candle_before = Decimal(macdh_series.iloc[-3])
-
-        # TODO: remove
-        if macd_1candle_before > 0 and macd_latest_complete_candle < 0 and self.is_macd_decreasing_enough():
-            delta = (macd_1candle_before - macd_latest_complete_candle) / abs(macd_latest_complete_candle)
-            self.logger().info(f"has_macdh_turned_bearish | delta:{delta}")
-
-        return macd_1candle_before > 0 and macd_latest_complete_candle < 0 and self.is_macd_decreasing_enough()
-
-    def is_macd_increasing_enough(self) -> bool:
         macdh_series: pd.Series = self.processed_data["MACDh"]
         current_macd = Decimal(macdh_series.iloc[-1])
         macd_latest_complete_candle = Decimal(macdh_series.iloc[-2])
 
-        if current_macd < macd_latest_complete_candle * 2:
+        # TODO: remove
+        if current_macd < 0 and macd_latest_complete_candle > 0 and self.is_macd_decreasing_enough(current_macd, macd_latest_complete_candle):
+            delta = (macd_latest_complete_candle - current_macd) / abs(current_macd)
+            self.logger().info(f"has_macdh_turned_bearish | delta:{delta}")
+
+        return macd_latest_complete_candle > 0 and current_macd < 0 and self.is_macd_decreasing_enough(current_macd, macd_latest_complete_candle)
+
+    def is_macd_increasing_enough(self, current_macd: Decimal, macd_latest_complete_candle: Decimal) -> bool:
+        delta = (current_macd - macd_latest_complete_candle) / abs(current_macd)
+        self.logger().info(f"is_macd_increasing_enough | delta:{delta}")
+
+        if delta < 2:
+            self.logger().info("Not enough")
             return False
 
         close_series: pd.Series = self.processed_data["close"]
@@ -251,12 +251,12 @@ class GalahadStrategy(PkStrategy):
 
         return current_close > high_latest_complete_candle
 
-    def is_macd_decreasing_enough(self) -> bool:
-        macdh_series: pd.Series = self.processed_data["MACDh"]
-        current_macd = Decimal(macdh_series.iloc[-1])
-        macd_latest_complete_candle = Decimal(macdh_series.iloc[-2])
+    def is_macd_decreasing_enough(self, current_macd: Decimal, macd_latest_complete_candle: Decimal) -> bool:
+        delta = (macd_latest_complete_candle - current_macd) / abs(current_macd)
+        self.logger().info(f"is_macd_decreasing_enough | delta:{delta}")
 
-        if current_macd > macd_latest_complete_candle * 2:
+        if delta < 2:
+            self.logger().info("Not enough")
             return False
 
         close_series: pd.Series = self.processed_data["close"]
@@ -300,13 +300,11 @@ class GalahadStrategy(PkStrategy):
         bbb_1candle_before = Decimal(bbb_series.iloc[-3])
         bbb_2candles_before = Decimal(bbb_series.iloc[-4])
 
-        if current_bbb > self.config.min_bbb_instant_volatility:
-            self.logger().info(f"is_volatile_enough | current_bbb:{current_bbb}")
-            return True
-
         max_bbb = max(bbb_latest_complete_candle, bbb_1candle_before, bbb_2candles_before)
 
-        # TODO: remove
-        self.logger().info(f"is_volatile_enough | max_bbb:{max_bbb}")
+        self.logger().info(f"is_volatile_enough | current_bbb:{current_bbb} | max_bbb:{max_bbb}")
+
+        if current_bbb > self.config.min_bbb_instant_volatility:
+            return True
 
         return max_bbb > self.config.min_bbb_past_volatility
