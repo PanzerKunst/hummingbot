@@ -241,9 +241,8 @@ class GalahadStrategy(PkStrategy):
         low_latest_complete_candle = Decimal(low_series.iloc[-2])
         low_1candle_before = Decimal(low_series.iloc[-3])
 
-        self.logger().info(f"is_macd_increasing_enough() | min(low_latest_complete_candle, low_1candle_before):{min(low_latest_complete_candle, low_1candle_before)}")
-
         delta_pct = (current_close - min(low_latest_complete_candle, low_1candle_before)) / current_close * 100
+        self.logger().info(f"is_macd_increasing_enough() | delta_pct:{delta_pct}")
 
         return delta_pct > self.config.trend_start_price_change_threshold_pct
 
@@ -263,9 +262,8 @@ class GalahadStrategy(PkStrategy):
         high_latest_complete_candle = Decimal(high_series.iloc[-2])
         high_1candle_before = Decimal(high_series.iloc[-3])
 
-        self.logger().info(f"is_macd_increasing_enough() | max(high_latest_complete_candle, high_1candle_before):{max(high_latest_complete_candle, high_1candle_before)}")
-
         delta_pct = (max(high_latest_complete_candle, high_1candle_before) - current_close) / current_close * 100
+        self.logger().info(f"is_macd_increasing_enough() | delta_pct:{delta_pct}")
 
         return delta_pct > self.config.trend_start_price_change_threshold_pct
 
