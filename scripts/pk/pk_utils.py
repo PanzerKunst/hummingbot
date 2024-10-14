@@ -2,9 +2,10 @@ from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 
+import pandas as pd
+
 from hummingbot.connector.derivative.position import Position
 from hummingbot.core.data_type.common import TradeType
-from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
@@ -25,6 +26,19 @@ def calculate_delta_bps(price_a: Decimal, price_b: Decimal) -> Decimal:
 
     delta_bps = (price_a - price_b) / price_b * 10000
     return delta_bps
+
+
+def compute_recent_price_delta_pct(low_series: pd.Series, high_series: pd.Series, nb_candles_to_consider: int, nb_excluded: int = 0) -> Decimal:
+    start_index = nb_candles_to_consider - nb_excluded
+    end_index = nb_excluded
+
+    last_lows = low_series.iloc[-start_index:-end_index]
+    lowest_price = Decimal(last_lows.min())
+
+    last_highs = high_series.iloc[-start_index:-end_index]
+    highest_price = Decimal(last_highs.max())
+
+    return (highest_price - lowest_price) / highest_price * 100
 
 
 def has_current_price_reached_stop_loss(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:

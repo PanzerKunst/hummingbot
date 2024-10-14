@@ -12,6 +12,7 @@ from hummingbot.strategy_v2.executors.position_executor.data_types import Triple
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 from scripts.pk.galahad_config import GalahadConfig
 from scripts.pk.pk_strategy import PkStrategy
+from scripts.pk.pk_utils import compute_recent_price_delta_pct
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
@@ -322,10 +323,10 @@ class GalahadStrategy(PkStrategy):
         return result
 
     def is_volatile_enough(self) -> bool:
-        sl_and_tp = self.compute_sl_and_tp()
+        delta_pct = self.compute_delta_pct()
 
-        if sl_and_tp < 0.5:
-            self.logger().info(f"Not volatile enough | sl_and_tp:{sl_and_tp}")
+        if delta_pct < 1:
+            self.logger().info(f"Not volatile enough | delta_pct:{delta_pct}")
             return False
 
         bbb_series: pd.Series = self.processed_data["BBB"]
@@ -343,13 +344,11 @@ class GalahadStrategy(PkStrategy):
 
         return max_bbb > self.config.min_bbb_past_volatility
 
-    def compute_sl_and_tp(self) -> Decimal:
-        nb_candles_to_consider = 20
-
-        high_series: pd.Series = self.processed_data["high"]
-        last_20_highs = high_series.tail(nb_candles_to_consider)
-
+    def compute_delta_pct(self) -> Decimal:
         low_series: pd.Series = self.processed_data["low"]
-        last_20_lows = low_series.tail(nb_candles_to_consider)
+        high_series: pd.Series = self.processed_data["high"]
 
-        return (last_20_highs.max() - last_20_lows.min()) * 0.5
+        return compute_recent_price_delta_pct(low_series, high_series, 20)
+
+    def compute_sl_and_tp(self) -> Decimal:
+        return self.compute_delta_pct() * Decimal(0.5)
