@@ -18,8 +18,9 @@ macd_signal: 9
 rsi_length: 20
 rsi_top_edge: 68
 rsi_bottom_edge: 32
-psar_af: 0.02
-psar_max_af: 0.2
+psar_start: 0.02
+psar_increment: 0.02
+psar_max: 0.2
 bbands_length: 6
 bbands_std_dev: 2.0
 candles_connector: binance_perpetual

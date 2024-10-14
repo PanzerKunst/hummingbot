@@ -92,9 +92,9 @@ class GalahadStrategy(PkStrategy):
         candles_df["MACDs"] = macd_df[f"MACDs_{self.config.macd_short}_{self.config.macd_long}_{self.config.macd_signal}"]
         candles_df["MACDh"] = macd_df[f"MACDh_{self.config.macd_short}_{self.config.macd_long}_{self.config.macd_signal}"]
 
-        psar_df = candles_df.ta.psar(af=self.config.psar_af, max_af=self.config.psar_max_af)
-        candles_df["PSARl"] = psar_df[f"PSARl_{self.config.psar_af}_{self.config.psar_max_af}"]
-        candles_df["PSARs"] = psar_df[f"PSARs_{self.config.psar_af}_{self.config.psar_max_af}"]
+        psar_df = candles_df.ta.psar(af0=self.config.psar_start, af=self.config.psar_increment, max_af=self.config.psar_max)
+        candles_df["PSARl"] = psar_df[f"PSARl_{self.config.psar_increment}_{self.config.psar_max}"]
+        candles_df["PSARs"] = psar_df[f"PSARs_{self.config.psar_increment}_{self.config.psar_max}"]
 
         bbands_df = candles_df.ta.bbands(length=self.config.bbands_length, std=self.config.bbands_std_dev)
         candles_df["BBB"] = bbands_df[f"BBB_{self.config.bbands_length}_{self.config.bbands_std_dev}"]
@@ -300,11 +300,11 @@ class GalahadStrategy(PkStrategy):
 
     def has_psar_turned_bullish(self) -> bool:
         psarl_series: pd.Series = self.processed_data["PSARl"]
+        current_psarl = Decimal(psarl_series.iloc[-1])
         psarl_latest_complete_candle = Decimal(psarl_series.iloc[-2])
-        psarl_1candle_before = Decimal(psarl_series.iloc[-3])
 
         # TODO: remove
-        result = not pd.isna(psarl_latest_complete_candle) and pd.isna(psarl_1candle_before)
+        result = not pd.isna(current_psarl) and pd.isna(psarl_latest_complete_candle)
         if result:
             self.logger().info("psar_has_turned_bullish")
 
@@ -312,11 +312,11 @@ class GalahadStrategy(PkStrategy):
 
     def has_psar_turned_bearish(self) -> bool:
         psars_series: pd.Series = self.processed_data["PSARs"]
+        current_psars = Decimal(psars_series.iloc[-1])
         psars_latest_complete_candle = Decimal(psars_series.iloc[-2])
-        psars_1candle_before = Decimal(psars_series.iloc[-3])
 
         # TODO: remove
-        result = not pd.isna(psars_latest_complete_candle) and pd.isna(psars_1candle_before)
+        result = not pd.isna(current_psars) and pd.isna(psars_latest_complete_candle)
         if result:
             self.logger().info("psar_has_turned_bearish")
 

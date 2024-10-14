@@ -39,8 +39,9 @@ class GalahadConfig(StrategyV2ConfigBase):
     rsi_length: int = Field(20, client_data=ClientFieldData(is_updatable=True))
     rsi_top_edge: int = Field(68, client_data=ClientFieldData(is_updatable=True))
     rsi_bottom_edge: int = Field(32, client_data=ClientFieldData(is_updatable=True))
-    psar_af: Decimal = Field(0.02, client_data=ClientFieldData(is_updatable=True))
-    psar_max_af: Decimal = Field(0.2, client_data=ClientFieldData(is_updatable=True))
+    psar_start: Decimal = Field(0.02, client_data=ClientFieldData(is_updatable=True))
+    psar_increment: Decimal = Field(0.02, client_data=ClientFieldData(is_updatable=True))
+    psar_max: Decimal = Field(0.2, client_data=ClientFieldData(is_updatable=True))
     bbands_length: int = Field(6, client_data=ClientFieldData(is_updatable=True))
     bbands_std_dev: Decimal = Field(2.0, client_data=ClientFieldData(is_updatable=True))
 
