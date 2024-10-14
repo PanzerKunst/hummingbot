@@ -12,6 +12,7 @@ from hummingbot.strategy_v2.executors.position_executor.data_types import Triple
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 from scripts.pk.arthur_config import ArthurConfig
 from scripts.pk.pk_strategy import PkStrategy
+from scripts.pk.pk_utils import average, compute_recent_price_delta_pct
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
@@ -150,17 +151,21 @@ class ArthurStrategy(PkStrategy):
 
         delta_pct = self.compute_delta_pct(side)
 
-        if delta_pct < self.config.trend_start_candle_height_threshold_pct:
+        low_series = self.processed_data["low"]
+        high_series = self.processed_data["high"]
+        recent_price_delta_pct = compute_recent_price_delta_pct(low_series, high_series, 15, 2)
+
+        self.logger().info(f"can_create_trend_start_order({side}) | delta_pct: {delta_pct} | recent_price_delta_pct:{recent_price_delta_pct}")
+
+        if delta_pct < recent_price_delta_pct * Decimal(0.7):
             return False
 
-        self.logger().info(f"can_create_trend_start_order({side}) | delta_pct: {delta_pct}")
-
         if side == TradeType.SELL:
-            is_rsi_in_range = self.is_rsi_in_range_for_trend_start_order(TradeType.SELL)
+            is_rsi_in_range = self.is_rsi_in_range_for_sell_order()
             self.logger().info(f"is_rsi_in_range: {is_rsi_in_range}")
             return is_rsi_in_range
 
-        is_rsi_in_range = self.is_rsi_in_range_for_trend_start_order(TradeType.BUY)
+        is_rsi_in_range = self.is_rsi_in_range_for_buy_order()
         self.logger().info(f"is_rsi_in_range: {is_rsi_in_range}")
         return is_rsi_in_range
 
@@ -168,14 +173,35 @@ class ArthurStrategy(PkStrategy):
     # Custom functions specific to this controller
     #
 
-    def is_rsi_in_range_for_trend_start_order(self, side: TradeType) -> bool:
+    def is_rsi_in_range_for_sell_order(self) -> bool:
+        if self.get_recent_rsi_avg() > 70:
+            self.logger().info("is_rsi_in_range_for_sell_order: too risky as the price has been trending up for a while")
+            return False
+
         rsi_series: pd.Series = self.processed_data["RSI"]
-        rsi_last_full_candle = Decimal(rsi_series.iloc[-2])
+        current_rsi = Decimal(rsi_series.iloc[-1])
 
-        if side == TradeType.SELL:
-            return rsi_last_full_candle > self.config.trend_start_min_rsi_sell
+        return current_rsi > self.config.trend_start_sell_min_rsi
 
-        return rsi_last_full_candle < self.config.trend_start_max_rsi_buy
+    def is_rsi_in_range_for_buy_order(self) -> bool:
+        if self.get_recent_rsi_avg() < 30:
+            self.logger().info("is_rsi_in_range_for_buy_order: too risky as the price has been trending down for a while")
+            return False
+
+        rsi_series: pd.Series = self.processed_data["RSI"]
+        current_rsi = Decimal(rsi_series.iloc[-1])
+
+        return current_rsi < self.config.trend_start_buy_max_rsi
+
+    def get_recent_rsi_avg(self) -> Decimal:
+        rsi_series: pd.Series = self.processed_data["RSI"]
+        rsi_3candles_before = Decimal(rsi_series.iloc[-4])
+        rsi_4candles_before = Decimal(rsi_series.iloc[-5])
+        rsi_5candles_before = Decimal(rsi_series.iloc[-6])
+        rsi_6candles_before = Decimal(rsi_series.iloc[-7])
+        rsi_7candles_before = Decimal(rsi_series.iloc[-8])
+
+        return average(rsi_3candles_before, rsi_4candles_before, rsi_5candles_before, rsi_6candles_before, rsi_7candles_before)
 
     def compute_delta_pct(self, side: TradeType) -> Decimal:
         close_series: pd.Series = self.processed_data["close"]
