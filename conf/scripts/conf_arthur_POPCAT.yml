@@ -17,6 +17,6 @@ candles_connector: okx_perpetual
 candles_interval: 1m
 candles_length: 40
 entry_price_delta_bps: 0
-trend_start_price_change_threshold_pct: 0.9
+trend_start_price_change_threshold_pct: 0.7
 trend_start_sell_min_rsi: 40
 trend_start_buy_max_rsi: 60
