@@ -154,6 +154,8 @@ class ArthurStrategy(PkStrategy):
         if delta_pct < self.config.trend_start_price_change_threshold_pct:
             return False
 
+        self.logger().info(f"delta_pct above threshold: {delta_pct}")
+
         if not self.is_recent_volume_enough():
             return False
 
