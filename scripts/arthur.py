@@ -131,6 +131,7 @@ class ArthurStrategy(PkStrategy):
                     "close",
                     "high",
                     "low",
+                    "volume",
                     "RSI"
                 ]
 
