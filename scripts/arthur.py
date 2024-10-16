@@ -216,6 +216,8 @@ class ArthurStrategy(PkStrategy):
         recent_volumes = [current_volume, volume_latest_complete_candle, volume_1candle_before]
         older_volumes = volume_series.iloc[-10:-3]  # 7 items, last one excluded
 
+        self.logger().info(f"is_recent_volume_enough() | sum(recent_volumes):{sum(recent_volumes)} | sum(older_volumes):{sum(older_volumes)}")
+
         return sum(recent_volumes) > sum(older_volumes) * 3
 
     def compute_delta_pct(self, side: TradeType) -> Decimal:
