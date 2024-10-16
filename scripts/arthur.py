@@ -33,7 +33,7 @@ class ArthurStrategy(PkStrategy):
         if len(config.candles_config) == 0:
             config.candles_config.append(CandlesConfig(
                 connector=config.candles_connector,
-                trading_pair=config.trading_pair,
+                trading_pair=config.candles_pair,
                 interval=config.candles_interval,
                 max_records=config.candles_length
             ))
@@ -154,13 +154,7 @@ class ArthurStrategy(PkStrategy):
         if delta_pct < self.config.trend_start_price_change_threshold_pct:
             return False
 
-        low_series = self.processed_data["low"]
-        high_series = self.processed_data["high"]
-        recent_price_delta_pct = compute_recent_price_delta_pct(low_series, high_series, 25, 4)
-
-        self.logger().info(f"can_create_trend_start_order({side}) | delta_pct: {delta_pct} | recent_price_delta_pct:{recent_price_delta_pct}")
-
-        if delta_pct > recent_price_delta_pct * Decimal(0.5):
+        if not self.is_recent_volume_enough():
             return False
 
         if side == TradeType.SELL:
@@ -182,9 +176,9 @@ class ArthurStrategy(PkStrategy):
             return False
 
         rsi_series: pd.Series = self.processed_data["RSI"]
-        current_rsi = Decimal(rsi_series.iloc[-1])
+        rsi_latest_complete_candle = Decimal(rsi_series.iloc[-2])
 
-        return current_rsi > self.config.trend_start_sell_min_rsi
+        return rsi_latest_complete_candle > self.config.trend_start_sell_latest_complete_candle_min_rsi
 
     def is_rsi_in_range_for_buy_order(self) -> bool:
         if self.get_recent_rsi_avg() < 30:
@@ -192,9 +186,9 @@ class ArthurStrategy(PkStrategy):
             return False
 
         rsi_series: pd.Series = self.processed_data["RSI"]
-        current_rsi = Decimal(rsi_series.iloc[-1])
+        rsi_latest_complete_candle = Decimal(rsi_series.iloc[-2])
 
-        return current_rsi < self.config.trend_start_buy_max_rsi
+        return rsi_latest_complete_candle < self.config.trend_start_buy_latest_complete_candle_max_rsi
 
     def get_recent_rsi_avg(self) -> Decimal:
         rsi_series: pd.Series = self.processed_data["RSI"]
@@ -206,29 +200,43 @@ class ArthurStrategy(PkStrategy):
 
         return average(rsi_3candles_before, rsi_4candles_before, rsi_5candles_before, rsi_6candles_before, rsi_7candles_before)
 
+    def is_recent_volume_enough(self) -> bool:
+        volume_series: pd.Series = self.processed_data["volume"]
+        current_volume = volume_series.iloc[-1]
+        volume_latest_complete_candle = volume_series.iloc[-2]
+        volume_1candle_before = volume_series.iloc[-3]
+
+        if current_volume < volume_latest_complete_candle or current_volume < volume_1candle_before:
+            return False
+
+        recent_volumes = [current_volume, volume_latest_complete_candle, volume_1candle_before]
+        older_volumes = volume_series.iloc[-10:-3]  # 7 items, last one excluded
+
+        return sum(recent_volumes) > sum(older_volumes) * 3
+
     def compute_delta_pct(self, side: TradeType) -> Decimal:
         close_series: pd.Series = self.processed_data["close"]
         current_close_price = Decimal(close_series.iloc[-1])
 
         high_series: pd.Series = self.processed_data["high"]
-        high_1candles_before = Decimal(high_series.iloc[-2])
-        high_2candles_before = Decimal(high_series.iloc[-3])
-        high_3candles_before = Decimal(high_series.iloc[-4])
-        high_4candles_before = Decimal(high_series.iloc[-5])
+        high_latest_complete_candle = Decimal(high_series.iloc[-2])
+        high_1candle_before = Decimal(high_series.iloc[-3])
+        high_2candles_before = Decimal(high_series.iloc[-4])
+        high_3candles_before = Decimal(high_series.iloc[-5])
 
-        highest_price = max(high_1candles_before, high_2candles_before, high_3candles_before, high_4candles_before)
+        highest_price = max(high_latest_complete_candle, high_1candle_before, high_2candles_before, high_3candles_before)
         delta_pct_sell = (highest_price - current_close_price) / current_close_price * 100
 
         if side == TradeType.SELL:
             return delta_pct_sell
 
         low_series: pd.Series = self.processed_data["low"]
-        low_1candles_before = Decimal(low_series.iloc[-2])
-        low_2candles_before = Decimal(low_series.iloc[-3])
-        low_3candles_before = Decimal(low_series.iloc[-4])
-        low_4candles_before = Decimal(low_series.iloc[-5])
+        low_latest_complete_candle = Decimal(low_series.iloc[-2])
+        low_1candle_before = Decimal(low_series.iloc[-3])
+        low_2candles_before = Decimal(low_series.iloc[-4])
+        low_3candles_before = Decimal(low_series.iloc[-5])
 
-        lowest_price = min(low_1candles_before, low_2candles_before, low_3candles_before, low_4candles_before)
+        lowest_price = min(low_latest_complete_candle, low_1candle_before, low_2candles_before, low_3candles_before)
         delta_pct_buy = (current_close_price - lowest_price) / current_close_price * 100
 
         return delta_pct_buy
