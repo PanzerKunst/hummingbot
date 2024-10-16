@@ -149,15 +149,17 @@ class ArthurStrategy(PkStrategy):
         if len(active_tracked_orders) > 0:
             return False
 
+        if not self.is_recent_volume_enough():
+            return False
+
+        self.logger().info("recent_volume_is_enough")
+
         delta_pct = self.compute_delta_pct(side)
 
         if delta_pct < self.config.trend_start_price_change_threshold_pct:
             return False
 
         self.logger().info(f"delta_pct above threshold: {delta_pct}")
-
-        if not self.is_recent_volume_enough():
-            return False
 
         if side == TradeType.SELL:
             is_rsi_in_range = self.is_rsi_in_range_for_sell_order()
