@@ -12,7 +12,7 @@ from hummingbot.strategy_v2.executors.position_executor.data_types import Triple
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 from scripts.pk.galahad_config import GalahadConfig
 from scripts.pk.pk_strategy import PkStrategy
-from scripts.pk.pk_utils import compute_recent_price_delta_pct
+from scripts.pk.pk_utils import compute_recent_price_delta_pct, average
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
@@ -187,16 +187,19 @@ class GalahadStrategy(PkStrategy):
         if len(active_tracked_orders) > 0:
             return False
 
-        rsi_series: pd.Series = self.processed_data["RSI"]
-        current_rsi = Decimal(rsi_series.iloc[-1])
-
         if side == TradeType.SELL:
-            if self.is_rsi_below_bottom_edge(current_rsi):
+            is_rsi_in_range = self.is_rsi_in_range_for_sell_order()
+
+            if not is_rsi_in_range:
                 return False
+
+            self.logger().info(f"is_rsi_in_range: {is_rsi_in_range}")
 
             return self.has_macdh_turned_bearish() and self.has_psar_turned_bearish() and self.is_trend_negative_enough() and self.is_volatile_enough()
 
-        if self.is_rsi_above_top_edge(current_rsi):
+        is_rsi_in_range = self.is_rsi_in_range_for_buy_order()
+
+        if not is_rsi_in_range:
             return False
 
         return self.has_macdh_turned_bullish() and self.has_psar_turned_bullish() and self.is_trend_positive_enough() and self.is_volatile_enough()
@@ -205,11 +208,35 @@ class GalahadStrategy(PkStrategy):
     # Custom functions specific to this controller
     #
 
-    def is_rsi_above_top_edge(self, rsi: Decimal) -> bool:
-        return rsi > self.config.rsi_top_edge
+    def is_rsi_in_range_for_sell_order(self) -> bool:
+        if self.get_recent_rsi_avg() > 70:
+            self.logger().info("is_rsi_in_range_for_sell_order: too risky as the price has been trending up for a while")
+            return False
 
-    def is_rsi_below_bottom_edge(self, rsi: Decimal) -> bool:
-        return rsi < self.config.rsi_bottom_edge
+        rsi_series: pd.Series = self.processed_data["RSI"]
+        rsi_latest_complete_candle = Decimal(rsi_series.iloc[-2])
+
+        return rsi_latest_complete_candle > self.config.trend_start_sell_latest_complete_candle_min_rsi
+
+    def is_rsi_in_range_for_buy_order(self) -> bool:
+        if self.get_recent_rsi_avg() < 30:
+            self.logger().info("is_rsi_in_range_for_buy_order: too risky as the price has been trending down for a while")
+            return False
+
+        rsi_series: pd.Series = self.processed_data["RSI"]
+        rsi_latest_complete_candle = Decimal(rsi_series.iloc[-2])
+
+        return rsi_latest_complete_candle < self.config.trend_start_buy_latest_complete_candle_max_rsi
+
+    def get_recent_rsi_avg(self) -> Decimal:
+        rsi_series: pd.Series = self.processed_data["RSI"]
+        rsi_3candles_before = Decimal(rsi_series.iloc[-4])
+        rsi_4candles_before = Decimal(rsi_series.iloc[-5])
+        rsi_5candles_before = Decimal(rsi_series.iloc[-6])
+        rsi_6candles_before = Decimal(rsi_series.iloc[-7])
+        rsi_7candles_before = Decimal(rsi_series.iloc[-8])
+
+        return average(rsi_3candles_before, rsi_4candles_before, rsi_5candles_before, rsi_6candles_before, rsi_7candles_before)
 
     def has_macdh_turned_bullish(self) -> bool:
         macdh_series: pd.Series = self.processed_data["MACDh"]
@@ -267,6 +294,20 @@ class GalahadStrategy(PkStrategy):
 
         return delta_pct > self.config.trend_start_price_change_threshold_pct
 
+    def is_volume_spiking(self) -> bool:
+        volume_series: pd.Series = self.processed_data["volume"]
+        current_volume = volume_series.iloc[-1]
+        volume_latest_complete_candle = volume_series.iloc[-2]
+        volume_1candle_before = volume_series.iloc[-3]
+
+        if current_volume < volume_latest_complete_candle or current_volume < volume_1candle_before:
+            return False
+
+        recent_volumes = [current_volume, volume_latest_complete_candle, volume_1candle_before]
+        older_volumes = volume_series.iloc[-10:-3]  # 7 items, last one excluded
+
+        return sum(recent_volumes) > sum(older_volumes) * 3
+
     def has_psar_turned_bullish(self) -> bool:
         psarl_series: pd.Series = self.processed_data["PSARl"]
         current_psarl = Decimal(psarl_series.iloc[-1])
@@ -294,7 +335,7 @@ class GalahadStrategy(PkStrategy):
     def is_volatile_enough(self) -> bool:
         delta_pct = self.compute_delta_pct()
 
-        if delta_pct < 1:
+        if delta_pct < 2:
             self.logger().info(f"Not volatile enough | delta_pct:{delta_pct}")
             return False
 

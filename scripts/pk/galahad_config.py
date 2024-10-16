@@ -37,8 +37,6 @@ class GalahadConfig(StrategyV2ConfigBase):
     macd_long: int = Field(26, client_data=ClientFieldData(is_updatable=True))
     macd_signal: int = Field(9, client_data=ClientFieldData(is_updatable=True))
     rsi_length: int = Field(20, client_data=ClientFieldData(is_updatable=True))
-    rsi_top_edge: int = Field(68, client_data=ClientFieldData(is_updatable=True))
-    rsi_bottom_edge: int = Field(32, client_data=ClientFieldData(is_updatable=True))
     psar_start: Decimal = Field(0.02, client_data=ClientFieldData(is_updatable=True))
     psar_increment: Decimal = Field(0.02, client_data=ClientFieldData(is_updatable=True))
     psar_max: Decimal = Field(0.2, client_data=ClientFieldData(is_updatable=True))
@@ -51,4 +49,6 @@ class GalahadConfig(StrategyV2ConfigBase):
 
     # Order settings
     entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
-    trend_start_price_change_threshold_pct: Decimal = Field(0.6, client_data=ClientFieldData(is_updatable=True))
+    trend_start_price_change_threshold_pct: Decimal = Field(0.9, client_data=ClientFieldData(is_updatable=True))
+    trend_start_sell_latest_complete_candle_min_rsi: int = Field(45, client_data=ClientFieldData(is_updatable=True))
+    trend_start_buy_latest_complete_candle_max_rsi: int = Field(55, client_data=ClientFieldData(is_updatable=True))
