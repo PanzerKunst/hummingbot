@@ -19,7 +19,8 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 # Trend start and reversals, dependant on sudden price movements and RSI
 # Generate config file: create --script-config arthur
-# Start the bot: start --script arthur.py --conf conf_arthur_BONK.yml
+# Start the bot: start --script arthur.py --conf conf_arthur_BOME.yml
+#                start --script arthur.py --conf conf_arthur_BONK.yml
 #                start --script arthur.py --conf conf_arthur_DOGS.yml
 #                start --script arthur.py --conf conf_arthur_FLOKI.yml
 #                start --script arthur.py --conf conf_arthur_MOODENG.yml
