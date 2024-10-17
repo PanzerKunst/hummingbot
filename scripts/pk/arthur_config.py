@@ -46,3 +46,5 @@ class ArthurConfig(StrategyV2ConfigBase):
     trend_start_price_change_threshold_pct: Decimal = Field(0.9, client_data=ClientFieldData(is_updatable=True))
     trend_start_sell_latest_complete_candle_min_rsi: int = Field(40, client_data=ClientFieldData(is_updatable=True))
     trend_start_buy_latest_complete_candle_max_rsi: int = Field(60, client_data=ClientFieldData(is_updatable=True))
+    trend_reversal_sell_min_rsi: int = Field(78, client_data=ClientFieldData(is_updatable=True))
+    trend_reversal_buy_max_rsi: int = Field(22, client_data=ClientFieldData(is_updatable=True))

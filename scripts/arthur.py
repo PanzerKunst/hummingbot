@@ -10,6 +10,7 @@ from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.strategy_v2.executors.position_executor.data_types import TripleBarrierConfig
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
+from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.pk.arthur_config import ArthurConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_utils import average
@@ -64,7 +65,7 @@ class ArthurStrategy(PkStrategy):
         return TripleBarrierConfig(
             stop_loss=Decimal(sl_tp_pct / 100),
             take_profit=Decimal(sl_tp_pct / 100),
-            open_order_type=OrderType.MARKET,  # TODO: LIMIT
+            open_order_type=OrderType.LIMIT,
             take_profit_order_type=OrderType.MARKET,  # TODO: LIMIT
             stop_loss_order_type=OrderType.MARKET,
             time_limit=self.config.filled_order_expiration_min * 60
@@ -102,14 +103,28 @@ class ArthurStrategy(PkStrategy):
         active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side()
 
         if self.can_create_trend_start_order(TradeType.SELL, active_sell_orders):
-            entry_price: Decimal = self.get_best_bid() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
+            entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
             sl_tp_pct: Decimal = self.compute_sl_and_tp_for_trend_start(TradeType.SELL)
             triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct)
             self.create_order(TradeType.SELL, entry_price, triple_barrier_config)
 
         if self.can_create_trend_start_order(TradeType.BUY, active_buy_orders):
-            entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
+            entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
             sl_tp_pct: Decimal = self.compute_sl_and_tp_for_trend_start(TradeType.BUY)
+            triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct)
+            self.create_order(TradeType.BUY, entry_price, triple_barrier_config)
+
+        if self.can_create_trend_reversal_order(TradeType.SELL, active_sell_orders):
+            entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
+            last_terminated_filled_order = self.find_last_terminated_filled_order(TradeType.BUY)
+            sl_tp_pct: Decimal = last_terminated_filled_order.triple_barrier_config.take_profit * 100  # TP/SL is the same as trend_start order
+            triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct)
+            self.create_order(TradeType.SELL, entry_price, triple_barrier_config)
+
+        if self.can_create_trend_reversal_order(TradeType.BUY, active_buy_orders):
+            entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
+            last_terminated_filled_order = self.find_last_terminated_filled_order(TradeType.SELL)
+            sl_tp_pct: Decimal = last_terminated_filled_order.triple_barrier_config.take_profit * 100
             triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct)
             self.create_order(TradeType.BUY, entry_price, triple_barrier_config)
 
@@ -168,21 +183,76 @@ class ArthurStrategy(PkStrategy):
         self.logger().info(f"delta_pct above threshold: {delta_pct}")
 
         if side == TradeType.SELL:
-            is_rsi_in_range = self.is_rsi_in_range_for_sell_order()
+            is_rsi_in_range = self.is_rsi_in_range_for_trend_start_sell_order()
             self.logger().info(f"is_rsi_in_range: {is_rsi_in_range}")
             return is_rsi_in_range
 
-        is_rsi_in_range = self.is_rsi_in_range_for_buy_order()
+        is_rsi_in_range = self.is_rsi_in_range_for_trend_start_buy_order()
         self.logger().info(f"is_rsi_in_range: {is_rsi_in_range}")
         return is_rsi_in_range
+
+    def can_create_trend_reversal_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
+        if not self.can_create_order(side):
+            return False
+
+        if len(active_tracked_orders) > 0:
+            return False
+
+        if side == TradeType.SELL:
+            # During the last 12min, there was a completed trend_start trade with TP on the opposite side
+            last_terminated_filled_order = self.find_last_terminated_filled_order(TradeType.BUY)
+
+            if not last_terminated_filled_order or last_terminated_filled_order.close_type != CloseType.TAKE_PROFIT:
+                return False
+
+            if last_terminated_filled_order.terminated_at + 12 * 60 < self.market_data_provider.time():
+                return False
+
+            self.logger().info(f"can_create_trend_reversal_order({side}) > There was a TP order within the last 12min")
+
+            # During the last 7min, RSI exceeded TH
+            if not self.did_rsi_recently_jump():
+                return False
+
+            self.logger().info(f"can_create_trend_reversal_order({side}) > rsi_did_recently_jump")
+
+            # Current RSI is now back to over 30 / below 70
+            if not self.has_rsi_recovered_from_jump():
+                return False
+
+            self.logger().info(f"can_create_trend_reversal_order({side}) > rsi_has_recovered_from_jump")
+
+            return True
+
+        last_terminated_filled_order = self.find_last_terminated_filled_order(TradeType.SELL)
+
+        if not last_terminated_filled_order or last_terminated_filled_order.close_type != CloseType.TAKE_PROFIT:
+            return False
+
+        if last_terminated_filled_order.terminated_at + 12 * 60 < self.market_data_provider.time():
+            return False
+
+        self.logger().info(f"can_create_trend_reversal_order({side}) > There was a TP order within the last 12min")
+
+        if not self.did_rsi_recently_crash():
+            return False
+
+        self.logger().info(f"can_create_trend_reversal_order({side}) > rsi_did_recently_crash")
+
+        if not self.has_rsi_recovered_from_crash():
+            return False
+
+        self.logger().info(f"can_create_trend_reversal_order({side}) > rsi_has_recovered_from_crash")
+
+        return True
 
     #
     # Custom functions specific to this controller
     #
 
-    def is_rsi_in_range_for_sell_order(self) -> bool:
+    def is_rsi_in_range_for_trend_start_sell_order(self) -> bool:
         if self.get_recent_rsi_avg() > 70:
-            self.logger().info("is_rsi_in_range_for_sell_order: too risky as the price has been trending up for a while")
+            self.logger().info("is_rsi_in_range_for_trend_start_sell_order: too risky as the price has been trending up for a while")
             return False
 
         rsi_series: pd.Series = self.processed_data["RSI"]
@@ -190,9 +260,9 @@ class ArthurStrategy(PkStrategy):
 
         return rsi_latest_complete_candle > self.config.trend_start_sell_latest_complete_candle_min_rsi
 
-    def is_rsi_in_range_for_buy_order(self) -> bool:
+    def is_rsi_in_range_for_trend_start_buy_order(self) -> bool:
         if self.get_recent_rsi_avg() < 30:
-            self.logger().info("is_rsi_in_range_for_buy_order: too risky as the price has been trending down for a while")
+            self.logger().info("is_rsi_in_range_for_trend_start_buy_order: too risky as the price has been trending down for a while")
             return False
 
         rsi_series: pd.Series = self.processed_data["RSI"]
@@ -209,6 +279,42 @@ class ArthurStrategy(PkStrategy):
         rsi_7candles_before = Decimal(rsi_series.iloc[-8])
 
         return average(rsi_3candles_before, rsi_4candles_before, rsi_5candles_before, rsi_6candles_before, rsi_7candles_before)
+
+    def did_rsi_recently_jump(self) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI"]
+        recent_rsis = rsi_series.iloc[-8:-1]  # 7 items, last one excluded
+
+        # TODO: remove
+        self.logger().info(f"did_rsi_recently_jump() | max(recent_rsis):{max(recent_rsis)}")
+
+        return max(recent_rsis) > self.config.trend_reversal_sell_min_rsi
+
+    def did_rsi_recently_crash(self) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI"]
+        recent_rsis = rsi_series.iloc[-8:-1]  # 7 items, last one excluded
+
+        # TODO: remove
+        self.logger().info(f"did_rsi_recently_crash() | min(recent_rsis):{min(recent_rsis)}")
+
+        return min(recent_rsis) < self.config.trend_reversal_buy_max_rsi
+
+    def has_rsi_recovered_from_jump(self) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI"]
+        current_rsi = rsi_series.iloc[-1]
+
+        # TODO: remove
+        self.logger().info(f"has_rsi_recovered_from_jump() | current_rsi:{current_rsi}")
+
+        return current_rsi < 70
+
+    def has_rsi_recovered_from_crash(self) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI"]
+        current_rsi = rsi_series.iloc[-1]
+
+        # TODO: remove
+        self.logger().info(f"has_rsi_recovered_from_crash() | current_rsi:{current_rsi}")
+
+        return current_rsi > 30
 
     def is_recent_volume_enough(self) -> bool:
         volume_series: pd.Series = self.processed_data["volume"]
