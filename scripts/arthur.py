@@ -58,7 +58,7 @@ class ArthurStrategy(PkStrategy):
                 for trading_pair in self.market_data_provider.get_trading_pairs(connector_name):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
-    def get_triple_barrier_config(self, sl_tp_pct: Decimal) -> TripleBarrierConfig:
+    def get_triple_barrier_config(self, sl_tp_pct: Decimal, expiration_min: int) -> TripleBarrierConfig:
         # TODO: remove
         self.logger().info(f"get_triple_barrier_config() | sl_tp_pct:{sl_tp_pct}")
 
@@ -68,7 +68,7 @@ class ArthurStrategy(PkStrategy):
             open_order_type=OrderType.LIMIT,
             take_profit_order_type=OrderType.MARKET,  # TODO: LIMIT
             stop_loss_order_type=OrderType.MARKET,
-            time_limit=self.config.filled_order_expiration_min * 60
+            time_limit=expiration_min * 60
         )
 
     def update_processed_data(self):
@@ -105,27 +105,25 @@ class ArthurStrategy(PkStrategy):
         if self.can_create_trend_start_order(TradeType.SELL, active_sell_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
             sl_tp_pct: Decimal = self.compute_sl_and_tp_for_trend_start(TradeType.SELL)
-            triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct)
+            triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct, self.config.filled_trend_start_order_expiration_min)
             self.create_order(TradeType.SELL, entry_price, triple_barrier_config)
 
         if self.can_create_trend_start_order(TradeType.BUY, active_buy_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
             sl_tp_pct: Decimal = self.compute_sl_and_tp_for_trend_start(TradeType.BUY)
-            triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct)
+            triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct, self.config.filled_trend_start_order_expiration_min)
             self.create_order(TradeType.BUY, entry_price, triple_barrier_config)
 
         if self.can_create_trend_reversal_order(TradeType.SELL, active_sell_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
-            last_terminated_filled_order = self.find_last_terminated_filled_order(TradeType.BUY)
-            sl_tp_pct: Decimal = last_terminated_filled_order.triple_barrier_config.take_profit * 100  # TP/SL is the same as trend_start order
-            triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct)
+            sl_tp_pct: Decimal = self.compute_sl_and_tp_for_trend_reversal(TradeType.SELL)
+            triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct, self.config.filled_trend_reversal_order_expiration_min)
             self.create_order(TradeType.SELL, entry_price, triple_barrier_config)
 
         if self.can_create_trend_reversal_order(TradeType.BUY, active_buy_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
-            last_terminated_filled_order = self.find_last_terminated_filled_order(TradeType.SELL)
-            sl_tp_pct: Decimal = last_terminated_filled_order.triple_barrier_config.take_profit * 100
-            triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct)
+            sl_tp_pct: Decimal = self.compute_sl_and_tp_for_trend_reversal(TradeType.BUY)
+            triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct, self.config.filled_trend_reversal_order_expiration_min)
             self.create_order(TradeType.BUY, entry_price, triple_barrier_config)
 
         return []  # Always return []
@@ -362,3 +360,10 @@ class ArthurStrategy(PkStrategy):
     def compute_sl_and_tp_for_trend_start(self, side: TradeType) -> Decimal:
         delta_pct = self.compute_delta_pct(side)
         return delta_pct * Decimal(0.7)
+
+    def compute_sl_and_tp_for_trend_reversal(self, side: TradeType) -> Decimal:
+        opposite_side = TradeType.BUY if side == TradeType.SELL else TradeType.SELL
+        last_terminated_filled_order = self.find_last_terminated_filled_order(opposite_side)
+        trend_start_sl_tp_pct: Decimal = last_terminated_filled_order.triple_barrier_config.take_profit * 100
+
+        return trend_start_sl_tp_pct * Decimal(0.8)
