@@ -4,7 +4,7 @@ controllers_config: []
 config_update_interval: 10
 script_file_name: arthur_config.py
 connector_name: okx_perpetual
-trading_pair: POPCAT-USDT
+trading_pair: MOODENG-USDT
 total_amount_quote: 10
 leverage: 20
 cooldown_time_min: 10
@@ -13,8 +13,8 @@ limit_take_profit_price_delta_bps: 0
 position_mode: HEDGE
 filled_order_expiration_min: 8
 rsi_length: 20
-candles_connector: binance_perpetual
-candles_pair: POPCAT-USDT
+candles_connector: okx_perpetual
+candles_pair: MOODENG-USDT
 candles_interval: 1m
 candles_length: 40
 entry_price_delta_bps: 0

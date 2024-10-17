@@ -12,13 +12,18 @@ from hummingbot.strategy_v2.executors.position_executor.data_types import Triple
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 from scripts.pk.arthur_config import ArthurConfig
 from scripts.pk.pk_strategy import PkStrategy
-from scripts.pk.pk_utils import average, compute_recent_price_delta_pct
+from scripts.pk.pk_utils import average
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
 # Trend start and reversals, dependant on sudden price movements and RSI
 # Generate config file: create --script-config arthur
-# Start the bot: start --script arthur.py --conf conf_arthur_POPCAT.yml
+# Start the bot: start --script arthur.py --conf conf_arthur_DOGS.yml
+#                start --script arthur.py --conf conf_arthur_MOODENG.yml
+#                start --script arthur.py --conf conf_arthur_NEIRO.yml
+#                start --script arthur.py --conf conf_arthur_NEIROETH.yml
+#                start --script arthur.py --conf conf_arthur_POPCAT.yml
+#                start --script arthur.py --conf conf_arthur_WIF.yml
 # Quickstart script: -p=a -f arthur.py -c conf_arthur_POPCAT.yml
 
 
