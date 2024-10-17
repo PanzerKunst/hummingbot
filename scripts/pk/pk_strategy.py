@@ -338,7 +338,7 @@ class PkStrategy(StrategyV2Base):
                 continue
 
             if has_current_price_activated_trailing_stop(filled_order, current_price):
-                self.logger().info("has_current_price_activated_trailing_stop")
+                self.logger().info("current_price_has_activated_trailing_stop")
                 filled_order.trailing_stop_best_price = current_price
                 continue
 
