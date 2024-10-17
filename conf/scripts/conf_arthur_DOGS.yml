@@ -14,7 +14,7 @@ position_mode: HEDGE
 filled_trend_start_order_expiration_min: 3
 filled_trend_reversal_order_expiration_min: 10
 rsi_length: 20
-candles_connector: binance_perpetual
+candles_connector: binance
 candles_pair: DOGS-USDT
 candles_interval: 1m
 candles_length: 40

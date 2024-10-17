@@ -4,7 +4,7 @@ controllers_config: []
 config_update_interval: 10
 script_file_name: arthur_config.py
 connector_name: okx_perpetual
-trading_pair: WIF-USDT
+trading_pair: FLOKI-USDT
 total_amount_quote: 10
 leverage: 20
 cooldown_time_min: 10
@@ -15,7 +15,7 @@ filled_trend_start_order_expiration_min: 3
 filled_trend_reversal_order_expiration_min: 10
 rsi_length: 20
 candles_connector: binance
-candles_pair: WIF-USDT
+candles_pair: FLOKI-USDT
 candles_interval: 1m
 candles_length: 40
 entry_price_delta_bps: 0
