@@ -259,9 +259,9 @@ class ArthurStrategy(PkStrategy):
             return False
 
         rsi_series: pd.Series = self.processed_data["RSI"]
-        rsi_latest_complete_candle = Decimal(rsi_series.iloc[-2])
+        rsi_2candles_before = Decimal(rsi_series.iloc[-3])
 
-        return rsi_latest_complete_candle > self.config.trend_start_sell_latest_complete_candle_min_rsi
+        return rsi_2candles_before > self.config.trend_start_sell_latest_complete_candle_min_rsi
 
     def is_rsi_in_range_for_trend_start_buy_order(self) -> bool:
         if self.get_recent_rsi_avg() < 30:
@@ -269,9 +269,9 @@ class ArthurStrategy(PkStrategy):
             return False
 
         rsi_series: pd.Series = self.processed_data["RSI"]
-        rsi_latest_complete_candle = Decimal(rsi_series.iloc[-2])
+        rsi_2candles_before = Decimal(rsi_series.iloc[-3])
 
-        return rsi_latest_complete_candle < self.config.trend_start_buy_latest_complete_candle_max_rsi
+        return rsi_2candles_before < self.config.trend_start_buy_latest_complete_candle_max_rsi
 
     def get_recent_rsi_avg(self) -> Decimal:
         rsi_series: pd.Series = self.processed_data["RSI"]
@@ -323,13 +323,12 @@ class ArthurStrategy(PkStrategy):
         volume_series: pd.Series = self.processed_data["volume"]
         current_volume = volume_series.iloc[-1]
         volume_latest_complete_candle = volume_series.iloc[-2]
-        volume_1candle_before = volume_series.iloc[-3]
 
-        if current_volume < volume_latest_complete_candle or current_volume < volume_1candle_before:
+        if current_volume < volume_latest_complete_candle:
             return False
 
-        recent_volumes = [current_volume, volume_latest_complete_candle, volume_1candle_before]
-        older_volumes = volume_series.iloc[-10:-3]  # 7 items, last one excluded
+        recent_volumes = [current_volume, volume_latest_complete_candle]
+        older_volumes = volume_series.iloc[-9:-2]  # 7 items, last one excluded
 
         self.logger().info(f"is_recent_volume_enough() | sum(recent_volumes):{sum(recent_volumes)} | sum(older_volumes):{sum(older_volumes)}")
 
