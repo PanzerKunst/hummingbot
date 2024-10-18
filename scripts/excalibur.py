@@ -18,7 +18,8 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 # Trends via comparing 2 SMAs
 # Generate config file: create --script-config excalibur
-# Start the bot: start --script excalibur.py --conf conf_excalibur_POPCAT.yml
+# Start the bot: start --script excalibur.py --conf conf_excalibur_BOME.yml
+#                start --script excalibur.py --conf conf_excalibur_POPCAT.yml
 #                start --script excalibur.py --conf conf_excalibur_SOL.yml
 # Quickstart script: -p=a -f excalibur.py -c conf_excalibur_POPCAT.yml
 
