@@ -117,10 +117,10 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side()
 
         if len(filled_sell_orders) > 0:
-            did_long_sma_cross_under_short = self.did_long_sma_cross_under_short()
+            did_short_sma_cross_over_long = self.did_short_sma_cross_over_long()
 
-            if did_long_sma_cross_under_short:
-                self.logger().info("stop_actions_proposal() > Long SMA crossed under short")
+            if did_short_sma_cross_over_long:
+                self.logger().info("stop_actions_proposal() > Short SMA crossed over long")
 
                 for filled_order in filled_sell_orders:
                     self.close_filled_order(filled_order, OrderType.MARKET, CloseType.COMPLETED)
@@ -172,12 +172,12 @@ class ExcaliburStrategy(PkStrategy):
 
             return did_short_sma_cross_under_long
 
-        did_long_sma_cross_under_short = self.did_long_sma_cross_under_short()
+        did_short_sma_cross_over_long = self.did_short_sma_cross_over_long()
 
-        if did_long_sma_cross_under_short:
-            self.logger().info("can_create() > Long SMA crossed under short")
+        if did_short_sma_cross_over_long:
+            self.logger().info("can_create() > Short SMA crossed over long")
 
-        return did_long_sma_cross_under_short
+        return did_short_sma_cross_over_long
 
     #
     # Custom functions specific to this controller
@@ -195,7 +195,7 @@ class ExcaliburStrategy(PkStrategy):
     def did_short_sma_cross_under_long(self) -> bool:
         return not self._is_latest_short_sma_over_long() and self._is_previous_short_sma_over_long()
 
-    def did_long_sma_cross_under_short(self) -> bool:
+    def did_short_sma_cross_over_long(self) -> bool:
         return self._is_latest_short_sma_over_long() and not self._is_previous_short_sma_over_long()
 
     def _is_latest_short_sma_over_long(self) -> bool:
