@@ -11,7 +11,7 @@ cooldown_time_min: 0
 unfilled_order_expiration_min: 1
 limit_take_profit_price_delta_bps: 0
 position_mode: ONEWAY
-stop_loss_pct: 8
+stop_loss_pct: 4
 sma_short: 5
 sma_long: 20
 candles_connector: binance_perpetual
