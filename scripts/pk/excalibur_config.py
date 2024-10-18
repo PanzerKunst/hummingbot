@@ -20,7 +20,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     # Used by PkStrategy
     connector_name: str = "hyperliquid_perpetual"
-    trading_pair: str = "POPCAT-USDT"
+    trading_pair: str = "POPCAT-USD"
     total_amount_quote: int = Field(40, client_data=ClientFieldData(is_updatable=True))
     leverage: int = 5
     cooldown_time_min: int = Field(0, client_data=ClientFieldData(is_updatable=True))
@@ -37,7 +37,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     sma_long: int = Field(20, client_data=ClientFieldData(is_updatable=True))
 
     # Candles
-    candles_connector: str = "hyperliquid_perpetual"
+    candles_connector: str = "binance_perpetual"
     candles_pair: str = "POPCAT-USDT"
     candles_interval: str = "5m"
     candles_length: int = 40
