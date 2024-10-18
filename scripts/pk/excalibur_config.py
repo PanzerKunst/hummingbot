@@ -10,7 +10,7 @@ from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.strategy.strategy_v2_base import StrategyV2ConfigBase
 
 
-class ArthurConfig(StrategyV2ConfigBase):
+class ExcaliburConfig(StrategyV2ConfigBase):
     # Standard attributes - avoid renaming
     markets: Dict[str, Set[str]] = {}
     candles_config: List[CandlesConfig] = []  # Initialized in the constructor
@@ -19,33 +19,28 @@ class ArthurConfig(StrategyV2ConfigBase):
     script_file_name: str = Field(default_factory=lambda: os.path.basename(__file__))
 
     # Used by PkStrategy
-    connector_name: str = "okx_perpetual"
+    connector_name: str = "hyperliquid_perpetual"
     trading_pair: str = "POPCAT-USDT"
-    total_amount_quote: int = Field(10, client_data=ClientFieldData(is_updatable=True))
-    leverage: int = 20
-    cooldown_time_min: int = Field(10, client_data=ClientFieldData(is_updatable=True))
+    total_amount_quote: int = Field(40, client_data=ClientFieldData(is_updatable=True))
+    leverage: int = 5
+    cooldown_time_min: int = Field(0, client_data=ClientFieldData(is_updatable=True))
     unfilled_order_expiration_min: int = Field(1, client_data=ClientFieldData(is_updatable=True))
     limit_take_profit_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
 
-    position_mode: PositionMode = PositionMode.HEDGE
+    position_mode: PositionMode = PositionMode.ONEWAY
 
     # Triple Barrier
-    filled_trend_start_order_expiration_min: int = Field(3, client_data=ClientFieldData(is_updatable=True))
-    filled_trend_reversal_order_expiration_min: int = Field(10, client_data=ClientFieldData(is_updatable=True))
+    stop_loss_pct: Decimal = Field(8, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
-    rsi_length: int = Field(20, client_data=ClientFieldData(is_updatable=True))
+    sma_short: int = Field(5, client_data=ClientFieldData(is_updatable=True))
+    sma_long: int = Field(20, client_data=ClientFieldData(is_updatable=True))
 
     # Candles
-    candles_connector: str = "binance_perpetual"
+    candles_connector: str = "hyperliquid_perpetual"
     candles_pair: str = "POPCAT-USDT"
-    candles_interval: str = "1m"
+    candles_interval: str = "5m"
     candles_length: int = 40
 
     # Order settings
     entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
-    trend_start_price_change_threshold_pct: Decimal = Field(0.9, client_data=ClientFieldData(is_updatable=True))
-    trend_start_sell_latest_complete_candle_min_rsi: int = Field(40, client_data=ClientFieldData(is_updatable=True))
-    trend_start_buy_latest_complete_candle_max_rsi: int = Field(60, client_data=ClientFieldData(is_updatable=True))
-    trend_reversal_sell_min_rsi: int = Field(75, client_data=ClientFieldData(is_updatable=True))
-    trend_reversal_buy_max_rsi: int = Field(25, client_data=ClientFieldData(is_updatable=True))
