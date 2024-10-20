@@ -29,7 +29,6 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 #                start --script arthur.py --conf conf_arthur_PEOPLE.yml
 #                start --script arthur.py --conf conf_arthur_POPCAT.yml
 #                start --script arthur.py --conf conf_arthur_TURBO.yml
-#                start --script arthur.py --conf conf_arthur_WIF.yml
 # Quickstart script: -p=a -f arthur.py -c conf_arthur_POPCAT.yml
 
 
@@ -192,6 +191,9 @@ class ArthurStrategy(PkStrategy):
 
         if len(active_tracked_orders) > 0:
             return False
+
+        # TODO: temporarily disabled
+        return False
 
         if side == TradeType.SELL:
             # During the last 7min, RSI exceeded TH
