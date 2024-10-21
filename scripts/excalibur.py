@@ -96,12 +96,22 @@ class ExcaliburStrategy(PkStrategy):
         active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side()
         active_orders = active_sell_orders + active_buy_orders
 
-        if self.can_create(TradeType.SELL, active_orders):
+        if self.can_create_sma_cross_order(TradeType.SELL, active_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
             triple_barrier_config = self.get_triple_barrier_config()
             self.create_order(TradeType.SELL, entry_price, triple_barrier_config)
 
-        if self.can_create(TradeType.BUY, active_orders):
+        if self.can_create_sma_cross_order(TradeType.BUY, active_orders):
+            entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
+            triple_barrier_config = self.get_triple_barrier_config()
+            self.create_order(TradeType.BUY, entry_price, triple_barrier_config)
+
+        if self.can_recreate_order_after_tp(TradeType.SELL, active_orders):
+            entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
+            triple_barrier_config = self.get_triple_barrier_config()
+            self.create_order(TradeType.SELL, entry_price, triple_barrier_config)
+
+        if self.can_recreate_order_after_tp(TradeType.BUY, active_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
             triple_barrier_config = self.get_triple_barrier_config()
             self.create_order(TradeType.BUY, entry_price, triple_barrier_config)
@@ -118,25 +128,43 @@ class ExcaliburStrategy(PkStrategy):
 
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side()
 
-        if len(filled_sell_orders) > 0:
-            did_rsi_crash_and_recover = self.did_rsi_crash_and_recover()
+        if len(filled_sell_orders) == 1:
+            filled_order = filled_sell_orders[0]
 
-            did_short_sma_cross_over_long = self.did_short_sma_cross_over_long()
-
-            if did_short_sma_cross_over_long:
+            if self.did_short_sma_cross_over_long():
                 self.logger().info("stop_actions_proposal() > Short SMA crossed over long")
+                self.close_filled_order(filled_order, OrderType.MARKET, CloseType.COMPLETED)
 
-                for filled_order in filled_sell_orders:
-                    self.close_filled_order(filled_order, OrderType.MARKET, CloseType.COMPLETED)
+            else:
+                has_position_been_open_long_enough = self.has_position_been_open_long_enough(filled_order)
+                did_rsi_crash_and_recover = self.did_rsi_crash_and_recover()
 
-        if len(filled_buy_orders) > 0:
-            did_short_sma_cross_under_long = self.did_short_sma_cross_under_long()
+                if has_position_been_open_long_enough:
+                    self.logger().info(f"stop_actions_proposal(SELL) > position_has_been_open_long_enough")
+                if did_rsi_crash_and_recover:
+                    self.logger().info(f"stop_actions_proposal(SELL) > rsi_did_crash_and_recover")
 
-            if did_short_sma_cross_under_long:
+                if has_position_been_open_long_enough and did_rsi_crash_and_recover:
+                    self.close_filled_order(filled_order, OrderType.MARKET, CloseType.TAKE_PROFIT)
+
+        if len(filled_buy_orders) == 1:
+            filled_order = filled_sell_orders[0]
+
+            if self.did_short_sma_cross_under_long():
                 self.logger().info("stop_actions_proposal() > Short SMA crossed under long")
+                self.close_filled_order(filled_order, OrderType.MARKET, CloseType.COMPLETED)
 
-                for filled_order in filled_buy_orders:
-                    self.close_filled_order(filled_order, OrderType.MARKET, CloseType.COMPLETED)
+            else:
+                has_position_been_open_long_enough = self.has_position_been_open_long_enough(filled_order)
+                did_rsi_spike_and_recover = self.did_rsi_spike_and_recover()
+
+                if has_position_been_open_long_enough:
+                    self.logger().info(f"stop_actions_proposal(BUY) > position_has_been_open_long_enough")
+                if did_rsi_spike_and_recover:
+                    self.logger().info(f"stop_actions_proposal(BUY) > rsi_did_spike_and_recover")
+
+                if has_position_been_open_long_enough and did_rsi_spike_and_recover:
+                    self.close_filled_order(filled_order, OrderType.MARKET, CloseType.TAKE_PROFIT)
 
         return []  # Always return []
 
@@ -162,7 +190,7 @@ class ExcaliburStrategy(PkStrategy):
     # Custom functions potentially interesting for other controllers
     #
 
-    def can_create(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
+    def can_create_sma_cross_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
         if not self.can_create_order(side):
             return False
 
@@ -173,16 +201,41 @@ class ExcaliburStrategy(PkStrategy):
             did_short_sma_cross_under_long = self.did_short_sma_cross_under_long()
 
             if did_short_sma_cross_under_long:
-                self.logger().info("can_create() > Short SMA crossed under long")
+                self.logger().info("can_create_sma_cross_order() > Short SMA crossed under long")
 
             return did_short_sma_cross_under_long
 
         did_short_sma_cross_over_long = self.did_short_sma_cross_over_long()
 
         if did_short_sma_cross_over_long:
-            self.logger().info("can_create() > Short SMA crossed over long")
+            self.logger().info("can_create_sma_cross_order() > Short SMA crossed over long")
 
         return did_short_sma_cross_over_long
+
+    def can_recreate_order_after_tp(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]):
+        if not self.can_create_order(side):
+            return False
+
+        if len(active_tracked_orders) > 0:
+            return False
+
+        last_terminated_filled_order = self.find_last_terminated_filled_order(side)
+
+        # If the last completed order on this side was a TP
+        if not last_terminated_filled_order or last_terminated_filled_order.close_type != CloseType.TAKE_PROFIT:
+            return False
+
+        self.logger().info(f"can_recreate_order_after_tp({side}) > last_terminated_filled_order is TP")
+
+        if side == TradeType.SELL:
+            # TODO: remove
+            is_short_sma_under_long = not self.is_latest_short_sma_over_long
+            if is_short_sma_under_long:
+                self.logger().info(f"can_recreate_order_after_tp({side}) > short_sma_is_under_long")
+
+            return not self.is_latest_short_sma_over_long and self.did_rsi_go_back_down_to_50()
+
+        return self.is_latest_short_sma_over_long and self.did_rsi_go_back_up_to_50()
 
     #
     # Custom functions specific to this controller
@@ -198,16 +251,16 @@ class ExcaliburStrategy(PkStrategy):
         return self.processed_data[f"SMA_{short_or_long}"].iloc[index]
 
     def did_short_sma_cross_under_long(self) -> bool:
-        return not self._is_latest_short_sma_over_long() and self._is_previous_short_sma_over_long()
+        return not self.is_latest_short_sma_over_long() and self.is_previous_short_sma_over_long()
 
     def did_short_sma_cross_over_long(self) -> bool:
-        return self._is_latest_short_sma_over_long() and not self._is_previous_short_sma_over_long()
+        return self.is_latest_short_sma_over_long() and not self.is_previous_short_sma_over_long()
 
-    def _is_latest_short_sma_over_long(self) -> bool:
+    def is_latest_short_sma_over_long(self) -> bool:
         latest_short_minus_long: float = self.get_latest_sma("short") - self.get_latest_sma("long")
         return latest_short_minus_long > 0
 
-    def _is_previous_short_sma_over_long(self) -> bool:
+    def is_previous_short_sma_over_long(self) -> bool:
         previous_short_minus_long: float = self.get_previous_sma("short") - self.get_previous_sma("long")
         return previous_short_minus_long > 0
 
@@ -218,9 +271,34 @@ class ExcaliburStrategy(PkStrategy):
 
         return older_rsis.min() < self.config.take_profit_sell_rsi_threshold and current_rsi > 30
 
-    def did_rsi_spike_and_recover(self):
+    def has_position_been_open_long_enough(self, tracked_order: TrackedOrderDetails) -> bool:
+        return tracked_order.last_filled_at + self.config.filled_position_min_duration_min * 60 < self.market_data_provider.time()
+
+    def did_rsi_spike_and_recover(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI"]
         current_rsi = Decimal(rsi_series.iloc[-1])
         older_rsis = rsi_series.iloc[-13:-1]
 
         return older_rsis.max() > self.config.take_profit_buy_rsi_threshold and current_rsi < 70
+
+    def did_rsi_go_back_down_to_50(self) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI"]
+        current_rsi = Decimal(rsi_series.iloc[-1])
+        older_rsis = rsi_series.iloc[-13:-1]
+
+        # TODO: remove
+        result: bool = older_rsis.max() > 55 and current_rsi < 50
+        self.logger().info(f"did_rsi_go_back_down_to_50: {result}")
+
+        return older_rsis.max() > 55 and current_rsi < 50
+
+    def did_rsi_go_back_up_to_50(self) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI"]
+        current_rsi = Decimal(rsi_series.iloc[-1])
+        older_rsis = rsi_series.iloc[-13:-1]
+
+        # TODO: remove
+        result: bool = older_rsis.min() < 45 and current_rsi < 50
+        self.logger().info(f"did_rsi_go_back_up_to_50: {result}")
+
+        return older_rsis.min() < 45 and current_rsi < 50
