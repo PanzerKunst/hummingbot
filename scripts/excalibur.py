@@ -184,10 +184,10 @@ class ExcaliburStrategy(PkStrategy):
     #
 
     def get_latest_sma(self, short_or_long: str) -> float:
-        return self._get_sma_at_index(short_or_long, -2)
+        return self._get_sma_at_index(short_or_long, -1)
 
     def get_previous_sma(self, short_or_long: str) -> float:
-        return self._get_sma_at_index(short_or_long, -3)
+        return self._get_sma_at_index(short_or_long, -2)
 
     def _get_sma_at_index(self, short_or_long: str, index: int) -> float:
         return self.processed_data[f"SMA_{short_or_long}"].iloc[index]
