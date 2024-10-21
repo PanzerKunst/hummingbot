@@ -271,11 +271,15 @@ class ArthurStrategy(PkStrategy):
         rsi_series: pd.Series = self.processed_data["RSI"]
         recent_rsis = rsi_series.iloc[-8:-1]  # 7 items, last one excluded
 
+        self.logger().info(f"did_rsi_recently_jump() | max(recent_rsis):{max(recent_rsis)}")
+
         return max(recent_rsis) > self.config.trend_reversal_sell_min_rsi
 
     def did_rsi_recently_crash(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI"]
         recent_rsis = rsi_series.iloc[-8:-1]  # 7 items, last one excluded
+
+        self.logger().info(f"did_rsi_recently_crash() | min(recent_rsis):{min(recent_rsis)}")
 
         return min(recent_rsis) < self.config.trend_reversal_buy_max_rsi
 
