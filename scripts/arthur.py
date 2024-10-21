@@ -10,7 +10,6 @@ from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.strategy_v2.executors.position_executor.data_types import TripleBarrierConfig
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
-from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.pk.arthur_config import ArthurConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_utils import average
@@ -192,10 +191,15 @@ class ArthurStrategy(PkStrategy):
         if len(active_tracked_orders) > 0:
             return False
 
-        # TODO: temporarily disabled
-        return False
-
         if side == TradeType.SELL:
+            # During the last 12min, there was a completed trend_start trade with TP on the opposite side
+            last_terminated_filled_order = self.find_last_terminated_filled_order(TradeType.BUY)
+
+            if not last_terminated_filled_order or last_terminated_filled_order.terminated_at + 12 * 60 < self.market_data_provider.time():
+                return False
+
+            self.logger().info(f"can_create_trend_reversal_order({side}) > There was an order within the last 12min")
+
             # During the last 7min, RSI exceeded TH
             if not self.did_rsi_recently_jump():
                 return False
@@ -209,6 +213,13 @@ class ArthurStrategy(PkStrategy):
             self.logger().info(f"can_create_trend_reversal_order({side}) > rsi_has_recovered_from_jump")
 
             return True
+
+        last_terminated_filled_order = self.find_last_terminated_filled_order(TradeType.SELL)
+
+        if not last_terminated_filled_order or last_terminated_filled_order.terminated_at + 12 * 60 < self.market_data_provider.time():
+            return False
+
+        self.logger().info(f"can_create_trend_reversal_order({side}) > There was an order within the last 12min")
 
         if not self.did_rsi_recently_crash():
             return False
