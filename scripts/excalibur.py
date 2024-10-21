@@ -78,6 +78,8 @@ class ExcaliburStrategy(PkStrategy):
 
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
 
+        candles_df["RSI"] = candles_df.ta.rsi(length=self.config.rsi_length)
+
         candles_df["SMA_short"] = candles_df.ta.sma(length=self.config.sma_short)
         candles_df["SMA_long"] = candles_df.ta.sma(length=self.config.sma_long)
 
@@ -117,6 +119,8 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side()
 
         if len(filled_sell_orders) > 0:
+            did_rsi_crash_and_recover = self.did_rsi_crash_and_recover()
+
             did_short_sma_cross_over_long = self.did_short_sma_cross_over_long()
 
             if did_short_sma_cross_over_long:
@@ -145,6 +149,7 @@ class ExcaliburStrategy(PkStrategy):
                 columns_to_display = [
                     "timestamp_iso",
                     "close",
+                    "RSI",
                     "SMA_short",
                     "SMA_long"
                 ]
@@ -205,3 +210,17 @@ class ExcaliburStrategy(PkStrategy):
     def _is_previous_short_sma_over_long(self) -> bool:
         previous_short_minus_long: float = self.get_previous_sma("short") - self.get_previous_sma("long")
         return previous_short_minus_long > 0
+
+    def did_rsi_crash_and_recover(self):
+        rsi_series: pd.Series = self.processed_data["RSI"]
+        current_rsi = Decimal(rsi_series.iloc[-1])
+        older_rsis = rsi_series.iloc[-13:-1]  # 12 items, last one excluded
+
+        return older_rsis.min() < self.config.take_profit_sell_rsi_threshold and current_rsi > 30
+
+    def did_rsi_spike_and_recover(self):
+        rsi_series: pd.Series = self.processed_data["RSI"]
+        current_rsi = Decimal(rsi_series.iloc[-1])
+        older_rsis = rsi_series.iloc[-13:-1]
+
+        return older_rsis.max() > self.config.take_profit_buy_rsi_threshold and current_rsi < 70

@@ -30,9 +30,10 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     position_mode: PositionMode = PositionMode.ONEWAY
 
     # Triple Barrier
-    stop_loss_pct: Decimal = Field(0.6, client_data=ClientFieldData(is_updatable=True))
+    stop_loss_pct: Decimal = Field(1.2, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
+    rsi_length: int = Field(20, client_data=ClientFieldData(is_updatable=True))
     sma_short: int = Field(5, client_data=ClientFieldData(is_updatable=True))
     sma_long: int = Field(20, client_data=ClientFieldData(is_updatable=True))
 
@@ -44,3 +45,5 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     # Order settings
     entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
+    take_profit_sell_rsi_threshold: int = Field(25, client_data=ClientFieldData(is_updatable=True))
+    take_profit_buy_rsi_threshold: int = Field(75, client_data=ClientFieldData(is_updatable=True))
