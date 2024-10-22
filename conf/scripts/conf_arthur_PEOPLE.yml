@@ -19,7 +19,7 @@ candles_pair: PEOPLE-USDT
 candles_interval: 1m
 candles_length: 40
 entry_price_delta_bps: 0
-trend_start_price_change_threshold_pct: 0.5
+trend_start_price_change_threshold_pct: 0.9
 trend_start_sell_latest_complete_candle_min_rsi: 40
 trend_start_buy_latest_complete_candle_max_rsi: 60
 trend_start_volume_mul: 6
