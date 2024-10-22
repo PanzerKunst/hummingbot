@@ -148,7 +148,7 @@ class ExcaliburStrategy(PkStrategy):
                     self.close_filled_order(filled_order, OrderType.MARKET, CloseType.TAKE_PROFIT)
 
         if len(filled_buy_orders) == 1:
-            filled_order = filled_sell_orders[0]
+            filled_order = filled_buy_orders[0]
 
             if self.did_short_sma_cross_under_long():
                 self.logger().info("stop_actions_proposal() > Short SMA crossed under long")
