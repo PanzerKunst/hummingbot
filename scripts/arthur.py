@@ -49,6 +49,9 @@ class ArthurStrategy(PkStrategy):
 
         self.processed_data = pd.DataFrame()
 
+        self.latest_price_crash_timestamp: float = 0
+        self.latest_price_spike_timestamp: float = 0
+
     def start(self, clock: Clock, timestamp: float) -> None:
         self._last_timestamp = timestamp
         self.apply_initial_setting()
@@ -176,10 +179,12 @@ class ArthurStrategy(PkStrategy):
         self.logger().info(f"delta_pct above threshold: {delta_pct}")
 
         if side == TradeType.SELL:
+            self.latest_price_crash_timestamp = self.market_data_provider.time()
             is_rsi_in_range = self.is_rsi_in_range_for_trend_start_sell_order()
             self.logger().info(f"is_rsi_in_range: {is_rsi_in_range}")
             return is_rsi_in_range
 
+        self.latest_price_spike_timestamp = self.market_data_provider.time()
         is_rsi_in_range = self.is_rsi_in_range_for_trend_start_buy_order()
         self.logger().info(f"is_rsi_in_range: {is_rsi_in_range}")
         return is_rsi_in_range
@@ -192,13 +197,11 @@ class ArthurStrategy(PkStrategy):
             return False
 
         if side == TradeType.SELL:
-            # During the last 12min, there was a completed trend_start trade with TP on the opposite side
-            last_terminated_filled_order = self.find_last_terminated_filled_order(TradeType.BUY)
-
-            if not last_terminated_filled_order or last_terminated_filled_order.terminated_at + 12 * 60 < self.market_data_provider.time():
+            # During the last 12min, there was a price spike
+            if self.latest_price_spike_timestamp + 12 * 60 < self.market_data_provider.time():
                 return False
 
-            self.logger().info(f"can_create_trend_reversal_order({side}) > There was an order within the last 12min")
+            self.logger().info(f"can_create_trend_reversal_order({side}) > There was a price spike within the last 12min")
 
             # During the last 7min, RSI exceeded TH
             if not self.did_rsi_recently_jump():
@@ -214,12 +217,10 @@ class ArthurStrategy(PkStrategy):
 
             return True
 
-        last_terminated_filled_order = self.find_last_terminated_filled_order(TradeType.SELL)
-
-        if not last_terminated_filled_order or last_terminated_filled_order.terminated_at + 12 * 60 < self.market_data_provider.time():
+        if self.latest_price_crash_timestamp + 12 * 60 < self.market_data_provider.time():
             return False
 
-        self.logger().info(f"can_create_trend_reversal_order({side}) > There was an order within the last 12min")
+        self.logger().info(f"can_create_trend_reversal_order({side}) > There was a price crash within the last 12min")
 
         if not self.did_rsi_recently_crash():
             return False
