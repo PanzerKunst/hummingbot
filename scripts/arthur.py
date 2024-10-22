@@ -20,6 +20,7 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 # Generate config file: create --script-config arthur
 # Start the bot: start --script arthur.py --conf conf_arthur_BOME.yml
 #                start --script arthur.py --conf conf_arthur_BONK.yml
+#                start --script arthur.py --conf conf_arthur_CAT.yml
 #                start --script arthur.py --conf conf_arthur_DOGS.yml
 #                start --script arthur.py --conf conf_arthur_FLOKI.yml
 #                start --script arthur.py --conf conf_arthur_MOODENG.yml
@@ -68,8 +69,6 @@ class ArthurStrategy(PkStrategy):
     def get_triple_barrier_config(expiration: int, open_order_type: OrderType) -> TripleBarrierConfig:
         return TripleBarrierConfig(
             open_order_type=open_order_type,
-            take_profit_order_type=OrderType.MARKET,  # TODO: LIMIT
-            stop_loss_order_type=OrderType.MARKET,
             time_limit=expiration
         )
 
