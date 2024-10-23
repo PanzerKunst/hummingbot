@@ -349,7 +349,7 @@ class ArthurStrategy(PkStrategy):
         older_volumes = volume_series.iloc[-9:-2]  # 7 items, last one excluded
 
         # TODO: remove
-        self.logger().info(f"is_recent_volume_enough() > sum(recent_volumes):{sum(recent_volumes)} | sum(older_volumes):{sum(older_volumes)}")
+        self.logger().info(f"is_recent_volume_enough() > sum(recent_volumes):{sum(recent_volumes)} | sum(older_volumes):{sum(older_volumes)} | mul:{self.config.trend_start_volume_mul}")
 
         return sum(recent_volumes) > sum(older_volumes) * self.config.trend_start_volume_mul
 
