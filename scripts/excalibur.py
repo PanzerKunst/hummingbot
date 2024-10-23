@@ -34,6 +34,9 @@ class ExcaliburStrategy(PkStrategy):
 
         self.processed_data = pd.DataFrame()
 
+        self.is_ready_to_sell = False
+        self.is_ready_to_buy = False
+
     def start(self, clock: Clock, timestamp: float) -> None:
         self._last_timestamp = timestamp
         self.apply_initial_setting()
@@ -80,6 +83,8 @@ class ExcaliburStrategy(PkStrategy):
 
         candles_df["SMA_short"] = candles_df.ta.sma(length=self.config.sma_short)
         candles_df["SMA_long"] = candles_df.ta.sma(length=self.config.sma_long)
+
+        candles_df["RSI_for_open"] = candles_df.ta.rsi(length=self.config.rsi_length_for_open_order)
 
         self.processed_data = candles_df
 
@@ -171,7 +176,8 @@ class ExcaliburStrategy(PkStrategy):
                     "close",
                     "RSI",
                     "SMA_short",
-                    "SMA_long"
+                    "SMA_long",
+                    "RSI_for_open"
                 ]
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display].tail(20), table_format="psql"))
@@ -190,19 +196,25 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         if side == TradeType.SELL:
-            did_short_sma_cross_under_long = self.did_short_sma_cross_under_long()
+            if self.is_ready_to_sell and self.is_short_rsi_good_for_sell():
+                self.is_ready_to_sell = False
+                return True
 
-            if did_short_sma_cross_under_long:
+            if self.did_short_sma_cross_under_long():
                 self.logger().info("can_create_sma_cross_order() > Short SMA crossed under long")
+                self.is_ready_to_sell = True
 
-            return did_short_sma_cross_under_long
+            return False
 
-        did_short_sma_cross_over_long = self.did_short_sma_cross_over_long()
+        if self.is_ready_to_buy and self.is_short_rsi_good_for_buy():
+            self.is_ready_to_buy = False
+            return True
 
-        if did_short_sma_cross_over_long:
+        if self.did_short_sma_cross_over_long():
             self.logger().info("can_create_sma_cross_order() > Short SMA crossed over long")
+            self.is_ready_to_buy = True
 
-        return did_short_sma_cross_over_long
+        return False
 
     def can_recreate_order_after_tp(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]):
         if not self.can_create_order(side):
@@ -265,24 +277,20 @@ class ExcaliburStrategy(PkStrategy):
 
         return older_rsis.max() > self.config.take_profit_buy_rsi_threshold and current_rsi < 70
 
-    def did_rsi_go_back_down_to_50(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI"]
+    def is_short_rsi_good_for_sell(self) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI_for_open"]
         current_rsi = Decimal(rsi_series.iloc[-1])
-        older_rsis = rsi_series.iloc[-13:-1]
 
         # TODO: remove
-        result: bool = older_rsis.max() > 55 and current_rsi < 50
-        self.logger().info(f"did_rsi_go_back_down_to_50: {result}")
+        self.logger().info(f"is_short_rsi_good_for_sell: {current_rsi}")
 
-        return older_rsis.max() > 55 and current_rsi < 50
+        return current_rsi > self.config.min_rsi_to_open_sell_order
 
-    def did_rsi_go_back_up_to_50(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI"]
+    def is_short_rsi_good_for_buy(self) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI_for_open"]
         current_rsi = Decimal(rsi_series.iloc[-1])
-        older_rsis = rsi_series.iloc[-13:-1]
 
         # TODO: remove
-        result: bool = older_rsis.min() < 45 and current_rsi < 50
-        self.logger().info(f"did_rsi_go_back_up_to_50: {result}")
+        self.logger().info(f"is_short_rsi_good_for_buy: {current_rsi}")
 
-        return older_rsis.min() < 45 and current_rsi < 50
+        return current_rsi < self.config.max_rsi_to_open_buy_order

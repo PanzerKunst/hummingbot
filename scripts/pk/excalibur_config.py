@@ -18,7 +18,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
         CandlesConfig(
             connector="binance_perpetual",
             interval="5m",
-            max_records=40,
+            max_records=90,
             trading_pair = "POPCAT-USDT"
         )
     ]
@@ -48,9 +48,12 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     rsi_length: int = Field(20, client_data=ClientFieldData(is_updatable=True))
     sma_short: int = Field(20, client_data=ClientFieldData(is_updatable=True))
     sma_long: int = Field(80, client_data=ClientFieldData(is_updatable=True))
+    rsi_length_for_open_order: int = Field(5, client_data=ClientFieldData(is_updatable=True))
 
     # Order settings
     entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
     take_profit_sell_rsi_threshold: int = Field(27, client_data=ClientFieldData(is_updatable=True))
     take_profit_buy_rsi_threshold: int = Field(73, client_data=ClientFieldData(is_updatable=True))
     filled_position_min_duration_min: int = Field(20, client_data=ClientFieldData(is_updatable=True))
+    min_rsi_to_open_sell_order: int = Field(60, client_data=ClientFieldData(is_updatable=True))
+    max_rsi_to_open_buy_order: int = Field(40, client_data=ClientFieldData(is_updatable=True))
