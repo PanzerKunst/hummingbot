@@ -40,14 +40,6 @@ class ArthurStrategy(PkStrategy):
     def __init__(self, connectors: Dict[str, ConnectorBase], config: ArthurConfig):
         super().__init__(connectors, config)
 
-        if len(config.candles_config) == 0:
-            config.candles_config.append(CandlesConfig(
-                connector=config.candles_connector,
-                trading_pair=config.candles_pair,
-                interval=config.candles_interval,
-                max_records=config.candles_length
-            ))
-
         self.processed_data = pd.DataFrame()
 
         self.latest_price_crash_timestamp: float = 0
@@ -73,25 +65,38 @@ class ArthurStrategy(PkStrategy):
         )
 
     def update_processed_data(self):
-        candles_config = self.config.candles_config[0]
+        connectors = [config.connector for config in self.config.candles_config]
+        candles_dataframes: List[pd.DataFrame] = []
 
-        candles_df = self.market_data_provider.get_candles_df(connector_name=candles_config.connector,
-                                                              trading_pair=candles_config.trading_pair,
-                                                              interval=candles_config.interval,
-                                                              max_records=candles_config.max_records)
-        num_rows = candles_df.shape[0]
+        for i, connector in enumerate(connectors):
+            candles_config = self.config.candles_config[i]
+
+            candles_df = self.market_data_provider.get_candles_df(connector_name=candles_config.connector,
+                                                                  trading_pair=candles_config.trading_pair,
+                                                                  interval=candles_config.interval,
+                                                                  max_records=candles_config.max_records)
+            num_rows = candles_df.shape[0]
+
+            if num_rows == 0:
+                continue
+
+            candles_df["index"] = candles_df["timestamp"]
+            candles_df.set_index("index", inplace=True)
+
+            candles_df["RSI"] = candles_df.ta.rsi(length=self.config.rsi_length)
+
+            candles_dataframes.append(candles_df)
+
+        merged_df = self.merge_dataframes(candles_dataframes, connectors, ["open", "close", "high", "low", "volume", "RSI"])
+
+        merged_df["timestamp_iso"] = pd.to_datetime(merged_df["timestamp"], unit="s")
+
+        num_rows = merged_df.shape[0]
 
         if num_rows == 0:
             return
 
-        candles_df["index"] = candles_df["timestamp"]
-        candles_df.set_index("index", inplace=True)
-
-        candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
-
-        candles_df["RSI"] = candles_df.ta.rsi(length=self.config.rsi_length)
-
-        self.processed_data = candles_df
+        self.processed_data = merged_df
 
     def create_actions_proposal(self) -> List[CreateExecutorAction]:
         self.update_processed_data()
@@ -236,6 +241,37 @@ class ArthurStrategy(PkStrategy):
     #
     # Custom functions specific to this controller
     #
+
+    def merge_dataframes(self, dataframes: List[pd.DataFrame], suffixes: List[str], columns_to_avg: List[str]) -> pd.DataFrame:
+        if len(dataframes) != len(suffixes):
+            raise ValueError("The number of dataframes must match the number of suffixes")
+
+        # Start by merging the first two DataFrames
+        merged_df = pd.merge(
+            dataframes[0],
+            dataframes[1],
+            on="timestamp",
+            suffixes=(f"_{suffixes[0]}", f"_{suffixes[1]}")
+        )
+
+        # Merge any additional DataFrames
+        for i in range(2, len(dataframes)):
+            df_with_suffix = self._add_suffix(dataframes[i], suffixes[i])
+            merged_df = pd.merge(merged_df, df_with_suffix, on="timestamp")
+
+        for col in columns_to_avg:
+            columns_to_avg_list = [f"{col}_{suffix}" for suffix in suffixes]
+            merged_df[col] = merged_df[columns_to_avg_list].mean(axis=1)
+
+        # Drop the original columns after averaging
+        columns_to_drop = [f"{col}_{suffix}" for col in columns_to_avg for suffix in suffixes]
+        merged_df = merged_df.drop(columns=columns_to_drop)
+
+        return merged_df
+
+    @staticmethod
+    def _add_suffix(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
+        return df.rename(columns={col: f"{col}_{suffix}" for col in df.columns if col != "timestamp"})
 
     def is_rsi_in_range_for_trend_start_sell_order(self) -> bool:
         if self.get_recent_rsi_avg() > 70:

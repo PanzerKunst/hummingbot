@@ -96,8 +96,8 @@ class PerpetualDerivativePyBase(ExchangePyBase, ABC):
         await super().start_network()
         self._perpetual_trading.start()
         self._funding_info_listener_task = safe_ensure_future(self._listen_for_funding_info())
-        if self.is_trading_required:
-            self._funding_fee_polling_task = safe_ensure_future(self._funding_payment_polling_loop())
+        # if self.is_trading_required:
+        #     self._funding_fee_polling_task = safe_ensure_future(self._funding_payment_polling_loop())
 
     def set_position_mode(self, mode: PositionMode):
         """

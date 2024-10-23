@@ -11,12 +11,34 @@ from hummingbot.strategy.strategy_v2_base import StrategyV2ConfigBase
 
 
 class ArthurConfig(StrategyV2ConfigBase):
-    # Standard attributes - avoid renaming
+    # Standard attributes START - avoid renaming
     markets: Dict[str, Set[str]] = {}
-    candles_config: List[CandlesConfig] = []  # Initialized in the constructor
+
+    candles_config: List[CandlesConfig] = [
+        CandlesConfig(
+            connector="binance_perpetual",
+            interval="1m",
+            max_records=40,
+            trading_pair = "POPCAT-USDT"
+        ),
+        CandlesConfig(
+            connector="bybit_perpetual",
+            interval="1m",
+            max_records=40,
+            trading_pair = "POPCAT-USDT"
+        ),
+        CandlesConfig(
+            connector="okx_perpetual",
+            interval="1m",
+            max_records=40,
+            trading_pair="POPCAT-USDT"
+        )
+    ]
+
     controllers_config: List[str] = []
     config_update_interval: int = Field(10, client_data=ClientFieldData(is_updatable=True))
     script_file_name: str = Field(default_factory=lambda: os.path.basename(__file__))
+    # Standard attributes END
 
     # Used by PkStrategy
     connector_name: str = "okx_perpetual"
@@ -35,12 +57,6 @@ class ArthurConfig(StrategyV2ConfigBase):
 
     # Technical analysis
     rsi_length: int = Field(20, client_data=ClientFieldData(is_updatable=True))
-
-    # Candles
-    candles_connector: str = "binance_perpetual"
-    candles_pair: str = "POPCAT-USDT"
-    candles_interval: str = "1m"
-    candles_length: int = 40
 
     # Order settings
     entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))

@@ -1,5 +1,9 @@
 markets: {}
-candles_config: []
+candles_config:
+- connector: binance_perpetual
+  interval: 1m
+  max_records: 40
+  trading_pair: NEIROETH-USDT
 controllers_config: []
 config_update_interval: 10
 script_file_name: arthur_config.py
@@ -14,10 +18,6 @@ position_mode: HEDGE
 filled_trend_start_order_expiration: 45
 filled_trend_reversal_order_expiration: 600
 rsi_length: 20
-candles_connector: binance_perpetual
-candles_pair: NEIROETH-USDT
-candles_interval: 1m
-candles_length: 40
 entry_price_delta_bps: 0
 trend_start_price_change_threshold_pct: 0.9
 trend_start_sell_latest_complete_candle_min_rsi: 40
