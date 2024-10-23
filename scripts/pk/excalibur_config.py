@@ -11,12 +11,22 @@ from hummingbot.strategy.strategy_v2_base import StrategyV2ConfigBase
 
 
 class ExcaliburConfig(StrategyV2ConfigBase):
-    # Standard attributes - avoid renaming
+    # Standard attributes START - avoid renaming
     markets: Dict[str, Set[str]] = {}
-    candles_config: List[CandlesConfig] = []  # Initialized in the constructor
+
+    candles_config: List[CandlesConfig] = [
+        CandlesConfig(
+            connector="binance_perpetual",
+            interval="5m",
+            max_records=40,
+            trading_pair = "POPCAT-USDT"
+        )
+    ]
+
     controllers_config: List[str] = []
     config_update_interval: int = Field(10, client_data=ClientFieldData(is_updatable=True))
     script_file_name: str = Field(default_factory=lambda: os.path.basename(__file__))
+    # Standard attributes END
 
     # Used by PkStrategy
     connector_name: str = "hyperliquid_perpetual"
@@ -32,18 +42,12 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     # Triple Barrier
     stop_loss_pct: Decimal = Field(2, client_data=ClientFieldData(is_updatable=True))
     trailing_stop_activation_pct: Decimal = Field(1.5, client_data=ClientFieldData(is_updatable=True))
-    trailing_stop_reversion_pct: Decimal = Field(1.4, client_data=ClientFieldData(is_updatable=True))
+    trailing_stop_close_delta_pct: int = Field(1.4, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
     rsi_length: int = Field(20, client_data=ClientFieldData(is_updatable=True))
-    sma_short: int = Field(8, client_data=ClientFieldData(is_updatable=True))
-    sma_long: int = Field(32, client_data=ClientFieldData(is_updatable=True))
-
-    # Candles
-    candles_connector: str = "binance_perpetual"
-    candles_pair: str = "POPCAT-USDT"
-    candles_interval: str = "5m"
-    candles_length: int = 40
+    sma_short: int = Field(20, client_data=ClientFieldData(is_updatable=True))
+    sma_long: int = Field(80, client_data=ClientFieldData(is_updatable=True))
 
     # Order settings
     entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))

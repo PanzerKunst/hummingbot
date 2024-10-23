@@ -7,12 +7,12 @@ from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.clock import Clock
 from hummingbot.core.data_type.common import OrderType, TradeType
-from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
-from hummingbot.strategy_v2.executors.position_executor.data_types import TripleBarrierConfig
+from hummingbot.strategy_v2.executors.position_executor.data_types import TripleBarrierConfig, TrailingStop
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.pk.excalibur_config import ExcaliburConfig
 from scripts.pk.pk_strategy import PkStrategy
+from scripts.pk.pk_utils import get_take_profit_price
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
@@ -32,14 +32,6 @@ class ExcaliburStrategy(PkStrategy):
     def __init__(self, connectors: Dict[str, ConnectorBase], config: ExcaliburConfig):
         super().__init__(connectors, config)
 
-        if len(config.candles_config) == 0:
-            config.candles_config.append(CandlesConfig(
-                connector=config.candles_connector,
-                trading_pair=config.candles_pair,
-                interval=config.candles_interval,
-                max_records=config.candles_length
-            ))
-
         self.processed_data = pd.DataFrame()
 
     def start(self, clock: Clock, timestamp: float) -> None:
@@ -54,9 +46,15 @@ class ExcaliburStrategy(PkStrategy):
                 for trading_pair in self.market_data_provider.get_trading_pairs(connector_name):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
-    def get_triple_barrier_config(self) -> TripleBarrierConfig:
+    def get_triple_barrier_config(self, side: TradeType, entry_price: Decimal) -> TripleBarrierConfig:
+        trailing_stop = TrailingStop(
+            activation_price=get_take_profit_price(side, entry_price, self.config.trailing_stop_activation_pct),
+            trailing_delta=self.config.trailing_stop_close_delta_pct / 100
+        )
+
         return TripleBarrierConfig(
             stop_loss=Decimal(self.config.stop_loss_pct / 100),
+            trailing_stop=trailing_stop,
             open_order_type=OrderType.LIMIT,
             stop_loss_order_type=OrderType.MARKET
         )
@@ -98,22 +96,22 @@ class ExcaliburStrategy(PkStrategy):
 
         if self.can_create_sma_cross_order(TradeType.SELL, active_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
-            triple_barrier_config = self.get_triple_barrier_config()
+            triple_barrier_config = self.get_triple_barrier_config(TradeType.SELL, entry_price)
             self.create_order(TradeType.SELL, entry_price, triple_barrier_config)
 
         if self.can_create_sma_cross_order(TradeType.BUY, active_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
-            triple_barrier_config = self.get_triple_barrier_config()
+            triple_barrier_config = self.get_triple_barrier_config(TradeType.BUY, entry_price)
             self.create_order(TradeType.BUY, entry_price, triple_barrier_config)
 
         if self.can_recreate_order_after_tp(TradeType.SELL, active_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
-            triple_barrier_config = self.get_triple_barrier_config()
+            triple_barrier_config = self.get_triple_barrier_config(TradeType.SELL, entry_price)
             self.create_order(TradeType.SELL, entry_price, triple_barrier_config)
 
         if self.can_recreate_order_after_tp(TradeType.BUY, active_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
-            triple_barrier_config = self.get_triple_barrier_config()
+            triple_barrier_config = self.get_triple_barrier_config(TradeType.BUY, entry_price)
             self.create_order(TradeType.BUY, entry_price, triple_barrier_config)
 
         return []  # Always return []

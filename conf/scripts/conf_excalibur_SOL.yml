@@ -1,5 +1,9 @@
 markets: {}
-candles_config: []
+candles_config:
+- connector: binance_perpetual
+  interval: 15m
+  max_records: 150
+  trading_pair: SOL-USDT
 controllers_config: []
 config_update_interval: 10
 script_file_name: excalibur_config.py
@@ -11,11 +15,13 @@ cooldown_time_min: 0
 unfilled_order_expiration_min: 1
 limit_take_profit_price_delta_bps: 0
 position_mode: ONEWAY
-stop_loss_pct: 8
+stop_loss_pct: 4
+trailing_stop_activation_pct: 2
+trailing_stop_close_delta_pct: 1.9
+rsi_length: 20
 sma_short: 50
 sma_long: 100
-candles_connector: binance
-candles_pair: SOL-USDT
-candles_interval: 15m
-candles_length: 150
 entry_price_delta_bps: 0
+take_profit_sell_rsi_threshold: 27
+take_profit_buy_rsi_threshold: 73
+filled_position_min_duration_min: 10
