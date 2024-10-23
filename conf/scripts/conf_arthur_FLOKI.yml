@@ -3,7 +3,11 @@ candles_config:
 - connector: binance_perpetual
   interval: 1m
   max_records: 40
-  trading_pair: FLOKI-USDT
+  trading_pair: 1000FLOKI-USDT
+- connector: bybit_perpetual
+  interval: 1m
+  max_records: 40
+  trading_pair: 1000FLOKI-USDT
 controllers_config: []
 config_update_interval: 10
 script_file_name: arthur_config.py

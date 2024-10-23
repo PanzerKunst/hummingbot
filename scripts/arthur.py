@@ -183,12 +183,12 @@ class ArthurStrategy(PkStrategy):
         self.logger().info(f"delta_pct above threshold: {delta_pct}")
 
         if side == TradeType.SELL:
-            self.latest_price_crash_timestamp = self.market_data_provider.time()
+            self.latest_price_crash_timestamp = self.get_market_data_provider_time()
             is_rsi_in_range = self.is_rsi_in_range_for_trend_start_sell_order()
             self.logger().info(f"is_rsi_in_range: {is_rsi_in_range}")
             return is_rsi_in_range
 
-        self.latest_price_spike_timestamp = self.market_data_provider.time()
+        self.latest_price_spike_timestamp = self.get_market_data_provider_time()
         is_rsi_in_range = self.is_rsi_in_range_for_trend_start_buy_order()
         self.logger().info(f"is_rsi_in_range: {is_rsi_in_range}")
         return is_rsi_in_range
@@ -202,7 +202,7 @@ class ArthurStrategy(PkStrategy):
 
         if side == TradeType.SELL:
             # During the last 12min, there was a price spike
-            if self.latest_price_spike_timestamp + 12 * 60 < self.market_data_provider.time():
+            if self.latest_price_spike_timestamp + 12 * 60 < self.get_market_data_provider_time():
                 return False
 
             self.logger().info(f"can_create_trend_reversal_order({side}) > There was a price spike within the last 12min")
@@ -221,7 +221,7 @@ class ArthurStrategy(PkStrategy):
 
             return True
 
-        if self.latest_price_crash_timestamp + 12 * 60 < self.market_data_provider.time():
+        if self.latest_price_crash_timestamp + 12 * 60 < self.get_market_data_provider_time():
             return False
 
         self.logger().info(f"can_create_trend_reversal_order({side}) > There was a price crash within the last 12min")

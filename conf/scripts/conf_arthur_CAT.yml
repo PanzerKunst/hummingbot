@@ -4,6 +4,10 @@ candles_config:
   interval: 1m
   max_records: 40
   trading_pair: 1000CAT-USDT
+- connector: bybit_perpetual
+  interval: 1m
+  max_records: 40
+  trading_pair: 1000CAT-USDT
 controllers_config: []
 config_update_interval: 10
 script_file_name: arthur_config.py

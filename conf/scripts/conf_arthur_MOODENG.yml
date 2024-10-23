@@ -1,5 +1,9 @@
 markets: {}
 candles_config:
+- connector: bybit_perpetual
+  interval: 1m
+  max_records: 40
+  trading_pair: MOODENG-USDT
 - connector: okx_perpetual
   interval: 1m
   max_records: 40
