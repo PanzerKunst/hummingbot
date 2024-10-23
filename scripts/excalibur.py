@@ -219,20 +219,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"can_recreate_order_after_tp({side}) > last_terminated_filled_order is TP")
 
-        if side == TradeType.SELL:
-            # TODO: remove
-            is_short_sma_under_long: bool = not self.is_latest_short_sma_over_long()
-            if is_short_sma_under_long:
-                self.logger().info(f"can_recreate_order_after_tp({side}) > short_sma_is_under_long")
-
-            return not self.is_latest_short_sma_over_long() and self.did_rsi_go_back_down_to_50()
-
-        # TODO: remove
-        is_short_sma_over_long: bool = self.is_latest_short_sma_over_long()
-        if is_short_sma_over_long:
-            self.logger().info(f"can_recreate_order_after_tp({side}) > short_sma_is_over_long")
-
-        return self.is_latest_short_sma_over_long() and self.did_rsi_go_back_up_to_50()
+        return True
 
     #
     # Custom functions specific to this controller
