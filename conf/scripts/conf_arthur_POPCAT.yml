@@ -27,9 +27,9 @@ filled_trend_start_order_expiration: 45
 filled_trend_reversal_order_expiration: 600
 rsi_length: 20
 entry_price_delta_bps: 0
-trend_start_price_change_threshold_pct: 0.3
+trend_start_price_change_threshold_pct: 0.9
 trend_start_sell_latest_complete_candle_min_rsi: 40
 trend_start_buy_latest_complete_candle_max_rsi: 60
-trend_start_volume_mul: 2
+trend_start_volume_mul: 4
 trend_reversal_sell_min_rsi: 75
 trend_reversal_buy_max_rsi: 25
