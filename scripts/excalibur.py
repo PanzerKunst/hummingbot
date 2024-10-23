@@ -134,15 +134,12 @@ class ExcaliburStrategy(PkStrategy):
                 self.close_filled_order(filled_order, OrderType.MARKET, CloseType.COMPLETED)
 
             else:
-                has_position_been_open_long_enough = self.has_position_been_open_long_enough(filled_order)
                 did_rsi_crash_and_recover = self.did_rsi_crash_and_recover()
 
-                if has_position_been_open_long_enough:
-                    self.logger().info(f"stop_actions_proposal(SELL) > position_has_been_open_long_enough")
                 if did_rsi_crash_and_recover:
                     self.logger().info(f"stop_actions_proposal(SELL) > rsi_did_crash_and_recover")
 
-                if has_position_been_open_long_enough and did_rsi_crash_and_recover:
+                if did_rsi_crash_and_recover and self.has_position_been_open_long_enough(filled_order):
                     self.close_filled_order(filled_order, OrderType.MARKET, CloseType.TAKE_PROFIT)
 
         if len(filled_buy_orders) == 1:
@@ -153,15 +150,12 @@ class ExcaliburStrategy(PkStrategy):
                 self.close_filled_order(filled_order, OrderType.MARKET, CloseType.COMPLETED)
 
             else:
-                has_position_been_open_long_enough = self.has_position_been_open_long_enough(filled_order)
                 did_rsi_spike_and_recover = self.did_rsi_spike_and_recover()
 
-                if has_position_been_open_long_enough:
-                    self.logger().info(f"stop_actions_proposal(BUY) > position_has_been_open_long_enough")
                 if did_rsi_spike_and_recover:
                     self.logger().info(f"stop_actions_proposal(BUY) > rsi_did_spike_and_recover")
 
-                if has_position_been_open_long_enough and did_rsi_spike_and_recover:
+                if did_rsi_spike_and_recover and self.has_position_been_open_long_enough(filled_order):
                     self.close_filled_order(filled_order, OrderType.MARKET, CloseType.TAKE_PROFIT)
 
         return []  # Always return []
@@ -227,13 +221,18 @@ class ExcaliburStrategy(PkStrategy):
 
         if side == TradeType.SELL:
             # TODO: remove
-            is_short_sma_under_long = not self.is_latest_short_sma_over_long
+            is_short_sma_under_long: bool = not self.is_latest_short_sma_over_long()
             if is_short_sma_under_long:
                 self.logger().info(f"can_recreate_order_after_tp({side}) > short_sma_is_under_long")
 
-            return not self.is_latest_short_sma_over_long and self.did_rsi_go_back_down_to_50()
+            return not self.is_latest_short_sma_over_long() and self.did_rsi_go_back_down_to_50()
 
-        return self.is_latest_short_sma_over_long and self.did_rsi_go_back_up_to_50()
+        # TODO: remove
+        is_short_sma_over_long: bool = self.is_latest_short_sma_over_long()
+        if is_short_sma_over_long:
+            self.logger().info(f"can_recreate_order_after_tp({side}) > short_sma_is_over_long")
+
+        return self.is_latest_short_sma_over_long() and self.did_rsi_go_back_up_to_50()
 
     #
     # Custom functions specific to this controller
