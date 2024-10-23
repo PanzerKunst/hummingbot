@@ -7,7 +7,6 @@ from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.clock import Clock
 from hummingbot.core.data_type.common import OrderType, TradeType
-from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.strategy_v2.executors.position_executor.data_types import TripleBarrierConfig
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 from scripts.pk.arthur_config import ArthurConfig
@@ -87,7 +86,7 @@ class ArthurStrategy(PkStrategy):
 
             candles_dataframes.append(candles_df)
 
-        merged_df = self.merge_dataframes(candles_dataframes, connectors, ["open", "close", "high", "low", "volume", "RSI"])
+        merged_df = self.merge_dataframes(candles_dataframes, connectors, ["open", "close", "high", "low", "RSI"], ["volume"])
 
         merged_df["timestamp_iso"] = pd.to_datetime(merged_df["timestamp"], unit="s")
 
@@ -242,7 +241,7 @@ class ArthurStrategy(PkStrategy):
     # Custom functions specific to this controller
     #
 
-    def merge_dataframes(self, dataframes: List[pd.DataFrame], suffixes: List[str], columns_to_avg: List[str]) -> pd.DataFrame:
+    def merge_dataframes(self, dataframes: List[pd.DataFrame], suffixes: List[str], columns_to_avg: List[str], columns_to_sum: List[str]) -> pd.DataFrame:
         if len(dataframes) != len(suffixes):
             raise ValueError("The number of dataframes must match the number of suffixes")
 
@@ -263,8 +262,12 @@ class ArthurStrategy(PkStrategy):
             columns_to_avg_list = [f"{col}_{suffix}" for suffix in suffixes]
             merged_df[col] = merged_df[columns_to_avg_list].mean(axis=1)
 
+        for col in columns_to_sum:
+            columns_to_sum_list = [f"{col}_{suffix}" for suffix in suffixes]
+            merged_df[col] = merged_df[columns_to_sum_list].sum(axis=1)
+
         # Drop the original columns after averaging
-        columns_to_drop = [f"{col}_{suffix}" for col in columns_to_avg for suffix in suffixes]
+        columns_to_drop = [f"{col}_{suffix}" for col in columns_to_avg+columns_to_sum for suffix in suffixes]
         merged_df = merged_df.drop(columns=columns_to_drop)
 
         return merged_df
