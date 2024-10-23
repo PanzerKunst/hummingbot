@@ -53,4 +53,4 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
     take_profit_sell_rsi_threshold: int = Field(27, client_data=ClientFieldData(is_updatable=True))
     take_profit_buy_rsi_threshold: int = Field(73, client_data=ClientFieldData(is_updatable=True))
-    filled_position_min_duration_min: int = Field(10, client_data=ClientFieldData(is_updatable=True))
+    filled_position_min_duration_min: int = Field(20, client_data=ClientFieldData(is_updatable=True))
