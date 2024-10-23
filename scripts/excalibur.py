@@ -272,7 +272,7 @@ class ExcaliburStrategy(PkStrategy):
         return older_rsis.min() < self.config.take_profit_sell_rsi_threshold and current_rsi > 30
 
     def has_position_been_open_long_enough(self, tracked_order: TrackedOrderDetails) -> bool:
-        return tracked_order.last_filled_at + self.config.filled_position_min_duration_min * 60 < self.market_data_provider.time()
+        return tracked_order.last_filled_at + self.config.filled_position_min_duration_min * 60 < self.get_market_data_provider_time()
 
     def did_rsi_spike_and_recover(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI"]
