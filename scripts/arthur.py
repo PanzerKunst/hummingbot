@@ -342,11 +342,18 @@ class ArthurStrategy(PkStrategy):
         current_volume = volume_series.iloc[-1]
         volume_latest_complete_candle = volume_series.iloc[-2]
 
+        # TODO: remove
+        self.logger().info(f"is_recent_volume_enough() > current_volume:{current_volume} | volume_latest_complete_candle:{volume_latest_complete_candle}")
+
         if current_volume < volume_latest_complete_candle:
             return False
 
         recent_volumes = [current_volume, volume_latest_complete_candle]
         older_volumes = volume_series.iloc[-9:-2]  # 7 items, last one excluded
+
+        # TODO: remove
+        self.logger().info(
+            f"is_recent_volume_enough() > sum(recent_volumes):{sum(recent_volumes)} | sum(older_volumes):{sum(older_volumes)}")
 
         return sum(recent_volumes) > sum(older_volumes) * self.config.trend_start_volume_mul
 
