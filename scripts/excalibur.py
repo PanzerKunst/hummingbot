@@ -19,8 +19,9 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 # Trends via comparing 2 SMAs
 # Generate config file: create --script-config excalibur
 # Start the bot: start --script excalibur.py --conf conf_excalibur_BOME.yml
+#                start --script excalibur.py --conf conf_excalibur_DOGE.yml
 #                start --script excalibur.py --conf conf_excalibur_POPCAT.yml
-# Quickstart script: -p=a -f excalibur.py -c conf_excalibur_POPCAT.yml
+# Quickstart script: -p=a -f excalibur.py -c conf_excalibur_DOGE.yml
 
 
 class ExcaliburStrategy(PkStrategy):
@@ -85,6 +86,8 @@ class ExcaliburStrategy(PkStrategy):
 
         candles_df["RSI_for_open"] = candles_df.ta.rsi(length=self.config.rsi_length_for_open_order)
 
+        candles_df.dropna(inplace=True)
+
         self.processed_data = candles_df
 
     def create_actions_proposal(self) -> List[CreateExecutorAction]:
@@ -93,6 +96,7 @@ class ExcaliburStrategy(PkStrategy):
         processed_data_num_rows = self.processed_data.shape[0]
 
         if processed_data_num_rows == 0:
+            self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
         active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side()
@@ -179,7 +183,7 @@ class ExcaliburStrategy(PkStrategy):
                     "RSI_for_open"
                 ]
 
-                custom_status.append(format_df_for_printout(self.processed_data[columns_to_display].tail(20), table_format="psql"))
+                custom_status.append(format_df_for_printout(self.processed_data[columns_to_display], table_format="psql"))
 
         return original_status + "\n".join(custom_status)
 
