@@ -58,7 +58,7 @@ class ExcaliburStrategy(PkStrategy):
         return TripleBarrierConfig(
             stop_loss=Decimal(self.config.stop_loss_pct / 100),
             trailing_stop=trailing_stop,
-            open_order_type=OrderType.LIMIT,
+            open_order_type=OrderType.MARKET,
             stop_loss_order_type=OrderType.MARKET
         )
 
