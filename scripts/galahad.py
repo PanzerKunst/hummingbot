@@ -7,12 +7,11 @@ from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.clock import Clock
 from hummingbot.core.data_type.common import OrderType, TradeType
-from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
-from hummingbot.strategy_v2.executors.position_executor.data_types import TripleBarrierConfig
+from hummingbot.strategy_v2.executors.position_executor.data_types import TripleBarrierConfig, TrailingStop
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 from scripts.pk.galahad_config import GalahadConfig
 from scripts.pk.pk_strategy import PkStrategy
-from scripts.pk.pk_utils import compute_recent_price_delta_pct, average
+from scripts.pk.pk_utils import compute_recent_price_delta_pct, average, get_take_profit_price
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
@@ -30,14 +29,6 @@ class GalahadStrategy(PkStrategy):
     def __init__(self, connectors: Dict[str, ConnectorBase], config: GalahadConfig):
         super().__init__(connectors, config)
 
-        if len(config.candles_config) == 0:
-            config.candles_config.append(CandlesConfig(
-                connector=config.candles_connector,
-                trading_pair=config.candles_pair,
-                interval=config.candles_interval,
-                max_records=config.candles_length
-            ))
-
         self.processed_data = pd.DataFrame()
 
     def start(self, clock: Clock, timestamp: float) -> None:
@@ -52,17 +43,20 @@ class GalahadStrategy(PkStrategy):
                 for trading_pair in self.market_data_provider.get_trading_pairs(connector_name):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
-    def get_triple_barrier_config(self, sl_tp_pct: Decimal) -> TripleBarrierConfig:
+    def get_triple_barrier_config(self, side: TradeType, entry_price: Decimal, sl_pct: Decimal) -> TripleBarrierConfig:
+        trailing_stop = TrailingStop(
+            activation_price=get_take_profit_price(side, entry_price, self.config.trailing_stop_activation_pct),
+            trailing_delta=self.config.trailing_stop_close_delta_pct / 100
+        )
+
         # TODO: remove
-        self.logger().info(f"get_triple_barrier_config() | sl_tp_pct:{sl_tp_pct}")
+        self.logger().info(f"get_triple_barrier_config() | sl_pct:{sl_pct}")
 
         return TripleBarrierConfig(
-            stop_loss=Decimal(sl_tp_pct / 100),
-            take_profit=Decimal(sl_tp_pct / 100),
+            stop_loss=sl_pct / 100,
+            trailing_stop=trailing_stop,
             open_order_type=OrderType.LIMIT,
-            stop_loss_order_type=OrderType.MARKET,
-            take_profit_order_type=OrderType.MARKET,  # TODO: LIMIT
-            time_limit=self.config.filled_order_expiration_min * 60
+            stop_loss_order_type=OrderType.MARKET
         )
 
     def update_processed_data(self):
@@ -92,6 +86,8 @@ class GalahadStrategy(PkStrategy):
         psar_df = candles_df.ta.psar(af0=self.config.psar_start, af=self.config.psar_increment, max_af=self.config.psar_max)
         candles_df["PSARl"] = psar_df[f"PSARl_{self.config.psar_increment}_{self.config.psar_max}"]
         candles_df["PSARs"] = psar_df[f"PSARs_{self.config.psar_increment}_{self.config.psar_max}"]
+
+        # candles_df.dropna(inplace=True) not done here, as PSARl and PSARs are supposed to have NaN
 
         self.processed_data = candles_df
 
@@ -128,21 +124,22 @@ class GalahadStrategy(PkStrategy):
         processed_data_num_rows = self.processed_data.shape[0]
 
         if processed_data_num_rows == 0:
+            self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
         active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side()
         active_orders = active_sell_orders + active_buy_orders
 
         if self.can_create(TradeType.SELL, active_orders):
-            entry_price: Decimal = self.get_best_bid() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
-            sl_tp_pct: Decimal = self.compute_sl_and_tp()
-            triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct)
+            entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
+            sl_pct: Decimal = self.compute_sl()
+            triple_barrier_config = self.get_triple_barrier_config(TradeType.SELL, entry_price, sl_pct)
             self.create_order(TradeType.SELL, entry_price, triple_barrier_config)
 
         if self.can_create(TradeType.BUY, active_orders):
-            entry_price: Decimal = self.get_best_ask() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
-            sl_tp_pct: Decimal = self.compute_sl_and_tp()
-            triple_barrier_config = self.get_triple_barrier_config(sl_tp_pct)
+            entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
+            sl_pct: Decimal = self.compute_sl()
+            triple_barrier_config = self.get_triple_barrier_config(TradeType.BUY, entry_price, sl_pct)
             self.create_order(TradeType.BUY, entry_price, triple_barrier_config)
 
         return []  # Always return []
@@ -172,7 +169,7 @@ class GalahadStrategy(PkStrategy):
                     "PSARs"
                 ]
 
-                custom_status.append(format_df_for_printout(self.processed_data[columns_to_display].tail(20), table_format="psql"))
+                custom_status.append(format_df_for_printout(self.processed_data[columns_to_display], table_format="psql"))
 
         return original_status + "\n".join(custom_status)
 
@@ -195,14 +192,14 @@ class GalahadStrategy(PkStrategy):
 
             self.logger().info(f"is_rsi_in_range: {is_rsi_in_range}")
 
-            return self.has_macdh_turned_bearish() and self.has_psar_turned_bearish() and self.is_trend_negative_enough() and self.is_volatile_enough()
+            return self.has_macdh_turned_bearish() and self.is_psar_bearish() and self.is_trend_negative_enough() and self.is_volatile_enough()
 
         is_rsi_in_range = self.is_rsi_in_range_for_buy_order()
 
         if not is_rsi_in_range:
             return False
 
-        return self.has_macdh_turned_bullish() and self.has_psar_turned_bullish() and self.is_trend_positive_enough() and self.is_volatile_enough()
+        return self.has_macdh_turned_bullish() and self.is_psar_bullish() and self.is_trend_positive_enough() and self.is_volatile_enough()
 
     #
     # Custom functions specific to this controller
@@ -308,27 +305,25 @@ class GalahadStrategy(PkStrategy):
 
         return sum(recent_volumes) > sum(older_volumes) * 3
 
-    def has_psar_turned_bullish(self) -> bool:
+    def is_psar_bullish(self) -> bool:
         psarl_series: pd.Series = self.processed_data["PSARl"]
         current_psarl = Decimal(psarl_series.iloc[-1])
-        psarl_latest_complete_candle = Decimal(psarl_series.iloc[-2])
 
         # TODO: remove
-        result = not pd.isna(current_psarl) and pd.isna(psarl_latest_complete_candle)
+        result = not pd.isna(current_psarl)
         if result:
-            self.logger().info("psar_has_turned_bullish")
+            self.logger().info("psar_is_bullish")
 
         return result
 
-    def has_psar_turned_bearish(self) -> bool:
+    def is_psar_bearish(self) -> bool:
         psars_series: pd.Series = self.processed_data["PSARs"]
         current_psars = Decimal(psars_series.iloc[-1])
-        psars_latest_complete_candle = Decimal(psars_series.iloc[-2])
 
         # TODO: remove
-        result = not pd.isna(current_psars) and pd.isna(psars_latest_complete_candle)
+        result = not pd.isna(current_psars)
         if result:
-            self.logger().info("psar_has_turned_bearish")
+            self.logger().info("psar_is_bearish")
 
         return result
 
@@ -347,5 +342,5 @@ class GalahadStrategy(PkStrategy):
 
         return compute_recent_price_delta_pct(low_series, high_series, 20)
 
-    def compute_sl_and_tp(self) -> Decimal:
+    def compute_sl(self) -> Decimal:
         return self.compute_delta_pct() * Decimal(0.5)
