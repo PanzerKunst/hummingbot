@@ -22,7 +22,7 @@ leverage: 3
 cooldown_time_min: 10
 unfilled_order_expiration_min: 1
 limit_take_profit_price_delta_bps: 0
-position_mode: HEDGE
+position_mode: ONEWAY
 trend_reversal_order_stop_loss_pct: 0.7
 filled_trend_start_order_expiration: 45
 filled_trend_reversal_order_expiration: 600
