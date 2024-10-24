@@ -42,18 +42,18 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     # Triple Barrier
     stop_loss_pct: Decimal = Field(2, client_data=ClientFieldData(is_updatable=True))
     trailing_stop_activation_pct: Decimal = Field(2, client_data=ClientFieldData(is_updatable=True))
-    trailing_stop_close_delta_pct: Decimal = Field(2, client_data=ClientFieldData(is_updatable=True))
+    trailing_stop_close_delta_pct: Decimal = Field(1, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
     rsi_length: int = Field(20, client_data=ClientFieldData(is_updatable=True))
     sma_short: int = Field(20, client_data=ClientFieldData(is_updatable=True))
     sma_long: int = Field(80, client_data=ClientFieldData(is_updatable=True))
-    rsi_length_for_open_order: int = Field(5, client_data=ClientFieldData(is_updatable=True))
+    rsi_length_for_open_order: int = Field(2, client_data=ClientFieldData(is_updatable=True))
 
     # Order settings
     entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
-    take_profit_sell_rsi_threshold: int = Field(27, client_data=ClientFieldData(is_updatable=True))
-    take_profit_buy_rsi_threshold: int = Field(73, client_data=ClientFieldData(is_updatable=True))
+    take_profit_sell_rsi_threshold: int = Field(0, client_data=ClientFieldData(is_updatable=True))
+    take_profit_buy_rsi_threshold: int = Field(150, client_data=ClientFieldData(is_updatable=True))
     filled_position_min_duration_min: int = Field(20, client_data=ClientFieldData(is_updatable=True))
-    min_rsi_to_open_sell_order: int = Field(60, client_data=ClientFieldData(is_updatable=True))
-    max_rsi_to_open_buy_order: int = Field(40, client_data=ClientFieldData(is_updatable=True))
+    min_rsi_to_open_sell_order: int = Field(50, client_data=ClientFieldData(is_updatable=True))
+    max_rsi_to_open_buy_order: int = Field(50, client_data=ClientFieldData(is_updatable=True))
