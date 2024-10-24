@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import pandas as pd
 
@@ -57,8 +57,11 @@ class ArthurStrategy(PkStrategy):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
     @staticmethod
-    def get_triple_barrier_config(expiration: int, open_order_type: OrderType) -> TripleBarrierConfig:
+    def get_triple_barrier_config(expiration: int, open_order_type: OrderType, stop_loss_pct: Optional[Decimal] = None) -> TripleBarrierConfig:
+        stop_loss = stop_loss_pct / 100 if stop_loss_pct else None
+
         return TripleBarrierConfig(
+            stop_loss=stop_loss,
             open_order_type=open_order_type,
             time_limit=expiration
         )
@@ -87,13 +90,8 @@ class ArthurStrategy(PkStrategy):
             candles_dataframes.append(candles_df)
 
         merged_df = self.merge_dataframes(candles_dataframes, connectors, ["open", "close", "high", "low", "RSI"], ["volume"])
-
         merged_df["timestamp_iso"] = pd.to_datetime(merged_df["timestamp"], unit="s")
-
-        num_rows = merged_df.shape[0]
-
-        if num_rows == 0:
-            return
+        merged_df.dropna(inplace=True)
 
         self.processed_data = merged_df
 
@@ -103,6 +101,7 @@ class ArthurStrategy(PkStrategy):
         processed_data_num_rows = self.processed_data.shape[0]
 
         if processed_data_num_rows == 0:
+            self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
         active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side()
@@ -119,12 +118,12 @@ class ArthurStrategy(PkStrategy):
 
         if self.can_create_trend_reversal_order(TradeType.SELL, active_sell_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
-            triple_barrier_config = self.get_triple_barrier_config(self.config.filled_trend_reversal_order_expiration, OrderType.LIMIT)
+            triple_barrier_config = self.get_triple_barrier_config(self.config.filled_trend_reversal_order_expiration, OrderType.LIMIT, self.config.trend_reversal_order_stop_loss_pct)
             self.create_order(TradeType.SELL, entry_price, triple_barrier_config)
 
         if self.can_create_trend_reversal_order(TradeType.BUY, active_buy_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
-            triple_barrier_config = self.get_triple_barrier_config(self.config.filled_trend_reversal_order_expiration, OrderType.LIMIT)
+            triple_barrier_config = self.get_triple_barrier_config(self.config.filled_trend_reversal_order_expiration, OrderType.LIMIT, self.config.trend_reversal_order_stop_loss_pct)
             self.create_order(TradeType.BUY, entry_price, triple_barrier_config)
 
         return []  # Always return []

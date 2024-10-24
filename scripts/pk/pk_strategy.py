@@ -317,7 +317,7 @@ class PkStrategy(StrategyV2Base):
             if should_close_trailing_stop(filled_order, current_price):
                 self.logger().info("should_close_trailing_stop")
                 take_profit_order_type = filled_order.triple_barrier_config.take_profit_order_type
-                self.close_filled_order(filled_order, take_profit_order_type, CloseType.TAKE_PROFIT)
+                self.close_filled_order(filled_order, take_profit_order_type, CloseType.TRAILING_STOP)
                 continue
 
             if has_filled_order_reached_time_limit(filled_order, self.get_market_data_provider_time()):

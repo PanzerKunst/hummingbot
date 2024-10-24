@@ -52,6 +52,7 @@ class ArthurConfig(StrategyV2ConfigBase):
     position_mode: PositionMode = PositionMode.HEDGE
 
     # Triple Barrier
+    trend_reversal_order_stop_loss_pct: Decimal = Field(0.7, client_data=ClientFieldData(is_updatable=True))
     filled_trend_start_order_expiration: int = Field(45, client_data=ClientFieldData(is_updatable=True))
     filled_trend_reversal_order_expiration: int = Field(10 * 60, client_data=ClientFieldData(is_updatable=True))
 
@@ -63,6 +64,6 @@ class ArthurConfig(StrategyV2ConfigBase):
     trend_start_price_change_threshold_pct: Decimal = Field(0.9, client_data=ClientFieldData(is_updatable=True))
     trend_start_sell_latest_complete_candle_min_rsi: int = Field(40, client_data=ClientFieldData(is_updatable=True))
     trend_start_buy_latest_complete_candle_max_rsi: int = Field(60, client_data=ClientFieldData(is_updatable=True))
-    trend_start_volume_mul: int = Field(4, client_data=ClientFieldData(is_updatable=True))
+    trend_start_volume_mul: int = Field(6, client_data=ClientFieldData(is_updatable=True))
     trend_reversal_sell_min_rsi: int = Field(75, client_data=ClientFieldData(is_updatable=True))
     trend_reversal_buy_max_rsi: int = Field(25, client_data=ClientFieldData(is_updatable=True))
