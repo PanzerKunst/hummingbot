@@ -1,0 +1,36 @@
+markets: {}
+candles_config:
+- connector: bybit_perpetual
+  interval: 1m
+  max_records: 40
+  trading_pair: GOAT-USDT
+- connector: gate_io_perpetual
+  interval: 1m
+  max_records: 40
+  trading_pair: GOAT-USDT
+- connector: hyperliquid_perpetual
+  interval: 1m
+  max_records: 40
+  trading_pair: GOAT-USD
+controllers_config: []
+config_update_interval: 10
+script_file_name: arthur_config.py
+connector_name: hyperliquid_perpetual
+trading_pair: GOAT-USD
+total_amount_quote: 60
+leverage: 3
+cooldown_time_min: 10
+unfilled_order_expiration_min: 1
+limit_take_profit_price_delta_bps: 0
+position_mode: HEDGE
+trend_reversal_order_stop_loss_pct: 0.7
+filled_trend_start_order_expiration: 45
+filled_trend_reversal_order_expiration: 600
+rsi_length: 20
+entry_price_delta_bps: 0
+trend_start_price_change_threshold_pct: 0.9
+trend_start_sell_latest_complete_candle_min_rsi: 40
+trend_start_buy_latest_complete_candle_max_rsi: 60
+trend_start_volume_mul: 6
+trend_reversal_sell_min_rsi: 75
+trend_reversal_buy_max_rsi: 25

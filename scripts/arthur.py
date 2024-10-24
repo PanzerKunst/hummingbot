@@ -22,13 +22,14 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 #                start --script arthur.py --conf conf_arthur_CAT.yml
 #                start --script arthur.py --conf conf_arthur_DOGS.yml
 #                start --script arthur.py --conf conf_arthur_FLOKI.yml
+#                start --script arthur.py --conf conf_arthur_GOAT.yml
 #                start --script arthur.py --conf conf_arthur_MOODENG.yml
 #                start --script arthur.py --conf conf_arthur_NEIRO.yml
 #                start --script arthur.py --conf conf_arthur_NEIROETH.yml
 #                start --script arthur.py --conf conf_arthur_PEOPLE.yml
 #                start --script arthur.py --conf conf_arthur_POPCAT.yml
 #                start --script arthur.py --conf conf_arthur_TURBO.yml
-# Quickstart script: -p=a -f arthur.py -c conf_arthur_POPCAT.yml
+# Quickstart script: -p=a -f arthur.py -c conf_arthur_GOAT.yml
 
 
 class ArthurStrategy(PkStrategy):
