@@ -43,17 +43,14 @@ class GalahadStrategy(PkStrategy):
                 for trading_pair in self.market_data_provider.get_trading_pairs(connector_name):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
-    def get_triple_barrier_config(self, side: TradeType, entry_price: Decimal, sl_pct: Decimal) -> TripleBarrierConfig:
+    def get_triple_barrier_config(self, side: TradeType, entry_price: Decimal) -> TripleBarrierConfig:
         trailing_stop = TrailingStop(
             activation_price=get_take_profit_price(side, entry_price, self.config.trailing_stop_activation_pct),
             trailing_delta=self.config.trailing_stop_close_delta_pct / 100
         )
 
-        # TODO: remove
-        self.logger().info(f"get_triple_barrier_config() | sl_pct:{sl_pct}")
-
         return TripleBarrierConfig(
-            stop_loss=sl_pct / 100,
+            stop_loss=self.config.stop_loss_pct / 100,
             trailing_stop=trailing_stop,
             open_order_type=OrderType.LIMIT,
             stop_loss_order_type=OrderType.MARKET
@@ -132,14 +129,12 @@ class GalahadStrategy(PkStrategy):
 
         if self.can_create(TradeType.SELL, active_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
-            sl_pct: Decimal = self.compute_sl()
-            triple_barrier_config = self.get_triple_barrier_config(TradeType.SELL, entry_price, sl_pct)
+            triple_barrier_config = self.get_triple_barrier_config(TradeType.SELL, entry_price)
             self.create_order(TradeType.SELL, entry_price, triple_barrier_config)
 
         if self.can_create(TradeType.BUY, active_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
-            sl_pct: Decimal = self.compute_sl()
-            triple_barrier_config = self.get_triple_barrier_config(TradeType.BUY, entry_price, sl_pct)
+            triple_barrier_config = self.get_triple_barrier_config(TradeType.BUY, entry_price)
             self.create_order(TradeType.BUY, entry_price, triple_barrier_config)
 
         return []  # Always return []
@@ -192,14 +187,14 @@ class GalahadStrategy(PkStrategy):
 
             self.logger().info(f"is_rsi_in_range: {is_rsi_in_range}")
 
-            return self.has_macdh_turned_bearish() and self.is_psar_bearish() and self.is_trend_negative_enough() and self.is_volatile_enough()
+            return self.has_macdh_turned_bearish() and self.is_psar_bearish() and self.is_trend_negative_enough()
 
         is_rsi_in_range = self.is_rsi_in_range_for_buy_order()
 
         if not is_rsi_in_range:
             return False
 
-        return self.has_macdh_turned_bullish() and self.is_psar_bullish() and self.is_trend_positive_enough() and self.is_volatile_enough()
+        return self.has_macdh_turned_bullish() and self.is_psar_bullish() and self.is_trend_positive_enough()
 
     #
     # Custom functions specific to this controller
@@ -291,20 +286,6 @@ class GalahadStrategy(PkStrategy):
 
         return delta_pct > self.config.trend_start_price_change_threshold_pct
 
-    def is_volume_spiking(self) -> bool:
-        volume_series: pd.Series = self.processed_data["volume"]
-        current_volume = volume_series.iloc[-1]
-        volume_latest_complete_candle = volume_series.iloc[-2]
-        volume_1candle_before = volume_series.iloc[-3]
-
-        if current_volume < volume_latest_complete_candle or current_volume < volume_1candle_before:
-            return False
-
-        recent_volumes = [current_volume, volume_latest_complete_candle, volume_1candle_before]
-        older_volumes = volume_series.iloc[-10:-3]  # 7 items, last one excluded
-
-        return sum(recent_volumes) > sum(older_volumes) * 3
-
     def is_psar_bullish(self) -> bool:
         psarl_series: pd.Series = self.processed_data["PSARl"]
         current_psarl = Decimal(psarl_series.iloc[-1])
@@ -326,21 +307,3 @@ class GalahadStrategy(PkStrategy):
             self.logger().info("psar_is_bearish")
 
         return result
-
-    def is_volatile_enough(self) -> bool:
-        delta_pct = self.compute_delta_pct()
-
-        if delta_pct < 2:
-            self.logger().info(f"Not volatile enough | delta_pct:{delta_pct}")
-            return False
-
-        return True
-
-    def compute_delta_pct(self) -> Decimal:
-        low_series: pd.Series = self.processed_data["low"]
-        high_series: pd.Series = self.processed_data["high"]
-
-        return compute_recent_price_delta_pct(low_series, high_series, 20)
-
-    def compute_sl(self) -> Decimal:
-        return self.compute_delta_pct() * Decimal(0.5)

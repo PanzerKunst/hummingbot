@@ -40,6 +40,7 @@ class GalahadConfig(StrategyV2ConfigBase):
     position_mode: PositionMode = PositionMode.ONEWAY
 
     # Triple Barrier
+    stop_loss_pct: Decimal = Field(1.5, client_data=ClientFieldData(is_updatable=True))
     trailing_stop_activation_pct: Decimal = Field(2, client_data=ClientFieldData(is_updatable=True))
     trailing_stop_close_delta_pct: Decimal = Field(1.5, client_data=ClientFieldData(is_updatable=True))
 
@@ -54,6 +55,6 @@ class GalahadConfig(StrategyV2ConfigBase):
 
     # Order settings
     entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
-    trend_start_price_change_threshold_pct: Decimal = Field(0.6, client_data=ClientFieldData(is_updatable=True))
+    trend_start_price_change_threshold_pct: Decimal = Field(0.9, client_data=ClientFieldData(is_updatable=True))
     trend_start_sell_latest_complete_candle_min_rsi: int = Field(45, client_data=ClientFieldData(is_updatable=True))
     trend_start_buy_latest_complete_candle_max_rsi: int = Field(55, client_data=ClientFieldData(is_updatable=True))
