@@ -169,7 +169,7 @@ class GalahadStrategy(PkStrategy):
                     "PSARs"
                 ]
 
-                custom_status.append(format_df_for_printout(self.processed_data[columns_to_display], table_format="psql"))
+                custom_status.append(format_df_for_printout(self.processed_data[columns_to_display].tail(20), table_format="psql"))
 
         return original_status + "\n".join(custom_status)
 
