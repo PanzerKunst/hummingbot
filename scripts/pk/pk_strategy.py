@@ -10,7 +10,7 @@ from hummingbot.strategy_v2.executors.position_executor.data_types import Positi
 from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.pk.excalibur_config import ExcaliburConfig
 from scripts.pk.pk_utils import has_unfilled_order_expired, has_current_price_reached_stop_loss, has_current_price_reached_take_profit, \
-    has_filled_order_reached_time_limit, has_current_price_activated_trailing_stop, should_close_trailing_stop
+    has_filled_order_reached_time_limit, update_trailing_stop, should_close_trailing_stop
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
@@ -247,6 +247,7 @@ class PkStrategy(StrategyV2Base):
             if tracked_order.order_id == filled_event.order_id:
                 tracked_order.filled_amount += filled_event.amount
                 tracked_order.last_filled_at = filled_event.timestamp
+                tracked_order.last_filled_price = filled_event.price
                 self.logger().info(f"did_fill_order: {tracked_order}")
                 break
 
@@ -298,30 +299,30 @@ class PkStrategy(StrategyV2Base):
 
         for filled_order in filled_sell_orders + filled_buy_orders:
             if has_current_price_reached_stop_loss(filled_order, current_price):
-                self.logger().info("current_price_has_reached_stop_loss")
+                self.logger().info(f"current_price_has_reached_stop_loss | current_price:{current_price}")
                 stop_loss_order_type = filled_order.triple_barrier_config.stop_loss_order_type
                 self.close_filled_order(filled_order, stop_loss_order_type, CloseType.STOP_LOSS)
                 continue
 
             if has_current_price_reached_take_profit(filled_order, current_price):
-                self.logger().info("current_price_has_reached_take_profit")
+                self.logger().info(f"current_price_has_reached_take_profit | current_price:{current_price}")
                 take_profit_order_type = filled_order.triple_barrier_config.take_profit_order_type
                 self.close_filled_order(filled_order, take_profit_order_type, CloseType.TAKE_PROFIT)
                 continue
 
-            if has_current_price_activated_trailing_stop(filled_order, current_price):
-                self.logger().info("current_price_has_activated_trailing_stop")
-                filled_order.trailing_stop_best_price = current_price
-                continue
+            update_trailing_stop(filled_order, current_price)
+
+            if filled_order.trailing_stop_best_price == current_price:
+                self.logger().info(f"Updated trailing_stop_best_price to:{filled_order.trailing_stop_best_price}")
 
             if should_close_trailing_stop(filled_order, current_price):
-                self.logger().info("should_close_trailing_stop")
+                self.logger().info(f"should_close_trailing_stop | current_price:{current_price}")
                 take_profit_order_type = filled_order.triple_barrier_config.take_profit_order_type
                 self.close_filled_order(filled_order, take_profit_order_type, CloseType.TRAILING_STOP)
                 continue
 
             if has_filled_order_reached_time_limit(filled_order, self.get_market_data_provider_time()):
-                self.logger().info("filled_order_has_reached_time_limit")
+                self.logger().info(f"filled_order_has_reached_time_limit | current_price:{current_price}")
                 time_limit_order_type = filled_order.triple_barrier_config.time_limit_order_type
                 self.close_filled_order(filled_order, time_limit_order_type, CloseType.TIME_LIMIT)
 

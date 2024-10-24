@@ -21,6 +21,7 @@ class TrackedOrderDetails:
     exchange_order_id: Optional[str] = None
     created_at: Optional[float] = None
     last_filled_at: Optional[float] = None
+    last_filled_price: Optional[Decimal] = None
     terminated_at: Optional[float] = None
     close_type: Optional[CloseType] = None
     trailing_stop_best_price: Optional[Decimal] = None
