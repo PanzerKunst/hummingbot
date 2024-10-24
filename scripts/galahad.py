@@ -232,17 +232,17 @@ class GalahadStrategy(PkStrategy):
 
     def has_macdh_turned_bullish(self) -> bool:
         macdh_series: pd.Series = self.processed_data["MACDh"]
-        current_macd = Decimal(macdh_series.iloc[-1])
         macd_latest_complete_candle = Decimal(macdh_series.iloc[-2])
+        macd_1candle_before = Decimal(macdh_series.iloc[-3])
 
-        return current_macd > 0 and macd_latest_complete_candle < 0
+        return macd_latest_complete_candle > 0 and macd_1candle_before < 0
 
     def has_macdh_turned_bearish(self) -> bool:
         macdh_series: pd.Series = self.processed_data["MACDh"]
-        current_macd = Decimal(macdh_series.iloc[-1])
         macd_latest_complete_candle = Decimal(macdh_series.iloc[-2])
+        macd_1candle_before = Decimal(macdh_series.iloc[-3])
 
-        return current_macd < 0 and macd_latest_complete_candle > 0
+        return macd_latest_complete_candle < 0 and macd_1candle_before > 0
 
     def is_trend_positive_enough(self) -> bool:
         close_series: pd.Series = self.processed_data["close"]
