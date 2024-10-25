@@ -17,7 +17,8 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 # Follows MACD and Parabolic SAR signals
 # Generate config file: create --script-config galahad
-# Start the bot: start --script galahad.py --conf conf_galahad_NEIRO.yml
+# Start the bot: start --script galahad.py --conf conf_galahad_MEW.yml
+#                start --script galahad.py --conf conf_galahad_NEIRO.yml
 # Quickstart script: -p=a -f galahad.py -c conf_galahad_NEIRO.yml
 
 
