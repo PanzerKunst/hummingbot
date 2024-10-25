@@ -282,7 +282,7 @@ class GalahadStrategy(PkStrategy):
         high_1candle_before = Decimal(high_series.iloc[-3])
 
         delta_pct = (max(high_latest_complete_candle, high_1candle_before) - current_close) / current_close * 100
-        self.logger().info(f"is_macd_increasing_enough() | delta_pct:{delta_pct}")
+        self.logger().info(f"is_macd_decreasing_enough() | delta_pct:{delta_pct}")
 
         return delta_pct > self.config.trend_start_price_change_threshold_pct
 
