@@ -349,7 +349,7 @@ class ArthurStrategy(PkStrategy):
             return False
 
         recent_volumes = [current_volume, volume_latest_complete_candle]
-        older_volumes = volume_series.iloc[-9:-2]  # 7 items, last one excluded
+        older_volumes = volume_series.iloc[-7:-2]  # 5 items, last one excluded
 
         return sum(recent_volumes) > sum(older_volumes) * self.config.trend_start_volume_mul
 
