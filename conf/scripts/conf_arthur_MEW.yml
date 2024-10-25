@@ -8,6 +8,10 @@ candles_config:
   interval: 1m
   max_records: 40
   trading_pair: MEW-USDT
+- connector: okx_perpetual
+  interval: 1m
+  max_records: 40
+  trading_pair: MEW-USDT
 controllers_config: []
 config_update_interval: 10
 script_file_name: arthur_config.py
