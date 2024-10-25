@@ -82,6 +82,7 @@ def update_trailing_stop(tracked_order: TrackedOrderDetails, current_price: Deci
     if tracked_order.side == TradeType.SELL:
         if current_price < price_to_compare:
             tracked_order.trailing_stop_best_price = current_price
+        return
 
     if current_price > price_to_compare:
         tracked_order.trailing_stop_best_price = current_price
