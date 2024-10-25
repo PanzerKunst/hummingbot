@@ -71,30 +71,27 @@ def has_current_price_reached_take_profit(tracked_order: TrackedOrderDetails, cu
     return current_price > entry_price * (1 + take_profit)
 
 
-def has_current_price_activated_trailing_stop(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
+def update_trailing_stop(tracked_order: TrackedOrderDetails, current_price: Decimal):
     trailing_stop = tracked_order.triple_barrier_config.trailing_stop
 
     if not trailing_stop:
-        return False
+        return
 
-    if tracked_order.trailing_stop_best_price:  # Already activated
-        return False
-
-    activation_price = trailing_stop.activation_price
+    price_to_compare = tracked_order.trailing_stop_best_price or trailing_stop.activation_price
 
     if tracked_order.side == TradeType.SELL:
-        return current_price < activation_price
+        if current_price < price_to_compare:
+            tracked_order.trailing_stop_best_price = current_price
+        return
 
-    return current_price > activation_price
+    if current_price > price_to_compare:
+        tracked_order.trailing_stop_best_price = current_price
 
 
 def should_close_trailing_stop(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
     trailing_stop = tracked_order.triple_barrier_config.trailing_stop
 
-    if not trailing_stop:
-        return False
-
-    if not tracked_order.trailing_stop_best_price:
+    if not trailing_stop or not tracked_order.trailing_stop_best_price:
         return False
 
     trailing_delta = trailing_stop.trailing_delta
