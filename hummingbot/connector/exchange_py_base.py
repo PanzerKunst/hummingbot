@@ -670,7 +670,8 @@ class ExchangePyBase(ExchangeBase, ABC):
         if self.is_trading_required:
             self._trading_rules_polling_task = safe_ensure_future(self._trading_rules_polling_loop())
             self._trading_fees_polling_task = safe_ensure_future(self._trading_fees_polling_loop())
-            # self._status_polling_task = safe_ensure_future(self._status_polling_loop())
+            if self.domain != "okx_perpetual":  # Arthur strat triggers rate limits on okx_perpetual
+                self._status_polling_task = safe_ensure_future(self._status_polling_loop())
             self._user_stream_tracker_task = self._create_user_stream_tracker_task()
             self._user_stream_event_listener_task = safe_ensure_future(self._user_stream_event_listener())
             self._lost_orders_update_task = safe_ensure_future(self._lost_orders_update_polling_loop())
