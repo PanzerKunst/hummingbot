@@ -23,6 +23,7 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 #                start --script arthur.py --conf conf_arthur_DOGS.yml
 #                start --script arthur.py --conf conf_arthur_FLOKI.yml
 #                start --script arthur.py --conf conf_arthur_GOAT.yml
+#                start --script arthur.py --conf conf_arthur_MEW.yml
 #                start --script arthur.py --conf conf_arthur_MOODENG.yml
 #                start --script arthur.py --conf conf_arthur_NEIRO.yml
 #                start --script arthur.py --conf conf_arthur_NEIROETH.yml
