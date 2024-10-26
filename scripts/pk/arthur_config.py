@@ -52,7 +52,12 @@ class ArthurConfig(StrategyV2ConfigBase):
     position_mode: PositionMode = PositionMode.HEDGE
 
     # Triple Barrier
-    trend_reversal_order_stop_loss_pct: Decimal = Field(0.7, client_data=ClientFieldData(is_updatable=True))
+    trend_start_stop_loss_pct: Decimal = Field(0.7, client_data=ClientFieldData(is_updatable=True))
+    trend_start_trailing_stop_activation_pct: Decimal = Field(1.5, client_data=ClientFieldData(is_updatable=True))
+    trend_start_trailing_stop_close_delta_pct: Decimal = Field(0.75, client_data=ClientFieldData(is_updatable=True))
+    trend_reversal_stop_loss_pct: Decimal = Field(0.7, client_data=ClientFieldData(is_updatable=True))
+    trend_reversal_trailing_stop_activation_pct: Decimal = Field(1.5, client_data=ClientFieldData(is_updatable=True))
+    trend_reversal_trailing_stop_close_delta_pct: Decimal = Field(0.75, client_data=ClientFieldData(is_updatable=True))
     filled_trend_start_order_expiration: int = Field(45, client_data=ClientFieldData(is_updatable=True))
     filled_trend_reversal_order_expiration: int = Field(10 * 60, client_data=ClientFieldData(is_updatable=True))
 

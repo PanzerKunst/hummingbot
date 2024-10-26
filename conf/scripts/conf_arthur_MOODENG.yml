@@ -19,7 +19,12 @@ cooldown_time_min: 10
 unfilled_order_expiration_min: 1
 limit_take_profit_price_delta_bps: 0
 position_mode: HEDGE
-trend_reversal_order_stop_loss_pct: 0.7
+trend_start_stop_loss_pct: 0.7
+trend_start_trailing_stop_activation_pct: 1.5
+trend_start_trailing_stop_close_delta_pct: 0.75
+trend_reversal_stop_loss_pct: 0.7
+trend_reversal_trailing_stop_activation_pct: 1.5
+trend_reversal_trailing_stop_close_delta_pct: 0.75
 filled_trend_start_order_expiration: 45
 filled_trend_reversal_order_expiration: 600
 rsi_length: 20

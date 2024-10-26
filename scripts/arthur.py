@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 import pandas as pd
 
@@ -7,11 +7,11 @@ from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.clock import Clock
 from hummingbot.core.data_type.common import OrderType, TradeType
-from hummingbot.strategy_v2.executors.position_executor.data_types import TripleBarrierConfig
+from hummingbot.strategy_v2.executors.position_executor.data_types import TripleBarrierConfig, TrailingStop
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 from scripts.pk.arthur_config import ArthurConfig
 from scripts.pk.pk_strategy import PkStrategy
-from scripts.pk.pk_utils import average
+from scripts.pk.pk_utils import average, get_take_profit_price
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
@@ -59,12 +59,11 @@ class ArthurStrategy(PkStrategy):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
     @staticmethod
-    def get_triple_barrier_config(expiration: int, open_order_type: OrderType, stop_loss_pct: Optional[Decimal] = None) -> TripleBarrierConfig:
-        stop_loss = stop_loss_pct / 100 if stop_loss_pct else None
-
+    def get_triple_barrier_config(stop_loss_pct: Decimal, trailing_stop: TrailingStop, expiration: int) -> TripleBarrierConfig:
         return TripleBarrierConfig(
-            stop_loss=stop_loss,
-            open_order_type=open_order_type,
+            stop_loss=stop_loss_pct / 100,
+            trailing_stop=trailing_stop,
+            open_order_type=OrderType.MARKET,
             time_limit=expiration
         )
 
@@ -110,22 +109,46 @@ class ArthurStrategy(PkStrategy):
 
         if self.can_create_trend_start_order(TradeType.SELL, active_sell_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
-            triple_barrier_config = self.get_triple_barrier_config(self.config.filled_trend_start_order_expiration, OrderType.MARKET)
+
+            trailing_stop = TrailingStop(
+                activation_price=get_take_profit_price(TradeType.SELL, entry_price, self.config.trend_start_trailing_stop_activation_pct),
+                trailing_delta=self.config.trend_start_trailing_stop_close_delta_pct / 100
+            )
+
+            triple_barrier_config = self.get_triple_barrier_config(self.config.trend_start_stop_loss_pct, trailing_stop, self.config.filled_trend_start_order_expiration)
             self.create_order(TradeType.SELL, entry_price, triple_barrier_config)
 
         if self.can_create_trend_start_order(TradeType.BUY, active_buy_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
-            triple_barrier_config = self.get_triple_barrier_config(self.config.filled_trend_start_order_expiration, OrderType.MARKET)
+
+            trailing_stop = TrailingStop(
+                activation_price=get_take_profit_price(TradeType.BUY, entry_price, self.config.trend_start_trailing_stop_activation_pct),
+                trailing_delta=self.config.trend_start_trailing_stop_close_delta_pct / 100
+            )
+
+            triple_barrier_config = self.get_triple_barrier_config(self.config.trend_start_stop_loss_pct, trailing_stop, self.config.filled_trend_start_order_expiration)
             self.create_order(TradeType.BUY, entry_price, triple_barrier_config)
 
         if self.can_create_trend_reversal_order(TradeType.SELL, active_sell_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
-            triple_barrier_config = self.get_triple_barrier_config(self.config.filled_trend_reversal_order_expiration, OrderType.LIMIT, self.config.trend_reversal_order_stop_loss_pct)
+
+            trailing_stop = TrailingStop(
+                activation_price=get_take_profit_price(TradeType.SELL, entry_price, self.config.trend_reversal_trailing_stop_activation_pct),
+                trailing_delta=self.config.trend_reversal_trailing_stop_close_delta_pct / 100
+            )
+
+            triple_barrier_config = self.get_triple_barrier_config(self.config.trend_reversal_stop_loss_pct, trailing_stop, self.config.filled_trend_reversal_order_expiration)
             self.create_order(TradeType.SELL, entry_price, triple_barrier_config)
 
         if self.can_create_trend_reversal_order(TradeType.BUY, active_buy_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
-            triple_barrier_config = self.get_triple_barrier_config(self.config.filled_trend_reversal_order_expiration, OrderType.LIMIT, self.config.trend_reversal_order_stop_loss_pct)
+
+            trailing_stop = TrailingStop(
+                activation_price=get_take_profit_price(TradeType.BUY, entry_price, self.config.trend_reversal_trailing_stop_activation_pct),
+                trailing_delta=self.config.trend_reversal_trailing_stop_close_delta_pct / 100
+            )
+
+            triple_barrier_config = self.get_triple_barrier_config(self.config.trend_reversal_stop_loss_pct, trailing_stop, self.config.filled_trend_reversal_order_expiration)
             self.create_order(TradeType.BUY, entry_price, triple_barrier_config)
 
         return []  # Always return []
