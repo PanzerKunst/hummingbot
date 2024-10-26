@@ -11,7 +11,7 @@ from hummingbot.strategy_v2.executors.position_executor.data_types import Triple
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 from scripts.pk.galahad_config import GalahadConfig
 from scripts.pk.pk_strategy import PkStrategy
-from scripts.pk.pk_utils import compute_recent_price_delta_pct, average, get_take_profit_price
+from scripts.pk.pk_utils import average, get_take_profit_price
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
