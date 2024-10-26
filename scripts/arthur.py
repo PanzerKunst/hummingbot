@@ -3,6 +3,7 @@ from typing import Dict, List
 
 import pandas as pd
 
+from hummingbot.client.hummingbot_application import HummingbotApplication
 from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.clock import Clock
@@ -267,7 +268,8 @@ class ArthurStrategy(PkStrategy):
 
     def merge_dataframes(self, dataframes: List[pd.DataFrame], suffixes: List[str], columns_to_avg: List[str], columns_to_sum: List[str]) -> pd.DataFrame:
         if len(dataframes) != len(suffixes):
-            raise ValueError("The number of dataframes must match the number of suffixes")
+            self.logger().error("The number of dataframes must match the number of suffixes")
+            HummingbotApplication.main_application().stop()
 
         # Start by merging the first two DataFrames
         merged_df = pd.merge(
