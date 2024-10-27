@@ -215,12 +215,12 @@ class ArthurStrategy(PkStrategy):
             self.latest_price_crash_timestamp = self.get_market_data_provider_time()
             is_rsi_in_range = self.is_rsi_in_range_for_trend_start_sell_order()
             self.logger().info(f"is_rsi_in_range: {is_rsi_in_range}")
-            return is_rsi_in_range
+            return is_rsi_in_range or delta_pct > 4
 
         self.latest_price_spike_timestamp = self.get_market_data_provider_time()
         is_rsi_in_range = self.is_rsi_in_range_for_trend_start_buy_order()
         self.logger().info(f"is_rsi_in_range: {is_rsi_in_range}")
-        return is_rsi_in_range
+        return is_rsi_in_range or delta_pct > 4
 
     def can_create_trend_reversal_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
         if not self.can_create_order(side):
