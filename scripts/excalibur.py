@@ -34,9 +34,6 @@ class ExcaliburStrategy(PkStrategy):
 
         self.processed_data = pd.DataFrame()
 
-        self.is_ready_to_sell = False
-        self.is_ready_to_buy = False
-
     def start(self, clock: Clock, timestamp: float) -> None:
         self._last_timestamp = timestamp
         self.apply_initial_setting()
@@ -83,8 +80,6 @@ class ExcaliburStrategy(PkStrategy):
 
         candles_df["SMA_short"] = candles_df.ta.sma(length=self.config.sma_short)
         candles_df["SMA_long"] = candles_df.ta.sma(length=self.config.sma_long)
-
-        candles_df["RSI_for_open"] = candles_df.ta.rsi(length=self.config.rsi_length_for_open_order)
 
         candles_df.dropna(inplace=True)
 
@@ -135,36 +130,14 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side()
 
         if len(filled_sell_orders) == 1:
-            filled_order = filled_sell_orders[0]
-
             if self.did_short_sma_cross_over_long():
                 self.logger().info("stop_actions_proposal() > Short SMA crossed over long")
-                self.close_filled_order(filled_order, OrderType.MARKET, CloseType.COMPLETED)
-
-            else:
-                did_rsi_crash_and_recover = self.did_rsi_crash_and_recover()
-
-                if did_rsi_crash_and_recover:
-                    self.logger().info(f"stop_actions_proposal(SELL) > rsi_did_crash_and_recover")
-
-                if did_rsi_crash_and_recover and self.has_position_been_open_long_enough(filled_order):
-                    self.close_filled_order(filled_order, OrderType.MARKET, CloseType.TAKE_PROFIT)
+                self.close_filled_order(filled_sell_orders[0], OrderType.MARKET, CloseType.COMPLETED)
 
         if len(filled_buy_orders) == 1:
-            filled_order = filled_buy_orders[0]
-
             if self.did_short_sma_cross_under_long():
                 self.logger().info("stop_actions_proposal() > Short SMA crossed under long")
-                self.close_filled_order(filled_order, OrderType.MARKET, CloseType.COMPLETED)
-
-            else:
-                did_rsi_spike_and_recover = self.did_rsi_spike_and_recover()
-
-                if did_rsi_spike_and_recover:
-                    self.logger().info(f"stop_actions_proposal(BUY) > rsi_did_spike_and_recover")
-
-                if did_rsi_spike_and_recover and self.has_position_been_open_long_enough(filled_order):
-                    self.close_filled_order(filled_order, OrderType.MARKET, CloseType.TAKE_PROFIT)
+                self.close_filled_order(filled_buy_orders[0], OrderType.MARKET, CloseType.COMPLETED)
 
         return []  # Always return []
 
@@ -179,8 +152,7 @@ class ExcaliburStrategy(PkStrategy):
                     "close",
                     "RSI",
                     "SMA_short",
-                    "SMA_long",
-                    "RSI_for_open"
+                    "SMA_long"
                 ]
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display], table_format="psql"))
@@ -199,23 +171,15 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         if side == TradeType.SELL:
-            if self.is_ready_to_sell and self.is_short_rsi_good_for_sell():
-                self.is_ready_to_sell = False
-                return True
-
             if self.did_short_sma_cross_under_long():
                 self.logger().info("can_create_sma_cross_order() > Short SMA crossed under long")
-                self.is_ready_to_sell = True
+                return True
 
             return False
 
-        if self.is_ready_to_buy and self.is_short_rsi_good_for_buy():
-            self.is_ready_to_buy = False
-            return True
-
         if self.did_short_sma_cross_over_long():
             self.logger().info("can_create_sma_cross_order() > Short SMA crossed over long")
-            self.is_ready_to_buy = True
+            return True
 
         return False
 
@@ -262,38 +226,3 @@ class ExcaliburStrategy(PkStrategy):
     def is_previous_short_sma_over_long(self) -> bool:
         previous_short_minus_long: float = self.get_previous_sma("short") - self.get_previous_sma("long")
         return previous_short_minus_long > 0
-
-    def did_rsi_crash_and_recover(self):
-        rsi_series: pd.Series = self.processed_data["RSI"]
-        current_rsi = Decimal(rsi_series.iloc[-1])
-        older_rsis = rsi_series.iloc[-13:-1]  # 12 items, last one excluded
-
-        return older_rsis.min() < self.config.take_profit_sell_rsi_threshold and current_rsi > 30
-
-    def has_position_been_open_long_enough(self, tracked_order: TrackedOrderDetails) -> bool:
-        return tracked_order.last_filled_at + self.config.filled_position_min_duration_min * 60 < self.get_market_data_provider_time()
-
-    def did_rsi_spike_and_recover(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI"]
-        current_rsi = Decimal(rsi_series.iloc[-1])
-        older_rsis = rsi_series.iloc[-13:-1]
-
-        return older_rsis.max() > self.config.take_profit_buy_rsi_threshold and current_rsi < 70
-
-    def is_short_rsi_good_for_sell(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI_for_open"]
-        current_rsi = Decimal(rsi_series.iloc[-1])
-
-        # TODO: remove
-        self.logger().info(f"is_short_rsi_good_for_sell: {current_rsi}")
-
-        return current_rsi > self.config.min_rsi_to_open_sell_order
-
-    def is_short_rsi_good_for_buy(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI_for_open"]
-        current_rsi = Decimal(rsi_series.iloc[-1])
-
-        # TODO: remove
-        self.logger().info(f"is_short_rsi_good_for_buy: {current_rsi}")
-
-        return current_rsi < self.config.max_rsi_to_open_buy_order

@@ -312,6 +312,9 @@ class PkStrategy(StrategyV2Base):
 
             update_trailing_stop(filled_order, current_price)
 
+            if filled_order.trailing_stop_best_price and filled_order.triple_barrier_config.time_limit:
+                filled_order.triple_barrier_config.time_limit = None  # We disable the time limit
+
             if filled_order.trailing_stop_best_price == current_price:
                 self.logger().info(f"Updated trailing_stop_best_price to:{filled_order.trailing_stop_best_price}")
 

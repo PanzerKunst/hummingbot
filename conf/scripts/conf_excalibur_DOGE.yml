@@ -21,10 +21,4 @@ trailing_stop_close_delta_pct: 40
 rsi_length: 20
 sma_short: 8
 sma_long: 32
-rsi_length_for_open_order: 2
 entry_price_delta_bps: 0
-take_profit_sell_rsi_threshold: 25
-take_profit_buy_rsi_threshold: 75
-filled_position_min_duration_min: 20
-min_rsi_to_open_sell_order: 50
-max_rsi_to_open_buy_order: 50
