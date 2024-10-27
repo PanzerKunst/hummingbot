@@ -79,9 +79,11 @@ class ArthurStrategy(PkStrategy):
                                                                   trading_pair=candles_config.trading_pair,
                                                                   interval=candles_config.interval,
                                                                   max_records=candles_config.max_records)
+            candles_df.dropna(inplace=True)
             num_rows = candles_df.shape[0]
 
             if num_rows == 0:
+                self.logger().error(f"update_processed_data() > ERROR: num_rows == 0 | i:{i} | connector:{candles_config.connector}")
                 continue
 
             candles_df["index"] = candles_df["timestamp"]
@@ -93,7 +95,6 @@ class ArthurStrategy(PkStrategy):
 
         merged_df = self.merge_dataframes(candles_dataframes, connectors, ["open", "close", "high", "low", "RSI"], ["volume"])
         merged_df["timestamp_iso"] = pd.to_datetime(merged_df["timestamp"], unit="s")
-        merged_df.dropna(inplace=True)
 
         self.processed_data = merged_df
 
@@ -104,6 +105,10 @@ class ArthurStrategy(PkStrategy):
 
         if processed_data_num_rows == 0:
             self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
+            return []
+
+        if processed_data_num_rows == 1:
+            self.logger().error(f"create_actions_proposal() > ERROR: processed_data_num_rows == 1 | self.processed_data:{self.processed_data}")
             return []
 
         active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side()
