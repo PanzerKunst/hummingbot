@@ -281,13 +281,14 @@ class ArthurStrategy(PkStrategy):
             dataframes[0],
             dataframes[1],
             on="timestamp",
-            suffixes=(f"_{suffixes[0]}", f"_{suffixes[1]}")
+            suffixes=(f"_{suffixes[0]}", f"_{suffixes[1]}"),
+            how="left"
         )
 
         # Merge any additional DataFrames
         for i in range(2, len(dataframes)):
             df_with_suffix = self._add_suffix(dataframes[i], suffixes[i])
-            merged_df = pd.merge(merged_df, df_with_suffix, on="timestamp")
+            merged_df = pd.merge(merged_df, df_with_suffix, on="timestamp", how="left")
 
         for col in columns_to_avg:
             columns_to_avg_list = [f"{col}_{suffix}" for suffix in suffixes]
