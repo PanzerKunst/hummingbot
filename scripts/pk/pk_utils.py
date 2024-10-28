@@ -48,12 +48,12 @@ def has_current_price_reached_stop_loss(tracked_order: TrackedOrderDetails, curr
         return False
 
     side = tracked_order.side
-    entry_price = tracked_order.entry_price
+    ref_price = tracked_order.last_filled_price or tracked_order.entry_price
 
     if side == TradeType.SELL:
-        return current_price > entry_price * (1 + stop_loss)
+        return current_price > ref_price * (1 + stop_loss)
 
-    return current_price < entry_price * (1 - stop_loss)
+    return current_price < ref_price * (1 - stop_loss)
 
 
 def has_current_price_reached_take_profit(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
@@ -63,12 +63,12 @@ def has_current_price_reached_take_profit(tracked_order: TrackedOrderDetails, cu
         return False
 
     side = tracked_order.side
-    entry_price = tracked_order.entry_price
+    ref_price = tracked_order.last_filled_price or tracked_order.entry_price
 
     if side == TradeType.SELL:
-        return current_price < entry_price * (1 - take_profit)
+        return current_price < ref_price * (1 - take_profit)
 
-    return current_price > entry_price * (1 + take_profit)
+    return current_price > ref_price * (1 + take_profit)
 
 
 def update_trailing_stop(tracked_order: TrackedOrderDetails, current_price: Decimal):
@@ -102,11 +102,11 @@ def should_close_trailing_stop(tracked_order: TrackedOrderDetails, current_price
     return current_price < tracked_order.trailing_stop_best_price * (1 - trailing_delta)
 
 
-def get_take_profit_price(side: TradeType, entry_price: Decimal, take_profit_pct: Decimal) -> Decimal:
+def get_take_profit_price(side: TradeType, ref_price: Decimal, take_profit_pct: Decimal) -> Decimal:
     if side == TradeType.SELL:
-        return entry_price * (1 - take_profit_pct / 100)
+        return ref_price * (1 - take_profit_pct / 100)
 
-    return entry_price * (1 + take_profit_pct / 100)
+    return ref_price * (1 + take_profit_pct / 100)
 
 
 def has_unfilled_order_expired(tracked_order: TrackedOrderDetails, expiration_min: int, current_timestamp: float) -> bool:
