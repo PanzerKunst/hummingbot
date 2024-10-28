@@ -48,12 +48,12 @@ def has_current_price_reached_stop_loss(tracked_order: TrackedOrderDetails, curr
         return False
 
     side = tracked_order.side
-    entry_price = tracked_order.entry_price
+    ref_price = tracked_order.last_filled_price or tracked_order.entry_price
 
     if side == TradeType.SELL:
-        return current_price > entry_price * (1 + stop_loss)
+        return current_price > ref_price * (1 + stop_loss)
 
-    return current_price < entry_price * (1 - stop_loss)
+    return current_price < ref_price * (1 - stop_loss)
 
 
 def has_current_price_reached_take_profit(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
@@ -63,12 +63,12 @@ def has_current_price_reached_take_profit(tracked_order: TrackedOrderDetails, cu
         return False
 
     side = tracked_order.side
-    entry_price = tracked_order.entry_price
+    ref_price = tracked_order.last_filled_price or tracked_order.entry_price
 
     if side == TradeType.SELL:
-        return current_price < entry_price * (1 - take_profit)
+        return current_price < ref_price * (1 - take_profit)
 
-    return current_price > entry_price * (1 + take_profit)
+    return current_price > ref_price * (1 + take_profit)
 
 
 def update_trailing_stop(tracked_order: TrackedOrderDetails, current_price: Decimal):
