@@ -40,8 +40,8 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     position_mode: PositionMode = PositionMode.ONEWAY
 
     # Triple Barrier
-    stop_loss_pct: Decimal = Field(1.75, client_data=ClientFieldData(is_updatable=True))
-    trailing_stop_activation_pct: Decimal = Field(2, client_data=ClientFieldData(is_updatable=True))
+    stop_loss_pct: Decimal = Field(1.5, client_data=ClientFieldData(is_updatable=True))
+    trailing_stop_activation_pct: Decimal = Field(1.6, client_data=ClientFieldData(is_updatable=True))
     trailing_stop_close_delta_pct: Decimal = Field(1.5, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
