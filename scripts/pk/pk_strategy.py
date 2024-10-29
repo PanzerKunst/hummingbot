@@ -214,10 +214,10 @@ class PkStrategy(StrategyV2Base):
                 order.close_type = close_type
                 break
 
-    def close_twap_filled_market_orders(self, tracked_orders: List[TrackedOrderDetails], close_type: CloseType):
+    async def close_twap_filled_market_orders(self, tracked_orders: List[TrackedOrderDetails], close_type: CloseType):
         for tracked_order in tracked_orders:
             self.close_filled_order(tracked_order, OrderType.MARKET, close_type)
-            time.sleep(self.config.market_order_twap_interval)
+            await asyncio.sleep(self.config.market_order_twap_interval)
 
     def cancel_unfilled_order(self, tracked_order: TrackedOrderDetails):
         connector_name = tracked_order.connector_name
