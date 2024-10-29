@@ -22,3 +22,5 @@ rsi_length: 20
 sma_short: 15
 sma_long: 60
 entry_price_delta_bps: 0
+min_rsi_to_open_sell_order: 35
+max_rsi_to_open_buy_order: 65

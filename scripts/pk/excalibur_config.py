@@ -51,3 +51,5 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     # Order settings
     entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
+    min_rsi_to_open_sell_order: int = Field(35, client_data=ClientFieldData(is_updatable=True))
+    max_rsi_to_open_buy_order: int = Field(65, client_data=ClientFieldData(is_updatable=True))
