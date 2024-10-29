@@ -2,6 +2,7 @@ from decimal import Decimal
 from typing import Dict, List
 
 import pandas as pd
+import asyncio
 
 from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
@@ -100,12 +101,12 @@ class ExcaliburStrategy(PkStrategy):
         if self.can_create_sma_cross_order(TradeType.SELL, active_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
             triple_barrier_config = self.get_triple_barrier_config(TradeType.SELL, entry_price)
-            self.create_twap_market_orders(TradeType.SELL, entry_price, triple_barrier_config)
+            asyncio.run(self.create_twap_market_orders(TradeType.SELL, entry_price, triple_barrier_config))
 
         if self.can_create_sma_cross_order(TradeType.BUY, active_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
             triple_barrier_config = self.get_triple_barrier_config(TradeType.BUY, entry_price)
-            self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier_config)
+            asyncio.run(self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier_config))
 
         return []  # Always return []
 

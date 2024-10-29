@@ -1,4 +1,4 @@
-import time
+import asyncio
 from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional, Tuple, Dict
@@ -113,7 +113,7 @@ class PkStrategy(StrategyV2Base):
         executor_config = self.get_executor_config(side, entry_price, triple_barrier_config, amount_multiplier)
         self.create_individual_order(executor_config)
 
-    def create_twap_market_orders(self, side: TradeType, entry_price: Decimal, triple_barrier_config: TripleBarrierConfig, amount_multiplier: Decimal = 1):
+    async def create_twap_market_orders(self, side: TradeType, entry_price: Decimal, triple_barrier_config: TripleBarrierConfig, amount_multiplier: Decimal = 1):
         executor_config = self.get_executor_config(side, entry_price, triple_barrier_config, amount_multiplier, True)
 
         for _ in range(self.config.market_order_twap_count):
@@ -123,7 +123,7 @@ class PkStrategy(StrategyV2Base):
                 self.logger().error("ERROR: Cannot create another individual order, as one is being created")
             else:
                 self.create_individual_order(executor_config)
-                time.sleep(self.config.market_order_twap_interval)
+                await asyncio.sleep(self.config.market_order_twap_interval)
 
     def create_individual_order(self, executor_config: PositionExecutorConfig):
         connector_name = executor_config.connector_name
