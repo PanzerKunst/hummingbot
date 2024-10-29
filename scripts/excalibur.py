@@ -107,16 +107,6 @@ class ExcaliburStrategy(PkStrategy):
             triple_barrier_config = self.get_triple_barrier_config(TradeType.BUY, entry_price)
             self.create_order(TradeType.BUY, entry_price, triple_barrier_config)
 
-        if self.can_recreate_order_after_tp(TradeType.SELL, active_orders):
-            entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
-            triple_barrier_config = self.get_triple_barrier_config(TradeType.SELL, entry_price)
-            self.create_order(TradeType.SELL, entry_price, triple_barrier_config)
-
-        if self.can_recreate_order_after_tp(TradeType.BUY, active_orders):
-            entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
-            triple_barrier_config = self.get_triple_barrier_config(TradeType.BUY, entry_price)
-            self.create_order(TradeType.BUY, entry_price, triple_barrier_config)
-
         return []  # Always return []
 
     def stop_actions_proposal(self) -> List[StopExecutorAction]:
@@ -182,23 +172,6 @@ class ExcaliburStrategy(PkStrategy):
             return self.is_rsi_good_for_buy()
 
         return False
-
-    def can_recreate_order_after_tp(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]):
-        if not self.can_create_order(side):
-            return False
-
-        if len(active_tracked_orders) > 0:
-            return False
-
-        last_terminated_filled_order = self.find_last_terminated_filled_order(side)
-
-        # If the last completed order on this side was a TP
-        if not last_terminated_filled_order or last_terminated_filled_order.close_type != CloseType.TAKE_PROFIT:
-            return False
-
-        self.logger().info(f"can_recreate_order_after_tp({side}) > last_terminated_filled_order is TP")
-
-        return True
 
     #
     # Custom functions specific to this controller
