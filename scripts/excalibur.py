@@ -100,12 +100,12 @@ class ExcaliburStrategy(PkStrategy):
         if self.can_create_sma_cross_order(TradeType.SELL, active_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
             triple_barrier_config = self.get_triple_barrier_config(TradeType.SELL, entry_price)
-            self.create_order(TradeType.SELL, entry_price, triple_barrier_config)
+            self.create_twap_market_orders(TradeType.SELL, entry_price, triple_barrier_config)
 
         if self.can_create_sma_cross_order(TradeType.BUY, active_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
             triple_barrier_config = self.get_triple_barrier_config(TradeType.BUY, entry_price)
-            self.create_order(TradeType.BUY, entry_price, triple_barrier_config)
+            self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier_config)
 
         return []  # Always return []
 
@@ -119,15 +119,15 @@ class ExcaliburStrategy(PkStrategy):
 
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side()
 
-        if len(filled_sell_orders) == 1:
+        if len(filled_sell_orders) > 0:
             if self.did_short_sma_cross_over_long():
                 self.logger().info("stop_actions_proposal() > Short SMA crossed over long")
-                self.close_filled_order(filled_sell_orders[0], OrderType.MARKET, CloseType.COMPLETED)
+                self.close_twap_filled_market_orders(filled_sell_orders, CloseType.COMPLETED)
 
-        if len(filled_buy_orders) == 1:
+        if len(filled_buy_orders) > 0:
             if self.did_short_sma_cross_under_long():
                 self.logger().info("stop_actions_proposal() > Short SMA crossed under long")
-                self.close_filled_order(filled_buy_orders[0], OrderType.MARKET, CloseType.COMPLETED)
+                self.close_twap_filled_market_orders(filled_buy_orders, CloseType.COMPLETED)
 
         return []  # Always return []
 

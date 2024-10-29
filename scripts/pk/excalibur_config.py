@@ -36,6 +36,8 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     cooldown_time_min: int = Field(0, client_data=ClientFieldData(is_updatable=True))
     unfilled_order_expiration_min: int = Field(1, client_data=ClientFieldData(is_updatable=True))
     limit_take_profit_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
+    market_order_twap_count: int = 3
+    market_order_twap_interval: int = 5
 
     position_mode: PositionMode = PositionMode.ONEWAY
 

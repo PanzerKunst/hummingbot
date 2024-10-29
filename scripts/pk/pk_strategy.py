@@ -1,3 +1,4 @@
+import time
 from datetime import datetime
 from decimal import Decimal
 from typing import List, Optional, Tuple, Dict
@@ -56,12 +57,13 @@ class PkStrategy(StrategyV2Base):
 
         return self.market_data_provider.get_price_by_type(connector_name, trading_pair, price_type)
 
-    def get_executor_config(self, side: TradeType, entry_price: Decimal, triple_barrier_config: TripleBarrierConfig, amount_multiplier: Decimal) -> PositionExecutorConfig:
+    def get_executor_config(self, side: TradeType, entry_price: Decimal, triple_barrier_config: TripleBarrierConfig, amount_multiplier: Decimal, is_twap: bool = False) -> PositionExecutorConfig:
         connector_name = self.config.connector_name
         trading_pair = self.config.trading_pair
         leverage = self.config.leverage
 
-        amount: Decimal = self.get_position_quote_amount(side) / entry_price * amount_multiplier
+        amount_divider = self.config.market_order_twap_count if is_twap else 1
+        amount: Decimal = self.get_position_quote_amount(side) / entry_price * amount_multiplier / amount_divider
 
         return PositionExecutorConfig(
             timestamp=self.get_market_data_provider_time(),
@@ -107,9 +109,23 @@ class PkStrategy(StrategyV2Base):
         filled_buy_orders = [order for order in active_buy_orders if order.last_filled_at]
         return filled_sell_orders, filled_buy_orders
 
-    def create_order(self, side: TradeType, entry_price: Decimal, triple_barrier_config: TripleBarrierConfig, amount_multiplier: Decimal = 1):
+    def create_limit_order(self, side: TradeType, entry_price: Decimal, triple_barrier_config: TripleBarrierConfig, amount_multiplier: Decimal = 1):
         executor_config = self.get_executor_config(side, entry_price, triple_barrier_config, amount_multiplier)
+        self.create_individual_order(executor_config)
 
+    def create_twap_market_orders(self, side: TradeType, entry_price: Decimal, triple_barrier_config: TripleBarrierConfig, amount_multiplier: Decimal = 1):
+        executor_config = self.get_executor_config(side, entry_price, triple_barrier_config, amount_multiplier, True)
+
+        for _ in range(self.config.market_order_twap_count):
+            is_an_order_being_created: bool = self.is_a_sell_order_being_created if executor_config.side == TradeType.SELL else self.is_a_buy_order_being_created
+
+            if is_an_order_being_created:
+                self.logger().error("ERROR: Cannot create another individual order, as one is being created")
+            else:
+                self.create_individual_order(executor_config)
+                time.sleep(self.config.market_order_twap_interval)
+
+    def create_individual_order(self, executor_config: PositionExecutorConfig):
         connector_name = executor_config.connector_name
         trading_pair = executor_config.trading_pair
         amount = executor_config.amount
@@ -198,6 +214,11 @@ class PkStrategy(StrategyV2Base):
                 order.close_type = close_type
                 break
 
+    def close_twap_filled_market_orders(self, tracked_orders: List[TrackedOrderDetails], close_type: CloseType):
+        for tracked_order in tracked_orders:
+            self.close_filled_order(tracked_order, OrderType.MARKET, close_type)
+            time.sleep(self.config.market_order_twap_interval)
+
     def cancel_unfilled_order(self, tracked_order: TrackedOrderDetails):
         connector_name = tracked_order.connector_name
         trading_pair = tracked_order.trading_pair
@@ -256,11 +277,11 @@ class PkStrategy(StrategyV2Base):
             return False
 
         if side == TradeType.SELL and self.is_a_sell_order_being_created:
-            self.logger().info("Another SELL order is being created, avoiding a duplicate")
+            self.logger().error("ERROR: Another SELL order is being created, avoiding a duplicate")
             return False
 
         if side == TradeType.BUY and self.is_a_buy_order_being_created:
-            self.logger().info("Another BUY order is being created, avoiding a duplicate")
+            self.logger().error("ERROR: Another BUY order is being created, avoiding a duplicate")
             return False
 
         last_terminated_filled_order = self.find_last_terminated_filled_order(side)
