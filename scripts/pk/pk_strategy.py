@@ -1,17 +1,24 @@
 import asyncio
 from datetime import datetime
 from decimal import Decimal
-from typing import List, Optional, Tuple, Dict
+from typing import Dict, List, Optional, Tuple
 
 from hummingbot.connector.connector_base import ConnectorBase
-from hummingbot.core.data_type.common import PriceType, TradeType, PositionAction, OrderType
-from hummingbot.core.event.events import SellOrderCreatedEvent, BuyOrderCreatedEvent, OrderFilledEvent
+from hummingbot.core.data_type.common import OrderType, PositionAction, PriceType, TradeType
+from hummingbot.core.event.events import BuyOrderCreatedEvent, OrderFilledEvent, SellOrderCreatedEvent
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base
-from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig, TripleBarrierConfig
+from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig
 from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.pk.excalibur_config import ExcaliburConfig
-from scripts.pk.pk_utils import has_unfilled_order_expired, has_current_price_reached_stop_loss, has_current_price_reached_take_profit, \
-    has_filled_order_reached_time_limit, update_trailing_stop, should_close_trailing_stop
+from scripts.pk.pk_triple_barrier import TripleBarrier
+from scripts.pk.pk_utils import (
+    has_current_price_reached_stop_loss,
+    has_current_price_reached_take_profit,
+    has_filled_order_reached_time_limit,
+    has_unfilled_order_expired,
+    should_close_trailing_stop,
+    update_trailing_stop,
+)
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
@@ -57,7 +64,7 @@ class PkStrategy(StrategyV2Base):
 
         return self.market_data_provider.get_price_by_type(connector_name, trading_pair, price_type)
 
-    def get_executor_config(self, side: TradeType, entry_price: Decimal, triple_barrier_config: TripleBarrierConfig, amount_multiplier: Decimal, is_twap: bool = False) -> PositionExecutorConfig:
+    def get_executor_config(self, side: TradeType, entry_price: Decimal, amount_multiplier: Decimal, is_twap: bool = False) -> PositionExecutorConfig:
         connector_name = self.config.connector_name
         trading_pair = self.config.trading_pair
         leverage = self.config.leverage
@@ -72,7 +79,6 @@ class PkStrategy(StrategyV2Base):
             side=side,
             entry_price=entry_price,
             amount=amount,
-            triple_barrier_config=triple_barrier_config,
             leverage=leverage
         )
 
@@ -109,12 +115,12 @@ class PkStrategy(StrategyV2Base):
         filled_buy_orders = [order for order in active_buy_orders if order.last_filled_at]
         return filled_sell_orders, filled_buy_orders
 
-    def create_limit_order(self, side: TradeType, entry_price: Decimal, triple_barrier_config: TripleBarrierConfig, amount_multiplier: Decimal = 1):
-        executor_config = self.get_executor_config(side, entry_price, triple_barrier_config, amount_multiplier)
-        self.create_individual_order(executor_config)
+    def create_limit_order(self, side: TradeType, entry_price: Decimal, triple_barrier: TripleBarrier, amount_multiplier: Decimal = 1):
+        executor_config = self.get_executor_config(side, entry_price, amount_multiplier)
+        self.create_individual_order(executor_config, triple_barrier)
 
-    async def create_twap_market_orders(self, side: TradeType, entry_price: Decimal, triple_barrier_config: TripleBarrierConfig, amount_multiplier: Decimal = 1):
-        executor_config = self.get_executor_config(side, entry_price, triple_barrier_config, amount_multiplier, True)
+    async def create_twap_market_orders(self, side: TradeType, entry_price: Decimal, triple_barrier: TripleBarrier, amount_multiplier: Decimal = 1):
+        executor_config = self.get_executor_config(side, entry_price, amount_multiplier, True)
 
         for _ in range(self.config.market_order_twap_count):
             is_an_order_being_created: bool = self.is_a_sell_order_being_created if executor_config.side == TradeType.SELL else self.is_a_buy_order_being_created
@@ -122,10 +128,10 @@ class PkStrategy(StrategyV2Base):
             if is_an_order_being_created:
                 self.logger().error("ERROR: Cannot create another individual order, as one is being created")
             else:
-                self.create_individual_order(executor_config)
+                self.create_individual_order(executor_config, triple_barrier)
                 await asyncio.sleep(self.config.market_order_twap_interval)
 
-    def create_individual_order(self, executor_config: PositionExecutorConfig):
+    def create_individual_order(self, executor_config: PositionExecutorConfig, triple_barrier: TripleBarrier):
         connector_name = executor_config.connector_name
         trading_pair = executor_config.trading_pair
         amount = executor_config.amount
@@ -146,7 +152,7 @@ class PkStrategy(StrategyV2Base):
                 position=PositionAction.OPEN.value,
                 amount=amount,
                 entry_price=entry_price,
-                triple_barrier_config=triple_barrier_config,
+                triple_barrier=triple_barrier,
                 created_at=self.get_market_data_provider_time()  # Because some exchanges such as gate_io trigger the `did_create_xxx_order` event after 1s
             ))
 
@@ -165,7 +171,7 @@ class PkStrategy(StrategyV2Base):
                 position=PositionAction.OPEN.value,
                 amount = amount,
                 entry_price=entry_price,
-                triple_barrier_config=triple_barrier_config,
+                triple_barrier=triple_barrier,
                 created_at=self.get_market_data_provider_time()
             ))
 
@@ -321,33 +327,33 @@ class PkStrategy(StrategyV2Base):
         for filled_order in filled_sell_orders + filled_buy_orders:
             if has_current_price_reached_stop_loss(filled_order, current_price):
                 self.logger().info(f"current_price_has_reached_stop_loss | current_price:{current_price}")
-                stop_loss_order_type = filled_order.triple_barrier_config.stop_loss_order_type
+                stop_loss_order_type = filled_order.triple_barrier.stop_loss_order_type
                 self.close_filled_order(filled_order, stop_loss_order_type, CloseType.STOP_LOSS)
                 continue
 
             if has_current_price_reached_take_profit(filled_order, current_price):
                 self.logger().info(f"current_price_has_reached_take_profit | current_price:{current_price}")
-                take_profit_order_type = filled_order.triple_barrier_config.take_profit_order_type
+                take_profit_order_type = filled_order.triple_barrier.take_profit_order_type
                 self.close_filled_order(filled_order, take_profit_order_type, CloseType.TAKE_PROFIT)
                 continue
 
             update_trailing_stop(filled_order, current_price)
 
-            if filled_order.trailing_stop_best_price and filled_order.triple_barrier_config.time_limit:
-                filled_order.triple_barrier_config.time_limit = None  # We disable the time limit
+            if filled_order.trailing_stop_best_price and filled_order.triple_barrier.time_limit:
+                filled_order.triple_barrier.time_limit = None  # We disable the time limit
 
             if filled_order.trailing_stop_best_price == current_price:
                 self.logger().info(f"Updated trailing_stop_best_price to:{filled_order.trailing_stop_best_price}")
 
             if should_close_trailing_stop(filled_order, current_price):
                 self.logger().info(f"should_close_trailing_stop | current_price:{current_price}")
-                take_profit_order_type = filled_order.triple_barrier_config.take_profit_order_type
+                take_profit_order_type = filled_order.triple_barrier.take_profit_order_type
                 self.close_filled_order(filled_order, take_profit_order_type, CloseType.TRAILING_STOP)
                 continue
 
             if has_filled_order_reached_time_limit(filled_order, self.get_market_data_provider_time()):
                 self.logger().info(f"filled_order_has_reached_time_limit | current_price:{current_price}")
-                time_limit_order_type = filled_order.triple_barrier_config.time_limit_order_type
+                time_limit_order_type = filled_order.triple_barrier.time_limit_order_type
                 self.close_filled_order(filled_order, time_limit_order_type, CloseType.TIME_LIMIT)
 
     @staticmethod
