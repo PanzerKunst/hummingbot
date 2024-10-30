@@ -122,12 +122,12 @@ class ExcaliburStrategy(PkStrategy):
         if len(filled_sell_orders) > 0:
             if self.did_short_sma_cross_over_long():
                 self.logger().info("stop_actions_proposal() > Short SMA crossed over long")
-                asyncio.get_running_loop().create_task(self.close_twap_filled_market_orders(filled_sell_orders, CloseType.COMPLETED))
+                self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
 
         if len(filled_buy_orders) > 0:
             if self.did_short_sma_cross_under_long():
                 self.logger().info("stop_actions_proposal() > Short SMA crossed under long")
-                asyncio.get_running_loop().create_task(self.close_twap_filled_market_orders(filled_buy_orders, CloseType.COMPLETED))
+                self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
 
         return []  # Always return []
 
