@@ -100,12 +100,12 @@ class ExcaliburStrategy(PkStrategy):
         if self.can_create_sma_cross_order(TradeType.SELL, active_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
             triple_barrier = self.get_triple_barrier()
-            asyncio.run(self.create_twap_market_orders(TradeType.SELL, entry_price, triple_barrier))
+            asyncio.get_running_loop().create_task(self.create_twap_market_orders(TradeType.SELL, entry_price, triple_barrier))
 
         if self.can_create_sma_cross_order(TradeType.BUY, active_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
             triple_barrier = self.get_triple_barrier()
-            asyncio.run(self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier))
+            asyncio.get_running_loop().create_task(self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier))
 
         return []  # Always return []
 
@@ -122,12 +122,12 @@ class ExcaliburStrategy(PkStrategy):
         if len(filled_sell_orders) > 0:
             if self.did_short_sma_cross_over_long():
                 self.logger().info("stop_actions_proposal() > Short SMA crossed over long")
-                asyncio.run(self.close_twap_filled_market_orders(filled_sell_orders, CloseType.COMPLETED))
+                asyncio.get_running_loop().create_task(self.close_twap_filled_market_orders(filled_sell_orders, CloseType.COMPLETED))
 
         if len(filled_buy_orders) > 0:
             if self.did_short_sma_cross_under_long():
                 self.logger().info("stop_actions_proposal() > Short SMA crossed under long")
-                asyncio.run(self.close_twap_filled_market_orders(filled_buy_orders, CloseType.COMPLETED))
+                asyncio.get_running_loop().create_task(self.close_twap_filled_market_orders(filled_buy_orders, CloseType.COMPLETED))
 
         return []  # Always return []
 
