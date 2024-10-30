@@ -1,6 +1,6 @@
 import os
 from decimal import Decimal
-from typing import Dict, Set, List
+from typing import Dict, List, Set
 
 from pydantic import Field
 
@@ -43,8 +43,8 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     # Triple Barrier
     stop_loss_pct: Decimal = Field(1.5, client_data=ClientFieldData(is_updatable=True))
-    trailing_stop_activation_pct: Decimal = Field(1.6, client_data=ClientFieldData(is_updatable=True))
-    trailing_stop_close_delta_pct: Decimal = Field(1.5, client_data=ClientFieldData(is_updatable=True))
+    trailing_stop_activation_pct: Decimal = Field(1.5, client_data=ClientFieldData(is_updatable=True))
+    trailing_stop_close_delta_pct: Decimal = Field(1.1, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
     rsi_length: int = Field(20, client_data=ClientFieldData(is_updatable=True))

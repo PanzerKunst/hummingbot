@@ -9,7 +9,7 @@ config_update_interval: 10
 script_file_name: excalibur_config.py
 connector_name: hyperliquid_perpetual
 trading_pair: MOODENG-USD
-total_amount_quote: 40
+total_amount_quote: 1200
 leverage: 5
 cooldown_time_min: 0
 unfilled_order_expiration_min: 1
@@ -18,11 +18,11 @@ market_order_twap_count: 3
 market_order_twap_interval: 5
 position_mode: ONEWAY
 stop_loss_pct: 3
-trailing_stop_activation_pct: 3.1
-trailing_stop_close_delta_pct: 3
+trailing_stop_activation_pct: 3
+trailing_stop_close_delta_pct: 2.25
 rsi_length: 20
-sma_short: 15
-sma_long: 60
+sma_short: 13
+sma_long: 52
 entry_price_delta_bps: 0
 min_rsi_to_open_sell_order: 35
 max_rsi_to_open_buy_order: 65
