@@ -1,21 +1,20 @@
+import asyncio
 from decimal import Decimal
 from typing import Dict, List
 
 import pandas as pd
-import asyncio
 
 from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.clock import Clock
 from hummingbot.core.data_type.common import OrderType, TradeType
-from hummingbot.strategy_v2.executors.position_executor.data_types import TripleBarrierConfig, TrailingStop
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.pk.excalibur_config import ExcaliburConfig
 from scripts.pk.pk_strategy import PkStrategy
-from scripts.pk.pk_utils import get_take_profit_price
+from scripts.pk.pk_trailing_stop import PkTrailingStop
+from scripts.pk.pk_triple_barrier import TripleBarrier
 from scripts.pk.tracked_order_details import TrackedOrderDetails
-
 
 # Trends via comparing 2 SMAs
 # Generate config file: create --script-config excalibur
@@ -47,13 +46,13 @@ class ExcaliburStrategy(PkStrategy):
                 for trading_pair in self.market_data_provider.get_trading_pairs(connector_name):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
-    def get_triple_barrier_config(self, side: TradeType, entry_price: Decimal) -> TripleBarrierConfig:
-        trailing_stop = TrailingStop(
-            activation_price=get_take_profit_price(side, entry_price, self.config.trailing_stop_activation_pct),
+    def get_triple_barrier(self) -> TripleBarrier:
+        trailing_stop = PkTrailingStop(
+            activation_delta=self.config.trailing_stop_activation_pct / 100,
             trailing_delta=self.config.trailing_stop_close_delta_pct / 100
         )
 
-        return TripleBarrierConfig(
+        return TripleBarrier(
             stop_loss=Decimal(self.config.stop_loss_pct / 100),
             trailing_stop=trailing_stop,
             open_order_type=OrderType.MARKET,
@@ -100,13 +99,13 @@ class ExcaliburStrategy(PkStrategy):
 
         if self.can_create_sma_cross_order(TradeType.SELL, active_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
-            triple_barrier_config = self.get_triple_barrier_config(TradeType.SELL, entry_price)
-            asyncio.run(self.create_twap_market_orders(TradeType.SELL, entry_price, triple_barrier_config))
+            triple_barrier = self.get_triple_barrier()
+            asyncio.run(self.create_twap_market_orders(TradeType.SELL, entry_price, triple_barrier))
 
         if self.can_create_sma_cross_order(TradeType.BUY, active_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
-            triple_barrier_config = self.get_triple_barrier_config(TradeType.BUY, entry_price)
-            asyncio.run(self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier_config))
+            triple_barrier = self.get_triple_barrier()
+            asyncio.run(self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier))
 
         return []  # Always return []
 

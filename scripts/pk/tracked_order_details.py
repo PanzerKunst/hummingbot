@@ -3,8 +3,8 @@ from decimal import Decimal
 from typing import Optional
 
 from hummingbot.core.data_type.common import TradeType
-from hummingbot.strategy_v2.executors.position_executor.data_types import TripleBarrierConfig
 from hummingbot.strategy_v2.models.executors import CloseType
+from scripts.pk.pk_triple_barrier import TripleBarrier
 
 
 @dataclass
@@ -16,7 +16,7 @@ class TrackedOrderDetails:
     position: str
     amount: Decimal
     entry_price: Decimal
-    triple_barrier_config: TripleBarrierConfig
+    triple_barrier: TripleBarrier
     filled_amount: Decimal = Decimal(0)
     exchange_order_id: Optional[str] = None
     created_at: Optional[float] = None

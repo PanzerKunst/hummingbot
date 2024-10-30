@@ -42,7 +42,7 @@ def compute_recent_price_delta_pct(low_series: pd.Series, high_series: pd.Series
 
 
 def has_current_price_reached_stop_loss(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
-    stop_loss = tracked_order.triple_barrier_config.stop_loss
+    stop_loss = tracked_order.triple_barrier.stop_loss
 
     if not stop_loss:
         return False
@@ -57,7 +57,7 @@ def has_current_price_reached_stop_loss(tracked_order: TrackedOrderDetails, curr
 
 
 def has_current_price_reached_take_profit(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
-    take_profit = tracked_order.triple_barrier_config.take_profit
+    take_profit = tracked_order.triple_barrier.take_profit
 
     if not take_profit:
         return False
@@ -72,12 +72,13 @@ def has_current_price_reached_take_profit(tracked_order: TrackedOrderDetails, cu
 
 
 def update_trailing_stop(tracked_order: TrackedOrderDetails, current_price: Decimal):
-    trailing_stop = tracked_order.triple_barrier_config.trailing_stop
+    trailing_stop = tracked_order.triple_barrier.trailing_stop
 
     if not trailing_stop:
         return
 
-    price_to_compare = tracked_order.trailing_stop_best_price or trailing_stop.activation_price
+    activation_price = get_take_profit_price(tracked_order.side, tracked_order.last_filled_price, trailing_stop.activation_delta),
+    price_to_compare = tracked_order.trailing_stop_best_price or activation_price
 
     if tracked_order.side == TradeType.SELL:
         if current_price < price_to_compare:
@@ -89,7 +90,7 @@ def update_trailing_stop(tracked_order: TrackedOrderDetails, current_price: Deci
 
 
 def should_close_trailing_stop(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
-    trailing_stop = tracked_order.triple_barrier_config.trailing_stop
+    trailing_stop = tracked_order.triple_barrier.trailing_stop
 
     if not trailing_stop or not tracked_order.trailing_stop_best_price:
         return False
@@ -102,11 +103,11 @@ def should_close_trailing_stop(tracked_order: TrackedOrderDetails, current_price
     return current_price < tracked_order.trailing_stop_best_price * (1 - trailing_delta)
 
 
-def get_take_profit_price(side: TradeType, ref_price: Decimal, take_profit_pct: Decimal) -> Decimal:
+def get_take_profit_price(side: TradeType, ref_price: Decimal, take_profit_delta: Decimal) -> Decimal:
     if side == TradeType.SELL:
-        return ref_price * (1 - take_profit_pct / 100)
+        return ref_price * (1 - take_profit_delta)
 
-    return ref_price * (1 + take_profit_pct / 100)
+    return ref_price * (1 + take_profit_delta)
 
 
 def has_unfilled_order_expired(tracked_order: TrackedOrderDetails, expiration_min: int, current_timestamp: float) -> bool:
@@ -116,7 +117,7 @@ def has_unfilled_order_expired(tracked_order: TrackedOrderDetails, expiration_mi
 
 
 def has_filled_order_reached_time_limit(tracked_order: TrackedOrderDetails, current_timestamp: float) -> bool:
-    time_limit = tracked_order.triple_barrier_config.time_limit
+    time_limit = tracked_order.triple_barrier.time_limit
 
     if not time_limit:
         return False
