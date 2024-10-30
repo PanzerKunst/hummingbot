@@ -14,7 +14,7 @@ leverage: 5
 cooldown_time_min: 0
 unfilled_order_expiration_min: 1
 limit_take_profit_price_delta_bps: 0
-market_order_twap_count: 2
+market_order_twap_count: 1
 market_order_twap_interval: 5
 position_mode: ONEWAY
 stop_loss_pct: 2.2
