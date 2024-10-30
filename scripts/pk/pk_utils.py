@@ -77,7 +77,7 @@ def update_trailing_stop(tracked_order: TrackedOrderDetails, current_price: Deci
     if not trailing_stop:
         return
 
-    activation_price = get_take_profit_price(tracked_order.side, tracked_order.last_filled_price, trailing_stop.activation_delta),
+    activation_price = get_take_profit_price(tracked_order.side, tracked_order.last_filled_price, trailing_stop.activation_delta)
     price_to_compare = tracked_order.trailing_stop_best_price or activation_price
 
     if tracked_order.side == TradeType.SELL:
