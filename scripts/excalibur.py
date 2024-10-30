@@ -1,21 +1,20 @@
+import asyncio
 from decimal import Decimal
 from typing import Dict, List
 
 import pandas as pd
-import asyncio
 
 from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.clock import Clock
 from hummingbot.core.data_type.common import OrderType, TradeType
-from hummingbot.strategy_v2.executors.position_executor.data_types import TripleBarrierConfig, TrailingStop
+from hummingbot.strategy_v2.executors.position_executor.data_types import TrailingStop, TripleBarrierConfig
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.pk.excalibur_config import ExcaliburConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_utils import get_take_profit_price
 from scripts.pk.tracked_order_details import TrackedOrderDetails
-
 
 # Trends via comparing 2 SMAs
 # Generate config file: create --script-config excalibur
@@ -101,12 +100,12 @@ class ExcaliburStrategy(PkStrategy):
         if self.can_create_sma_cross_order(TradeType.SELL, active_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
             triple_barrier_config = self.get_triple_barrier_config(TradeType.SELL, entry_price)
-            asyncio.run(self.create_twap_market_orders(TradeType.SELL, entry_price, triple_barrier_config))
+            asyncio.get_running_loop().create_task(self.create_twap_market_orders(TradeType.SELL, entry_price, triple_barrier_config))
 
         if self.can_create_sma_cross_order(TradeType.BUY, active_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
             triple_barrier_config = self.get_triple_barrier_config(TradeType.BUY, entry_price)
-            asyncio.run(self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier_config))
+            asyncio.get_running_loop().create_task(self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier_config))
 
         return []  # Always return []
 
@@ -123,12 +122,12 @@ class ExcaliburStrategy(PkStrategy):
         if len(filled_sell_orders) > 0:
             if self.did_short_sma_cross_over_long():
                 self.logger().info("stop_actions_proposal() > Short SMA crossed over long")
-                asyncio.run(self.close_twap_filled_market_orders(filled_sell_orders, CloseType.COMPLETED))
+                asyncio.get_running_loop().create_task(self.close_twap_filled_market_orders(filled_sell_orders, CloseType.COMPLETED))
 
         if len(filled_buy_orders) > 0:
             if self.did_short_sma_cross_under_long():
                 self.logger().info("stop_actions_proposal() > Short SMA crossed under long")
-                asyncio.run(self.close_twap_filled_market_orders(filled_buy_orders, CloseType.COMPLETED))
+                asyncio.get_running_loop().create_task(self.close_twap_filled_market_orders(filled_buy_orders, CloseType.COMPLETED))
 
         return []  # Always return []
 
