@@ -9,7 +9,7 @@ config_update_interval: 10
 script_file_name: excalibur_config.py
 connector_name: hyperliquid_perpetual
 trading_pair: POPCAT-USD
-total_amount_quote: 1200
+total_amount_quote: 1000
 leverage: 5
 cooldown_time_min: 0
 unfilled_order_expiration_min: 1

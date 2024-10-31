@@ -120,13 +120,13 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side()
 
         if len(filled_sell_orders) > 0:
-            if self.did_short_sma_cross_over_long():
-                self.logger().info("stop_actions_proposal() > Short SMA crossed over long")
+            if self.is_latest_short_sma_over_long():
+                self.logger().info("stop_actions_proposal() > Short SMA is over long")
                 self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
 
         if len(filled_buy_orders) > 0:
-            if self.did_short_sma_cross_under_long():
-                self.logger().info("stop_actions_proposal() > Short SMA crossed under long")
+            if not self.is_latest_short_sma_over_long():
+                self.logger().info("stop_actions_proposal() > Short SMA is under long")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
 
         return []  # Always return []
