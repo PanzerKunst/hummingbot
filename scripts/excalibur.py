@@ -202,7 +202,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def is_rsi_good_for_sell(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI"]
-        current_rsi = Decimal(rsi_series.iloc[-1])
+        current_rsi = Decimal(rsi_series.iloc[-2])
 
         # TODO: remove
         self.logger().info(f"is_rsi_good_for_sell: {current_rsi}")
@@ -211,7 +211,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def is_rsi_good_for_buy(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI"]
-        current_rsi = Decimal(rsi_series.iloc[-1])
+        current_rsi = Decimal(rsi_series.iloc[-2])
 
         # TODO: remove
         self.logger().info(f"is_rsi_good_for_buy: {current_rsi}")
