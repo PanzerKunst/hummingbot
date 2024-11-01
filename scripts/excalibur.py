@@ -12,7 +12,6 @@ from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction,
 from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.pk.excalibur_config import ExcaliburConfig
 from scripts.pk.pk_strategy import PkStrategy
-from scripts.pk.pk_trailing_stop import PkTrailingStop
 from scripts.pk.pk_triple_barrier import TripleBarrier
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
@@ -46,17 +45,10 @@ class ExcaliburStrategy(PkStrategy):
                 for trading_pair in self.market_data_provider.get_trading_pairs(connector_name):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
-    def get_triple_barrier(self) -> TripleBarrier:
-        trailing_stop = PkTrailingStop(
-            activation_delta=self.config.trailing_stop_activation_pct / 100,
-            trailing_delta=self.config.trailing_stop_close_delta_pct / 100
-        )
-
+    @staticmethod
+    def get_triple_barrier() -> TripleBarrier:
         return TripleBarrier(
-            stop_loss=Decimal(self.config.stop_loss_pct / 100),
-            trailing_stop=trailing_stop,
-            open_order_type=OrderType.MARKET,
-            stop_loss_order_type=OrderType.MARKET
+            open_order_type=OrderType.MARKET
         )
 
     def update_processed_data(self):
@@ -140,6 +132,7 @@ class ExcaliburStrategy(PkStrategy):
                 columns_to_display = [
                     "timestamp_iso",
                     "close",
+                    "volume",
                     "RSI",
                     "SMA_short",
                     "SMA_long"
@@ -163,13 +156,13 @@ class ExcaliburStrategy(PkStrategy):
         if side == TradeType.SELL:
             if self.did_short_sma_cross_under_long():
                 self.logger().info("can_create_sma_cross_order() > Short SMA crossed under long")
-                return self.is_rsi_good_for_sell()
+                return True
 
             return False
 
         if self.did_short_sma_cross_over_long():
             self.logger().info("can_create_sma_cross_order() > Short SMA crossed over long")
-            return self.is_rsi_good_for_buy()
+            return True
 
         return False
 
@@ -199,21 +192,3 @@ class ExcaliburStrategy(PkStrategy):
     def is_previous_short_sma_over_long(self) -> bool:
         previous_short_minus_long: float = self.get_previous_sma("short") - self.get_previous_sma("long")
         return previous_short_minus_long > 0
-
-    def is_rsi_good_for_sell(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI"]
-        current_rsi = Decimal(rsi_series.iloc[-2])
-
-        # TODO: remove
-        self.logger().info(f"is_rsi_good_for_sell: {current_rsi}")
-
-        return current_rsi > self.config.min_rsi_to_open_sell_order
-
-    def is_rsi_good_for_buy(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI"]
-        current_rsi = Decimal(rsi_series.iloc[-2])
-
-        # TODO: remove
-        self.logger().info(f"is_rsi_good_for_buy: {current_rsi}")
-
-        return current_rsi < self.config.max_rsi_to_open_buy_order
