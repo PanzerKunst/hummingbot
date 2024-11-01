@@ -132,7 +132,7 @@ class ExcaliburStrategy(PkStrategy):
                 columns_to_display = [
                     "timestamp_iso",
                     "close",
-                    "volume"
+                    "volume",
                     "RSI",
                     "SMA_short",
                     "SMA_long"
