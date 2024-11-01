@@ -17,7 +17,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
         CandlesConfig(
             connector="binance_perpetual",
             interval="1m",
-            max_records=310,
+            max_records=320,
             trading_pair = "POPCAT-USDT"
         )
     ]
@@ -49,3 +49,6 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     # Order settings
     entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
+    take_profit_sell_rsi_threshold: int = Field(29, client_data=ClientFieldData(is_updatable=True))
+    take_profit_buy_rsi_threshold: int = Field(71, client_data=ClientFieldData(is_updatable=True))
+    filled_position_min_duration_min: int = Field(10, client_data=ClientFieldData(is_updatable=True))
