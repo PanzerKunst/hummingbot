@@ -136,8 +136,7 @@ class PkStrategy(StrategyV2Base):
         trading_pair = executor_config.trading_pair
         amount = executor_config.amount
         entry_price = executor_config.entry_price
-        triple_barrier_config = executor_config.triple_barrier_config
-        open_order_type = triple_barrier_config.open_order_type
+        open_order_type = triple_barrier.open_order_type
 
         if executor_config.side == TradeType.SELL:
             self.is_a_sell_order_being_created = True

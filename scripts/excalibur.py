@@ -120,13 +120,13 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side()
 
         if len(filled_sell_orders) > 0:
-            if self.is_latest_short_sma_over_long():
-                self.logger().info("stop_actions_proposal() > Short SMA is over long")
+            if self.did_short_sma_cross_over_long():
+                self.logger().info("stop_actions_proposal() > Short SMA crossed over long")
                 self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
 
         if len(filled_buy_orders) > 0:
-            if not self.is_latest_short_sma_over_long():
-                self.logger().info("stop_actions_proposal() > Short SMA is under long")
+            if self.did_short_sma_cross_under_long():
+                self.logger().info("stop_actions_proposal() > Short SMA crossed under long")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
 
         return []  # Always return []
@@ -178,10 +178,10 @@ class ExcaliburStrategy(PkStrategy):
     #
 
     def get_latest_sma(self, short_or_long: str) -> float:
-        return self._get_sma_at_index(short_or_long, -1)
+        return self._get_sma_at_index(short_or_long, -2)
 
     def get_previous_sma(self, short_or_long: str) -> float:
-        return self._get_sma_at_index(short_or_long, -2)
+        return self._get_sma_at_index(short_or_long, -3)
 
     def _get_sma_at_index(self, short_or_long: str, index: int) -> float:
         return self.processed_data[f"SMA_{short_or_long}"].iloc[index]
@@ -202,7 +202,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def is_rsi_good_for_sell(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI"]
-        current_rsi = Decimal(rsi_series.iloc[-1])
+        current_rsi = Decimal(rsi_series.iloc[-2])
 
         # TODO: remove
         self.logger().info(f"is_rsi_good_for_sell: {current_rsi}")
@@ -211,7 +211,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def is_rsi_good_for_buy(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI"]
-        current_rsi = Decimal(rsi_series.iloc[-1])
+        current_rsi = Decimal(rsi_series.iloc[-2])
 
         # TODO: remove
         self.logger().info(f"is_rsi_good_for_buy: {current_rsi}")
