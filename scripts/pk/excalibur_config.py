@@ -1,5 +1,4 @@
 import os
-from decimal import Decimal
 from typing import Dict, List, Set
 
 from pydantic import Field
@@ -42,9 +41,6 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     position_mode: PositionMode = PositionMode.ONEWAY
 
     # Triple Barrier
-    stop_loss_pct: Decimal = Field(1.5, client_data=ClientFieldData(is_updatable=True))
-    trailing_stop_activation_pct: Decimal = Field(1.5, client_data=ClientFieldData(is_updatable=True))
-    trailing_stop_close_delta_pct: Decimal = Field(1, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
     rsi_length: int = Field(20, client_data=ClientFieldData(is_updatable=True))
@@ -53,5 +49,3 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     # Order settings
     entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
-    min_rsi_to_open_sell_order: int = Field(28, client_data=ClientFieldData(is_updatable=True))
-    max_rsi_to_open_buy_order: int = Field(72, client_data=ClientFieldData(is_updatable=True))
