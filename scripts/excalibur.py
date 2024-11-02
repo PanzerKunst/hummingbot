@@ -119,7 +119,6 @@ class ExcaliburStrategy(PkStrategy):
                 self.reset_context()
 
             elif self.should_close_when_price_hits_sma:
-                self.logger().info("stop_actions_proposal(SELL) > should_close_when_price_hits_sma")
                 if self.is_current_price_over_short_sma():
                     self.logger().info("stop_actions_proposal(SELL) > current_price_is_over_short_sma")
                     self.market_close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
@@ -143,7 +142,6 @@ class ExcaliburStrategy(PkStrategy):
                 self.reset_context()
 
             elif self.should_close_when_price_hits_sma:
-                self.logger().info("stop_actions_proposal(BUY) > should_close_when_price_hits_sma")
                 if self.is_current_price_under_short_sma():
                     self.logger().info("stop_actions_proposal(BUY) > current_price_is_under_short_sma")
                     self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
