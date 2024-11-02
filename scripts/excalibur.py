@@ -255,7 +255,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def did_rsi_crash_recently(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI"]
-        recent_rsis = rsi_series.iloc[-21:-1]  # 20 items, last one excluded
+        recent_rsis = rsi_series.iloc[-26:-1]  # 25 items, last one excluded
 
         self.logger().info(f"did_rsi_crash_recently(): {recent_rsis.min() < self.config.take_profit_sell_rsi_threshold} | recent_rsis.min():{recent_rsis.min()}")
 
@@ -263,7 +263,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def did_rsi_spike_recently(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI"]
-        recent_rsis = rsi_series.iloc[-21:-1]  # 20 items, last one excluded
+        recent_rsis = rsi_series.iloc[-26:-1]  # 25 items, last one excluded
 
         self.logger().info(f"did_rsi_spike_recently(): {recent_rsis.max() > self.config.take_profit_buy_rsi_threshold} | recent_rsis.max():{recent_rsis.max()}")
 

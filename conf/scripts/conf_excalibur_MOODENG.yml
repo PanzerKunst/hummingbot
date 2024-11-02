@@ -2,7 +2,7 @@ markets: {}
 candles_config:
 - connector: binance_perpetual
   interval: 1m
-  max_records: 320
+  max_records: 330
   trading_pair: MOODENG-USDT
 controllers_config: []
 config_update_interval: 10
