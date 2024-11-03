@@ -52,6 +52,6 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
     rsi_threshold_take_profit_sell: int = Field(28, client_data=ClientFieldData(is_updatable=True))
     rsi_threshold_take_profit_buy: int = Field(72, client_data=ClientFieldData(is_updatable=True))
-    max_price_delta_pct_with_sma_to_open_position: int = Field(1.5, client_data=ClientFieldData(is_updatable=True))
+    max_price_delta_pct_with_sma_to_open_position: Decimal = Field(1.5, client_data=ClientFieldData(is_updatable=True))
     min_rsi_delta_for_sudden_change: int = Field(15, client_data=ClientFieldData(is_updatable=True))
     min_price_delta_pct_for_sudden_reversal_to_short_sma: Decimal = Field(0.75, client_data=ClientFieldData(is_updatable=True))
