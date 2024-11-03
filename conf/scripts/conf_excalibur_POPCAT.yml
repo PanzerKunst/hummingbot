@@ -2,7 +2,7 @@ markets: {}
 candles_config:
 - connector: binance_perpetual
   interval: 1m
-  max_records: 320
+  max_records: 330
   trading_pair: POPCAT-USDT
 controllers_config: []
 config_update_interval: 10
@@ -21,6 +21,5 @@ rsi_length: 20
 sma_short: 75
 sma_long: 300
 entry_price_delta_bps: 0
-take_profit_sell_rsi_threshold: 29
-take_profit_buy_rsi_threshold: 71
-filled_position_min_duration_min: 10
+take_profit_sell_rsi_threshold: 28
+take_profit_buy_rsi_threshold: 72

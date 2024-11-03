@@ -118,26 +118,22 @@ class ExcaliburStrategy(PkStrategy):
                 self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
                 self.reset_context()
 
-            elif self.has_position_been_open_long_enough(filled_sell_orders):
-                self.logger().info("stop_actions_proposal(SELL) > position_has_been_open_long_enough")
+            elif self.should_close_when_price_hits_sma:
+                if self.is_current_price_over_short_sma():
+                    self.logger().info("stop_actions_proposal(SELL) > current_price_is_over_short_sma")
+                    self.market_close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
+                    self.reset_context()
 
-                if self.should_close_when_price_hits_sma:
-                    self.logger().info("stop_actions_proposal(SELL) > should_close_when_price_hits_sma")
-                    if self.is_current_price_over_short_sma():
-                        self.logger().info("stop_actions_proposal(SELL) > current_price_is_over_short_sma")
-                        self.market_close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
-                        self.reset_context()
+            elif self.did_rsi_crash_and_recover():
+                self.logger().info("stop_actions_proposal(SELL) > rsi_did_crash_and_recover")
 
-                elif self.did_rsi_crash_and_recover():
-                    self.logger().info("stop_actions_proposal(SELL) > rsi_did_crash_and_recover")
-
-                    if self.was_rsi_crash_sudden():
-                        self.logger().info("stop_actions_proposal(SELL) > rsi_crash_was_sudden")
-                        self.market_close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
-                        self.reset_context()
-                    else:
-                        self.logger().info("stop_actions_proposal(SELL) > setting self.should_close_when_price_hits_sma to TRUE")
-                        self.should_close_when_price_hits_sma = True
+                if self.was_rsi_crash_sudden():
+                    self.logger().info("stop_actions_proposal(SELL) > rsi_crash_was_sudden")
+                    self.market_close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
+                    self.reset_context()
+                else:
+                    self.logger().info("stop_actions_proposal(SELL) > setting self.should_close_when_price_hits_sma to TRUE")
+                    self.should_close_when_price_hits_sma = True
 
         if len(filled_buy_orders) > 0:
             if self.did_short_sma_cross_under_long():
@@ -145,26 +141,22 @@ class ExcaliburStrategy(PkStrategy):
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
                 self.reset_context()
 
-            elif self.has_position_been_open_long_enough(filled_buy_orders):
-                self.logger().info("stop_actions_proposal(BUY) > position_has_been_open_long_enough")
+            elif self.should_close_when_price_hits_sma:
+                if self.is_current_price_under_short_sma():
+                    self.logger().info("stop_actions_proposal(BUY) > current_price_is_under_short_sma")
+                    self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
+                    self.reset_context()
 
-                if self.should_close_when_price_hits_sma:
-                    self.logger().info("stop_actions_proposal(BUY) > should_close_when_price_hits_sma")
-                    if self.is_current_price_under_short_sma():
-                        self.logger().info("stop_actions_proposal(BUY) > current_price_is_under_short_sma")
-                        self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
-                        self.reset_context()
+            elif self.did_rsi_spike_and_recover():
+                self.logger().info("stop_actions_proposal(BUY) > rsi_did_spike_and_recover")
 
-                elif self.did_rsi_spike_and_recover():
-                    self.logger().info("stop_actions_proposal(BUY) > rsi_did_spike_and_recover")
-
-                    if self.was_rsi_spike_sudden():
-                        self.logger().info("stop_actions_proposal(BUY) > rsi_spike_was_sudden")
-                        self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
-                        self.reset_context()
-                    else:
-                        self.logger().info("stop_actions_proposal(BUY) > setting self.should_close_when_price_hits_sma to TRUE")
-                        self.should_close_when_price_hits_sma = True
+                if self.was_rsi_spike_sudden():
+                    self.logger().info("stop_actions_proposal(BUY) > rsi_spike_was_sudden")
+                    self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
+                    self.reset_context()
+                else:
+                    self.logger().info("stop_actions_proposal(BUY) > setting self.should_close_when_price_hits_sma to TRUE")
+                    self.should_close_when_price_hits_sma = True
 
         return []  # Always return []
 
@@ -201,13 +193,13 @@ class ExcaliburStrategy(PkStrategy):
         if side == TradeType.SELL:
             if self.did_short_sma_cross_under_long():
                 self.logger().info("can_create_sma_cross_order() > Short SMA crossed under long")
-                return True
+                return not self.did_rsi_crash_recently()
 
             return False
 
         if self.did_short_sma_cross_over_long():
             self.logger().info("can_create_sma_cross_order() > Short SMA crossed over long")
-            return True
+            return not self.did_rsi_spike_recently()
 
         return False
 
@@ -243,27 +235,6 @@ class ExcaliburStrategy(PkStrategy):
         previous_short_minus_long: float = self.get_previous_sma("short") - self.get_previous_sma("long")
         return previous_short_minus_long > 0
 
-    def has_position_been_open_long_enough(self, filled_orders: List[TrackedOrderDetails]) -> bool:
-        for filled_order in filled_orders:
-            if filled_order.last_filled_at + self.config.filled_position_min_duration_min * 60 > self.get_market_data_provider_time():
-                return False
-
-        return True
-
-    # def check_for_rsi_crash(self):
-    #     rsi_series: pd.Series = self.processed_data["RSI"]
-    #     rsi_last_complete_candle = Decimal(rsi_series.iloc[-2])
-    #
-    #     if rsi_last_complete_candle < self.config.take_profit_sell_rsi_threshold:
-    #         self.did_rsi_crash = True
-    #
-    # def check_for_rsi_spike(self):
-    #     rsi_series: pd.Series = self.processed_data["RSI"]
-    #     rsi_last_complete_candle = Decimal(rsi_series.iloc[-2])
-    #
-    #     if rsi_last_complete_candle > self.config.take_profit_buy_rsi_threshold:
-    #         self.did_rsi_spike = True
-
     def did_rsi_crash_and_recover(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI"]
         rsi_last_complete_candle = Decimal(rsi_series.iloc[-2])
@@ -281,6 +252,22 @@ class ExcaliburStrategy(PkStrategy):
         self.logger().info(f"did_rsi_spike_and_recover() | rsi_last_complete_candle:{rsi_last_complete_candle} | older_rsis.max():{older_rsis.max()}")
 
         return older_rsis.max() > self.config.take_profit_buy_rsi_threshold and rsi_last_complete_candle < 70
+
+    def did_rsi_crash_recently(self) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI"]
+        recent_rsis = rsi_series.iloc[-26:-1]  # 25 items, last one excluded
+
+        self.logger().info(f"did_rsi_crash_recently(): {recent_rsis.min() < self.config.take_profit_sell_rsi_threshold} | recent_rsis.min():{recent_rsis.min()}")
+
+        return recent_rsis.min() < self.config.take_profit_sell_rsi_threshold
+
+    def did_rsi_spike_recently(self) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI"]
+        recent_rsis = rsi_series.iloc[-26:-1]  # 25 items, last one excluded
+
+        self.logger().info(f"did_rsi_spike_recently(): {recent_rsis.max() > self.config.take_profit_buy_rsi_threshold} | recent_rsis.max():{recent_rsis.max()}")
+
+        return recent_rsis.max() > self.config.take_profit_buy_rsi_threshold
 
     # If includes one instance where RSI is over 45 during the last 10 min
     def was_rsi_crash_sudden(self) -> bool:
