@@ -316,16 +316,12 @@ class ExcaliburStrategy(PkStrategy):
         rsi_series: pd.Series = self.processed_data["RSI"]
         older_rsis = rsi_series.iloc[-14:-2]  # 12 items, last one excluded
 
-        self.logger().info(f"did_rsi_crash_and_recover() | rsi_last_complete_candle:{rsi_last_complete_candle} | older_rsis.min():{older_rsis.min()}")
-
         return older_rsis.min() < self.config.rsi_threshold_take_profit_sell and rsi_last_complete_candle > 30
 
     def did_rsi_spike_and_recover(self) -> bool:
         rsi_last_complete_candle = self.get_latest_rsi()
         rsi_series: pd.Series = self.processed_data["RSI"]
         older_rsis = rsi_series.iloc[-14:-2]
-
-        self.logger().info(f"did_rsi_spike_and_recover() | rsi_last_complete_candle:{rsi_last_complete_candle} | older_rsis.max():{older_rsis.max()}")
 
         return older_rsis.max() > self.config.rsi_threshold_take_profit_buy and rsi_last_complete_candle < 70
 
