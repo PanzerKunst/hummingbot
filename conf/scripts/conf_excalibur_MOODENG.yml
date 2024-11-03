@@ -21,5 +21,5 @@ rsi_length: 20
 sma_short: 75
 sma_long: 300
 entry_price_delta_bps: 0
-take_profit_sell_rsi_threshold: 29
-take_profit_buy_rsi_threshold: 71
+take_profit_sell_rsi_threshold: 28
+take_profit_buy_rsi_threshold: 72
