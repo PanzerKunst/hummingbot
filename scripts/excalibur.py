@@ -195,13 +195,13 @@ class ExcaliburStrategy(PkStrategy):
         if side == TradeType.SELL:
             if self.did_short_sma_cross_under_long():
                 self.logger().info("can_create_sma_cross_order() > Short SMA crossed under long")
-                return not self.did_rsi_crash_recently()
+                return not self.is_price_too_far_from_sma()
 
             return False
 
         if self.did_short_sma_cross_over_long():
             self.logger().info("can_create_sma_cross_order() > Short SMA crossed over long")
-            return not self.did_rsi_spike_recently()
+            return not self.is_price_too_far_from_sma()
 
         return False
 
@@ -265,21 +265,14 @@ class ExcaliburStrategy(PkStrategy):
 
         return older_rsis.max() > self.config.rsi_threshold_take_profit_buy and rsi_last_complete_candle < 70
 
-    def did_rsi_crash_recently(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI"]
-        recent_rsis = rsi_series.iloc[-26:-1]  # 25 items, last one excluded
+    def is_price_too_far_from_sma(self) -> bool:
+        latest_sma = self.get_latest_sma("long")
+        latest_close = self.get_latest_close()
+        delta_pct: Decimal = abs(latest_close - latest_sma) / latest_close * 100
 
-        self.logger().info(f"did_rsi_crash_recently(): {recent_rsis.min() < self.config.rsi_threshold_avoid_opening_sell_position} | recent_rsis.min():{recent_rsis.min()}")
+        self.logger().info(f"is_price_too_far_from_sma(): {delta_pct > self.config.max_price_delta_pct_with_sma_to_open_position} | latest_close:{latest_close} | latest_sma:{latest_sma} | delta_pct:{delta_pct}")
 
-        return recent_rsis.min() < self.config.rsi_threshold_avoid_opening_sell_position
-
-    def did_rsi_spike_recently(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI"]
-        recent_rsis = rsi_series.iloc[-26:-1]  # 25 items, last one excluded
-
-        self.logger().info(f"did_rsi_spike_recently(): {recent_rsis.max() > self.config.rsi_threshold_avoid_opening_buy_position} | recent_rsis.max():{recent_rsis.max()}")
-
-        return recent_rsis.max() > self.config.rsi_threshold_avoid_opening_buy_position
+        return delta_pct > self.config.max_price_delta_pct_with_sma_to_open_position
 
     def was_rsi_crash_sudden(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI"]
