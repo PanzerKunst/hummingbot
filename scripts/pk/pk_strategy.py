@@ -86,40 +86,52 @@ class PkStrategy(StrategyV2Base):
         orders_of_that_id = [order for order in self.tracked_orders if order.order_id == order_id]
         return None if len(orders_of_that_id) == 0 else orders_of_that_id[0]
 
-    def find_last_terminated_filled_order(self, side: TradeType) -> Optional[TrackedOrderDetails]:
-        terminated_filled_orders = [order for order in self.tracked_orders if order.side == side and order.last_filled_at and order.terminated_at]
+    def find_last_terminated_filled_order(self, side: TradeType, ref: Optional[str] = None) -> Optional[TrackedOrderDetails]:
+        terminated_filled_orders = [order for order in self.tracked_orders if (
+            order.side == side and
+            order.last_filled_at and
+            order.terminated_at
+        )]
+
+        if ref:
+            terminated_filled_orders = [order for order in terminated_filled_orders if order.ref == ref]
 
         if len(terminated_filled_orders) == 0:
             return None
 
         return max(terminated_filled_orders, key=lambda order: order.terminated_at)
 
-    def get_active_tracked_orders(self) -> List[TrackedOrderDetails]:
-        return [order for order in self.tracked_orders if order.created_at and not order.terminated_at]
+    def get_active_tracked_orders(self, ref: Optional[str] = None) -> List[TrackedOrderDetails]:
+        active_tracked_orders = [order for order in self.tracked_orders if order.created_at and not order.terminated_at]
 
-    def get_active_tracked_orders_by_side(self) -> Tuple[List[TrackedOrderDetails], List[TrackedOrderDetails]]:
-        active_orders = self.get_active_tracked_orders()
+        if ref:
+            active_tracked_orders = [order for order in active_tracked_orders if order.ref == ref]
+
+        return active_tracked_orders
+
+    def get_active_tracked_orders_by_side(self, ref: Optional[str] = None) -> Tuple[List[TrackedOrderDetails], List[TrackedOrderDetails]]:
+        active_orders = self.get_active_tracked_orders(ref)
         active_sell_orders = [order for order in active_orders if order.side == TradeType.SELL]
         active_buy_orders = [order for order in active_orders if order.side == TradeType.BUY]
         return active_sell_orders, active_buy_orders
 
-    def get_unfilled_tracked_orders_by_side(self) -> Tuple[List[TrackedOrderDetails], List[TrackedOrderDetails]]:
-        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side()
+    def get_unfilled_tracked_orders_by_side(self, ref: Optional[str] = None) -> Tuple[List[TrackedOrderDetails], List[TrackedOrderDetails]]:
+        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ref)
         unfilled_sell_orders = [order for order in active_sell_orders if not order.last_filled_at]
         unfilled_buy_orders = [order for order in active_buy_orders if not order.last_filled_at]
         return unfilled_sell_orders, unfilled_buy_orders
 
-    def get_filled_tracked_orders_by_side(self) -> Tuple[List[TrackedOrderDetails], List[TrackedOrderDetails]]:
-        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side()
+    def get_filled_tracked_orders_by_side(self, ref: Optional[str] = None) -> Tuple[List[TrackedOrderDetails], List[TrackedOrderDetails]]:
+        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ref)
         filled_sell_orders = [order for order in active_sell_orders if order.last_filled_at]
         filled_buy_orders = [order for order in active_buy_orders if order.last_filled_at]
         return filled_sell_orders, filled_buy_orders
 
-    def create_limit_order(self, side: TradeType, entry_price: Decimal, triple_barrier: TripleBarrier, amount_multiplier: Decimal = 1):
+    def create_limit_order(self, side: TradeType, entry_price: Decimal, triple_barrier: TripleBarrier, ref: Optional[str] = None, amount_multiplier: Decimal = 1):
         executor_config = self.get_executor_config(side, entry_price, amount_multiplier)
-        self.create_individual_order(executor_config, triple_barrier)
+        self.create_individual_order(executor_config, triple_barrier, ref)
 
-    async def create_twap_market_orders(self, side: TradeType, entry_price: Decimal, triple_barrier: TripleBarrier, amount_multiplier: Decimal = 1):
+    async def create_twap_market_orders(self, side: TradeType, entry_price: Decimal, triple_barrier: TripleBarrier, ref: Optional[str] = None, amount_multiplier: Decimal = 1):
         executor_config = self.get_executor_config(side, entry_price, amount_multiplier, True)
 
         for _ in range(self.config.market_order_twap_count):
@@ -128,10 +140,10 @@ class PkStrategy(StrategyV2Base):
             if is_an_order_being_created:
                 self.logger().error("ERROR: Cannot create another individual order, as one is being created")
             else:
-                self.create_individual_order(executor_config, triple_barrier)
+                self.create_individual_order(executor_config, triple_barrier, ref)
                 await asyncio.sleep(self.config.market_order_twap_interval)
 
-    def create_individual_order(self, executor_config: PositionExecutorConfig, triple_barrier: TripleBarrier):
+    def create_individual_order(self, executor_config: PositionExecutorConfig, triple_barrier: TripleBarrier, ref: Optional[str] = None):
         connector_name = executor_config.connector_name
         trading_pair = executor_config.trading_pair
         amount = executor_config.amount
@@ -152,6 +164,7 @@ class PkStrategy(StrategyV2Base):
                 amount=amount,
                 entry_price=entry_price,
                 triple_barrier=triple_barrier,
+                ref=ref,
                 created_at=self.get_market_data_provider_time()  # Because some exchanges such as gate_io trigger the `did_create_xxx_order` event after 1s
             ))
 
@@ -171,6 +184,7 @@ class PkStrategy(StrategyV2Base):
                 amount = amount,
                 entry_price=entry_price,
                 triple_barrier=triple_barrier,
+                ref=ref,
                 created_at=self.get_market_data_provider_time()
             ))
 
@@ -276,7 +290,7 @@ class PkStrategy(StrategyV2Base):
                 self.logger().info(f"did_fill_order: {tracked_order}")
                 break
 
-    def can_create_order(self, side: TradeType) -> bool:
+    def can_create_order(self, side: TradeType, ref: Optional[str] = None) -> bool:
         if self.get_position_quote_amount(side) == 0:
             return False
 
@@ -288,7 +302,7 @@ class PkStrategy(StrategyV2Base):
             self.logger().error("ERROR: Another BUY order is being created, avoiding a duplicate")
             return False
 
-        last_terminated_filled_order = self.find_last_terminated_filled_order(side)
+        last_terminated_filled_order = self.find_last_terminated_filled_order(side, ref)
 
         if not last_terminated_filled_order:
             return True
