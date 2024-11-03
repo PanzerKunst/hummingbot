@@ -342,8 +342,14 @@ class ExcaliburStrategy(PkStrategy):
         min_rsi = recent_rsis.min()
         min_rsi_index = recent_rsis.idxmin()
 
-        # Determine the range to search for the max RSI value, considering only 7 preceding items
-        start_index = max(min_rsi_index - 7, recent_rsis.index[0])
+        # Find the index for the 7 preceding elements, taking care not to go out of bounds
+        start_index = recent_rsis.index.get_loc(min_rsi_index) - 7
+
+        # TODO: remove
+        self.logger().info(f"was_rsi_crash_sudden() | start_index 1:{start_index}")
+
+        start_index = max(0, start_index)
+        start_index = recent_rsis.index[start_index]
 
         self.logger().info(f"was_rsi_crash_sudden() | min_rsi_index:{min_rsi_index} | start_index:{start_index}")
 
@@ -360,8 +366,13 @@ class ExcaliburStrategy(PkStrategy):
         max_rsi = recent_rsis.max()
         max_rsi_index = recent_rsis.idxmax()
 
-        # Determine the range to search for the min RSI value, considering only 7 preceding items
-        start_index = max(max_rsi_index - 7, recent_rsis.index[0])
+        start_index = recent_rsis.index.get_loc(max_rsi_index) - 7
+
+        # TODO: remove
+        self.logger().info(f"was_rsi_spike_sudden() | start_index 1:{start_index}")
+
+        start_index = max(0, start_index)
+        start_index = recent_rsis.index[start_index]
 
         self.logger().info(f"was_rsi_spike_sudden() | max_rsi_index:{max_rsi_index} | start_index:{start_index}")
 
