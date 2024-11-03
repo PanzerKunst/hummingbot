@@ -21,5 +21,9 @@ rsi_length: 20
 sma_short: 75
 sma_long: 300
 entry_price_delta_bps: 0
-take_profit_sell_rsi_threshold: 28
-take_profit_buy_rsi_threshold: 72
+rsi_threshold_take_profit_sell: 28
+rsi_threshold_take_profit_buy: 72
+rsi_threshold_avoid_opening_sell_position: 30
+rsi_threshold_avoid_opening_buy_position: 70
+min_rsi_delta_for_sudden_change: 15
+min_price_delta_pct_for_sudden_reversal_to_short_sma: 1.0

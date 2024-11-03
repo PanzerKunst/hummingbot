@@ -1,4 +1,5 @@
 import os
+from decimal import Decimal
 from typing import Dict, List, Set
 
 from pydantic import Field
@@ -49,5 +50,9 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     # Order settings
     entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
-    take_profit_sell_rsi_threshold: int = Field(28, client_data=ClientFieldData(is_updatable=True))
-    take_profit_buy_rsi_threshold: int = Field(72, client_data=ClientFieldData(is_updatable=True))
+    rsi_threshold_take_profit_sell: int = Field(28, client_data=ClientFieldData(is_updatable=True))
+    rsi_threshold_take_profit_buy: int = Field(72, client_data=ClientFieldData(is_updatable=True))
+    rsi_threshold_avoid_opening_sell_position: int = Field(30, client_data=ClientFieldData(is_updatable=True))
+    rsi_threshold_avoid_opening_buy_position: int = Field(70, client_data=ClientFieldData(is_updatable=True))
+    min_rsi_delta_for_sudden_change: int = Field(15, client_data=ClientFieldData(is_updatable=True))
+    min_price_delta_pct_for_sudden_reversal_to_short_sma: Decimal = Field(0.75, client_data=ClientFieldData(is_updatable=True))
