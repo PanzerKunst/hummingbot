@@ -46,9 +46,9 @@ class ExcaliburStrategy(PkStrategy):
                 for trading_pair in self.market_data_provider.get_trading_pairs(connector_name):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
-    @staticmethod
-    def get_triple_barrier() -> TripleBarrier:
+    def get_triple_barrier(self) -> TripleBarrier:
         return TripleBarrier(
+            stop_loss=self.config.stop_loss_pct / 100,
             open_order_type=OrderType.MARKET
         )
 
