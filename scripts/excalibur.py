@@ -359,10 +359,8 @@ class ExcaliburStrategy(PkStrategy):
         return False
 
     def compute_rsi_crash_and_recovery_thresholds(self, filled_sell_orders: List[TrackedOrderDetails]) -> Tuple[Decimal, Decimal]:
-        default_thresholds: Tuple[Decimal, Decimal] = Decimal(28.0), Decimal(30.0)
-
-        if len(filled_sell_orders) == 0:
-            return default_thresholds
+        if len(filled_sell_orders) == 0:  # Mean reversion case
+            return Decimal(29.0), Decimal(31.0)
 
         worst_filled_price = min(filled_sell_orders, key=lambda order: order.last_filled_price).last_filled_price
         pnl_pct: Decimal = (worst_filled_price - self.get_latest_close()) / worst_filled_price * 100
@@ -377,13 +375,11 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().info("compute_rsi_crash_and_recovery_thresholds() > returning 31.0, 33.0")
             return Decimal(31.0), Decimal(33.0)
 
-        return default_thresholds
+        return Decimal(28.0), Decimal(30.0)
 
     def compute_rsi_spike_and_recovery_thresholds(self, filled_buy_orders: List[TrackedOrderDetails]) -> Tuple[Decimal, Decimal]:
-        default_thresholds: Tuple[Decimal, Decimal] = Decimal(72.0), Decimal(70.0)
-
-        if len(filled_buy_orders) == 0:
-            return default_thresholds
+        if len(filled_buy_orders) == 0:  # Mean reversion case
+            return Decimal(71.0), Decimal(69.0)
 
         worst_filled_price = max(filled_buy_orders, key=lambda order: order.last_filled_price).last_filled_price
         pnl_pct: Decimal = (self.get_latest_close() - worst_filled_price) / worst_filled_price * 100
@@ -398,7 +394,7 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().info("compute_rsi_spike_and_recovery_thresholds() > returning 69.0, 67.0")
             return Decimal(69.0), Decimal(67.0)
 
-        return default_thresholds
+        return Decimal(72.0), Decimal(70.0)
 
     def is_price_too_far_from_sma(self) -> bool:
         latest_sma = self.get_latest_sma("long")
