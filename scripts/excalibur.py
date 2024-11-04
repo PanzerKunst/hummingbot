@@ -278,9 +278,9 @@ class ExcaliburStrategy(PkStrategy):
         close_series: pd.Series = self.processed_data["close"]
         return Decimal(close_series.iloc[-2])
 
-    def get_latest_rsi(self) -> Decimal:
+    def get_current_rsi(self) -> Decimal:
         rsi_series: pd.Series = self.processed_data["RSI"]
-        return Decimal(rsi_series.iloc[-2])
+        return Decimal(rsi_series.iloc[-1])
 
     def get_latest_sma(self, short_or_long: str) -> Decimal:
         return self._get_sma_at_index(short_or_long, -2)
@@ -313,18 +313,54 @@ class ExcaliburStrategy(PkStrategy):
         return not self.is_current_price_over_short_sma()
 
     def did_rsi_crash_and_recover(self) -> bool:
-        rsi_last_complete_candle = self.get_latest_rsi()
-        rsi_series: pd.Series = self.processed_data["RSI"]
-        older_rsis = rsi_series.iloc[-14:-2]  # 12 items, last one excluded
+        rsi_recovery_threshold = 30
 
-        return older_rsis.min() < self.config.rsi_threshold_take_profit_sell and rsi_last_complete_candle > 30
+        if self.get_current_rsi() < rsi_recovery_threshold:
+            return False
+
+        rsi_series: pd.Series = self.processed_data["RSI"]
+        older_rsis = rsi_series.iloc[-13:-1]  # 12 items, last one excluded
+
+        min_rsi = older_rsis.min()
+
+        if min_rsi > self.config.rsi_threshold_take_profit_sell:
+            return False
+
+        min_rsi_index = older_rsis.idxmin()
+
+        # Extract the RSI values from min_rsi_index to the second-to-last entry in the series
+        recovery_rsis = rsi_series.loc[min_rsi_index:rsi_series.index[-2]]
+
+        # Check if all RSI values in the range are below 30
+        if (recovery_rsis < rsi_recovery_threshold).all():
+            return True
+
+        return False
 
     def did_rsi_spike_and_recover(self) -> bool:
-        rsi_last_complete_candle = self.get_latest_rsi()
-        rsi_series: pd.Series = self.processed_data["RSI"]
-        older_rsis = rsi_series.iloc[-14:-2]
+        rsi_recovery_threshold = 70
 
-        return older_rsis.max() > self.config.rsi_threshold_take_profit_buy and rsi_last_complete_candle < 70
+        if self.get_current_rsi() > rsi_recovery_threshold:
+            return False
+
+        rsi_series: pd.Series = self.processed_data["RSI"]
+        older_rsis = rsi_series.iloc[-13:-1]  # 12 items, last one excluded
+
+        max_rsi = older_rsis.max()
+
+        if max_rsi < self.config.rsi_threshold_take_profit_buy:
+            return False
+
+        max_rsi_index = older_rsis.idxmax()
+
+        # Extract the RSI values from max_rsi_index to the second-to-last entry in the series
+        recovery_rsis = rsi_series.loc[max_rsi_index:rsi_series.index[-2]]
+
+        # Check if all RSI values in the range are above 70
+        if (recovery_rsis > rsi_recovery_threshold).all():
+            return True
+
+        return False
 
     def is_price_too_far_from_sma(self) -> bool:
         latest_sma = self.get_latest_sma("long")
@@ -337,7 +373,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def was_rsi_crash_sudden(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI"]
-        recent_rsis = rsi_series.iloc[-26:-1]  # 25 items, last one excluded
+        recent_rsis = rsi_series.iloc[-25:]
 
         min_rsi = recent_rsis.min()
         min_rsi_index = recent_rsis.idxmin()
@@ -361,7 +397,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def was_rsi_spike_sudden(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI"]
-        recent_rsis = rsi_series.iloc[-26:-1]  # 25 items, last one excluded
+        recent_rsis = rsi_series.iloc[-25:]
 
         max_rsi = recent_rsis.max()
         max_rsi_index = recent_rsis.idxmax()
