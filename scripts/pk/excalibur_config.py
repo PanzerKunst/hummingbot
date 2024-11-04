@@ -57,3 +57,5 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     max_price_delta_pct_with_sma_to_open_position: Decimal = Field(1.5, client_data=ClientFieldData(is_updatable=True))
     min_rsi_delta_for_sudden_change: int = Field(15, client_data=ClientFieldData(is_updatable=True))
     min_price_delta_pct_for_sudden_reversal_to_short_sma: Decimal = Field(0.75, client_data=ClientFieldData(is_updatable=True))
+    first_pnl_pct_for_rsi_crash_or_spike_and_recovery_thresholds: Decimal = Field(2.5, client_data=ClientFieldData(is_updatable=True))
+    second_pnl_pct_for_rsi_crash_or_spike_and_recovery_thresholds: Decimal = Field(3.25, client_data=ClientFieldData(is_updatable=True))

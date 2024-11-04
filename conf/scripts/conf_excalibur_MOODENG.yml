@@ -28,3 +28,5 @@ rsi_threshold_take_profit_buy: 72
 max_price_delta_pct_with_sma_to_open_position: 2.0
 min_rsi_delta_for_sudden_change: 15
 min_price_delta_pct_for_sudden_reversal_to_short_sma: 1.0
+first_pnl_pct_for_rsi_crash_or_spike_and_recovery_thresholds: 3.3
+second_pnl_pct_for_rsi_crash_or_spike_and_recovery_thresholds: 4.3
