@@ -139,7 +139,7 @@ class ExcaliburStrategy(PkStrategy):
     #
 
     def can_create_sma_cross_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, ORDER_REF_SMA_CROSS):
+        if not self.can_create_order(side, ORDER_REF_SMA_CROSS, 0):
             return False
 
         if len(active_tracked_orders) > 0:
@@ -191,7 +191,7 @@ class ExcaliburStrategy(PkStrategy):
             asyncio.get_running_loop().create_task(self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier, ORDER_REF_MEAN_REVERSION))
 
     def can_create_mean_reversion_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, ORDER_REF_MEAN_REVERSION):
+        if not self.can_create_order(side, ORDER_REF_MEAN_REVERSION, 0):
             return False
 
         if len(active_tracked_orders) > 0:

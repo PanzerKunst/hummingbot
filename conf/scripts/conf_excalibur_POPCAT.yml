@@ -11,13 +11,12 @@ connector_name: hyperliquid_perpetual
 trading_pair: POPCAT-USD
 total_amount_quote: 30
 leverage: 5
-cooldown_time_min: 0
 unfilled_order_expiration_min: 1
 limit_take_profit_price_delta_bps: 0
 market_order_twap_count: 1
 market_order_twap_interval: 5
 position_mode: ONEWAY
-sma_cross_stop_loss_pct: 1.0
+sma_cross_stop_loss_pct: 0.7
 mean_reversion_stop_loss_pct: 0.2
 mean_reversion_take_profit_pct: 1.5
 rsi_length: 20

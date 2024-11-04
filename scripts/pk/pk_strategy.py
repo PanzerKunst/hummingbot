@@ -290,7 +290,7 @@ class PkStrategy(StrategyV2Base):
                 self.logger().info(f"did_fill_order: {tracked_order}")
                 break
 
-    def can_create_order(self, side: TradeType, ref: Optional[str] = None) -> bool:
+    def can_create_order(self, side: TradeType, ref: Optional[str] = None, cooldown_time_min: int = 0) -> bool:
         if self.get_position_quote_amount(side) == 0:
             return False
 
@@ -306,8 +306,6 @@ class PkStrategy(StrategyV2Base):
 
         if not last_terminated_filled_order:
             return True
-
-        cooldown_time_min = self.config.cooldown_time_min
 
         if last_terminated_filled_order.terminated_at + cooldown_time_min * 60 > self.get_market_data_provider_time():
             self.logger().info(f"Cooldown not passed yet for {side}")
