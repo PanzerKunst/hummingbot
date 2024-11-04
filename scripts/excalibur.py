@@ -18,6 +18,7 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 # Trends via comparing 2 SMAs
 # Generate config file: create --script-config excalibur
 # Start the bot: start --script excalibur.py --conf conf_excalibur_GOAT.yml
+#                start --script excalibur.py --conf conf_excalibur_GRASS.yml
 #                start --script excalibur.py --conf conf_excalibur_MOODENG.yml
 #                start --script excalibur.py --conf conf_excalibur_POPCAT.yml
 # Quickstart script: -p=a -f excalibur.py -c conf_excalibur_POPCAT.yml
@@ -261,12 +262,12 @@ class ExcaliburStrategy(PkStrategy):
         if len(filled_sell_orders) > 0:
             if self.is_current_price_under_short_sma():
                 self.logger().info("stop_actions_proposal_mean_reversion(SELL) > current_price_is_under_short_sma")
-                self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
+                self.market_close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
 
         if len(filled_buy_orders) > 0:
             if self.is_current_price_over_short_sma():
                 self.logger().info("stop_actions_proposal_mean_reversion(BUY) > current_price_is_over_short_sma")
-                self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
+                self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
 
     def get_latest_close(self) -> Decimal:
         close_series: pd.Series = self.processed_data["close"]
