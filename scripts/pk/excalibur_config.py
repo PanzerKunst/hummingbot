@@ -42,7 +42,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     # Triple Barrier
     sma_cross_stop_loss_pct: Decimal = Field(0.7, client_data=ClientFieldData(is_updatable=True))
-    mean_reversion_stop_loss_pct: Decimal = Field(0.1, client_data=ClientFieldData(is_updatable=True))
+    mean_reversion_stop_loss_pct: Decimal = Field(0.2, client_data=ClientFieldData(is_updatable=True))
     mean_reversion_take_profit_pct: Decimal = Field(1.5, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
