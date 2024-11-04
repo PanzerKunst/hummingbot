@@ -331,6 +331,8 @@ class ExcaliburStrategy(PkStrategy):
         # Extract the RSI values from min_rsi_index to the second-to-last entry in the series
         recovery_rsis = rsi_series.loc[min_rsi_index:rsi_series.index[-2]]
 
+        self.logger().info(f"did_rsi_crash_and_recover() | min_rsi_index:{min_rsi_index} | recovery_rsis:{recovery_rsis}")
+
         # Check if all RSI values in the range are below 30
         if (recovery_rsis < rsi_recovery_threshold).all():
             return True
@@ -355,6 +357,8 @@ class ExcaliburStrategy(PkStrategy):
 
         # Extract the RSI values from max_rsi_index to the second-to-last entry in the series
         recovery_rsis = rsi_series.loc[max_rsi_index:rsi_series.index[-2]]
+
+        self.logger().info(f"did_rsi_crash_and_recover() | max_rsi_index:{max_rsi_index} | recovery_rsis:{recovery_rsis}")
 
         # Check if all RSI values in the range are above 70
         if (recovery_rsis > rsi_recovery_threshold).all():
