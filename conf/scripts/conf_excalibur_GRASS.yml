@@ -1,14 +1,14 @@
 markets: {}
 candles_config:
-- connector: binance_perpetual
+- connector: okx_perpetual
   interval: 1m
-  max_records: 270
-  trading_pair: MOODENG-USDT
+  max_records: 70
+  trading_pair: GRASS-USDT
 controllers_config: []
 config_update_interval: 10
 script_file_name: excalibur_config.py
 connector_name: hyperliquid_perpetual
-trading_pair: MOODENG-USD
+trading_pair: GRASS-USD
 total_amount_quote: 30
 leverage: 5
 cooldown_time_min: 0
@@ -18,6 +18,6 @@ market_order_twap_count: 1
 market_order_twap_interval: 5
 position_mode: ONEWAY
 rsi_length: 20
-sma_short: 65
-sma_long: 260
+sma_short: 15
+sma_long: 60
 entry_price_delta_bps: 0

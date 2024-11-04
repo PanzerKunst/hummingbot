@@ -1,5 +1,4 @@
 import os
-from decimal import Decimal
 from typing import Dict, List, Set
 
 from pydantic import Field
@@ -18,7 +17,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
         CandlesConfig(
             connector="binance_perpetual",
             interval="1m",
-            max_records=330,
+            max_records=310,
             trading_pair = "POPCAT-USDT"
         )
     ]
@@ -50,8 +49,3 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     # Order settings
     entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
-    rsi_threshold_take_profit_sell: int = Field(28, client_data=ClientFieldData(is_updatable=True))
-    rsi_threshold_take_profit_buy: int = Field(72, client_data=ClientFieldData(is_updatable=True))
-    max_price_delta_pct_with_sma_to_open_position: Decimal = Field(1.5, client_data=ClientFieldData(is_updatable=True))
-    min_rsi_delta_for_sudden_change: int = Field(15, client_data=ClientFieldData(is_updatable=True))
-    min_price_delta_pct_for_sudden_reversal_to_short_sma: Decimal = Field(0.75, client_data=ClientFieldData(is_updatable=True))
