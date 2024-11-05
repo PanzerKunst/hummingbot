@@ -1,6 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
+from typing import List
 
 import pandas as pd
 
@@ -125,6 +126,15 @@ def has_filled_order_reached_time_limit(tracked_order: TrackedOrderDetails, curr
     filled_at = tracked_order.last_filled_at
 
     return filled_at + time_limit < current_timestamp
+
+
+def was_an_order_recently_opened(tracked_orders: List[TrackedOrderDetails], seconds: int, current_timestamp: float) -> bool:
+    if len(tracked_orders) == 0:
+        return False
+
+    most_recent_created_at = max(tracked_orders, key=lambda order: order.created_at).created_at
+
+    return most_recent_created_at + seconds > current_timestamp
 
 
 def timestamp_to_iso(timestamp: float) -> str:

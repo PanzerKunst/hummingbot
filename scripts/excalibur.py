@@ -13,6 +13,7 @@ from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.pk.excalibur_config import ExcaliburConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
+from scripts.pk.pk_utils import was_an_order_recently_opened
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 # Trends via comparing 2 SMAs
@@ -196,7 +197,11 @@ class ExcaliburStrategy(PkStrategy):
             asyncio.get_running_loop().create_task(self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier, ORDER_REF_MEAN_REVERSION))
 
     def can_create_mean_reversion_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, ORDER_REF_MEAN_REVERSION, 3):
+        if not self.can_create_order(side, ORDER_REF_MEAN_REVERSION, 0):
+            return False
+
+        if was_an_order_recently_opened(active_tracked_orders, 4 * 60, self.get_market_data_provider_time()):
+            self.logger().info("can_create_mean_reversion_order() > Recently opened an order - not doing it again")
             return False
 
         if side == TradeType.SELL:
@@ -465,25 +470,25 @@ class ExcaliburStrategy(PkStrategy):
 
     def did_price_drop_back_into_kc(self) -> bool:
         kc_upper_series: pd.Series = self.processed_data["KC_upper"]
+        current_kc_upper = kc_upper_series.iloc[-1]
         kc_upper_latest_complete_candle = kc_upper_series.iloc[-2]
-        kc_upper_2candles_before = kc_upper_series.iloc[-3]
 
         close_series: pd.Series = self.processed_data["close"]
+        current_close = close_series.iloc[-1]
         close_latest_complete_candle = close_series.iloc[-2]
-        close_2candles_before = close_series.iloc[-3]
 
-        return close_2candles_before > kc_upper_2candles_before and close_latest_complete_candle < kc_upper_latest_complete_candle
+        return close_latest_complete_candle > kc_upper_latest_complete_candle and current_close < current_kc_upper
 
     def did_price_rise_back_into_kc(self) -> bool:
         kc_lower_series: pd.Series = self.processed_data["KC_lower"]
+        current_kc_lower = kc_lower_series.iloc[-1]
         kc_lower_latest_complete_candle = kc_lower_series.iloc[-2]
-        kc_lower_2candles_before = kc_lower_series.iloc[-3]
 
         close_series: pd.Series = self.processed_data["close"]
+        current_close = close_series.iloc[-1]
         close_latest_complete_candle = close_series.iloc[-2]
-        close_2candles_before = close_series.iloc[-3]
 
-        return close_2candles_before < kc_lower_2candles_before and close_latest_complete_candle > kc_lower_latest_complete_candle
+        return close_latest_complete_candle < kc_lower_latest_complete_candle and current_close > current_kc_lower
 
     def close_sma_cross_orders(self, filled_orders: List[TrackedOrderDetails], close_type: CloseType):
         self.market_close_orders(filled_orders, close_type)

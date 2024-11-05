@@ -48,7 +48,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     sma_short: int = Field(75, client_data=ClientFieldData(is_updatable=True))
     sma_long: int = Field(300, client_data=ClientFieldData(is_updatable=True))
     kc_length: int = Field(20, client_data=ClientFieldData(is_updatable=True))
-    kc_scalar: Decimal = Field(3.0, client_data=ClientFieldData(is_updatable=True))
+    kc_scalar: Decimal = Field(4.0, client_data=ClientFieldData(is_updatable=True))
 
     # Order settings
     entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
