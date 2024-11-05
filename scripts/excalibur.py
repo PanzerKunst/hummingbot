@@ -85,6 +85,14 @@ class ExcaliburStrategy(PkStrategy):
         candles_df["SMA_short"] = candles_df.ta.sma(length=self.config.sma_short)
         candles_df["SMA_long"] = candles_df.ta.sma(length=self.config.sma_long)
 
+        kc_df = candles_df.ta.kc(candles_df["high"], candles_df["low"], candles_df["close"], length=self.config.kc_length, scalar=self.config.kc_scalar)
+
+        # TODO: remove
+        self.logger().error(f"kc_df COLUMNS: {kc_df.columns}")
+
+        # TODO candles_df["KC_lower"] = kc_df[f"KC_L_{self.config.kc_length}_{self.config.kc_scalar}"]
+        # candles_df["KC_upper"] = kc_df[f"KC_U_{self.config.kc_length}_{self.config.kc_scalar}"]
+
         candles_df.dropna(inplace=True)
 
         self.processed_data = candles_df
@@ -98,8 +106,8 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
-        self.create_actions_proposal_sma_cross()
-        self.create_actions_proposal_mean_reversion()
+        # TODO self.create_actions_proposal_sma_cross()
+        # self.create_actions_proposal_mean_reversion()
 
         return []  # Always return []
 
