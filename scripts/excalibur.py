@@ -408,20 +408,15 @@ class ExcaliburStrategy(PkStrategy):
         return current_rsi < 62.5
 
     def was_rsi_crash_sudden(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI"]
+        rsi_series: pd.Series = self.processed_data["RSI"].reset_index(drop=True)  # The original index is the DF's timestamp
         recent_rsis = rsi_series.iloc[-25:]
 
         min_rsi = recent_rsis.min()
         min_rsi_index = recent_rsis.idxmin()
 
         # Find the index for the 7 preceding elements, taking care not to go out of bounds
-        start_index = recent_rsis.index.get_loc(min_rsi_index) - 7
-
-        # TODO: remove
-        self.logger().info(f"was_rsi_crash_sudden() | start_index 1:{start_index}")
-
-        start_index = max(0, start_index)
-        start_index = recent_rsis.index[start_index]
+        start_index = min_rsi_index - 7
+        start_index = max(0, start_index)  # Ensure we do not go negative
 
         self.logger().info(f"was_rsi_crash_sudden() | min_rsi_index:{min_rsi_index} | start_index:{start_index}")
 
@@ -432,19 +427,14 @@ class ExcaliburStrategy(PkStrategy):
         return max_rsi - min_rsi > self.config.min_rsi_delta_for_sudden_change
 
     def was_rsi_spike_sudden(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI"]
+        rsi_series: pd.Series = self.processed_data["RSI"].reset_index(drop=True)
         recent_rsis = rsi_series.iloc[-25:]
 
         max_rsi = recent_rsis.max()
         max_rsi_index = recent_rsis.idxmax()
 
-        start_index = recent_rsis.index.get_loc(max_rsi_index) - 7
-
-        # TODO: remove
-        self.logger().info(f"was_rsi_spike_sudden() | start_index 1:{start_index}")
-
+        start_index = max_rsi_index - 7
         start_index = max(0, start_index)
-        start_index = recent_rsis.index[start_index]
 
         self.logger().info(f"was_rsi_spike_sudden() | max_rsi_index:{max_rsi_index} | start_index:{start_index}")
 
