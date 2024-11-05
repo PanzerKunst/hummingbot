@@ -227,20 +227,18 @@ class ExcaliburStrategy(PkStrategy):
                 self.close_sma_cross_orders(filled_sell_orders, CloseType.COMPLETED)
 
             else:
+                if self.did_rsi_crash_and_recover(filled_sell_orders) and self.was_rsi_crash_sudden():
+                    self.logger().info("stop_actions_proposal_sma_cross(SELL) > rsi_did_crash_and_recover & rsi_crash_was_sudden")
+                    self.close_sma_cross_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
+
                 if self.should_close_sma_cross_orders_when_price_hits_sma:
                     if self.is_current_price_over_short_sma():
                         self.logger().info("stop_actions_proposal_sma_cross(SELL) > current_price_is_over_short_sma")
                         self.close_sma_cross_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
 
-                if self.did_rsi_crash_and_recover(filled_sell_orders):
-                    self.logger().info("stop_actions_proposal_sma_cross(SELL) > rsi_did_crash_and_recover")
-
-                    if self.was_rsi_crash_sudden():
-                        self.logger().info("stop_actions_proposal_sma_cross(SELL) > rsi_crash_was_sudden")
-                        self.close_sma_cross_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
-                    elif not self.should_close_sma_cross_orders_when_price_hits_sma:
-                        self.logger().info("stop_actions_proposal_sma_cross(SELL) > setting self.should_close_when_price_hits_sma to TRUE")
-                        self.should_close_sma_cross_orders_when_price_hits_sma = True
+                elif self.should_short_orders_activate_trailing_stop(filled_sell_orders):
+                    self.logger().info("stop_actions_proposal_sma_cross(SELL) > short_orders_should_activate_trailing_stop. Setting self.should_close_when_price_hits_sma to TRUE.")
+                    self.should_close_sma_cross_orders_when_price_hits_sma = True
 
         if len(filled_buy_orders) > 0:
             if self.did_short_sma_cross_under_long():
@@ -248,20 +246,18 @@ class ExcaliburStrategy(PkStrategy):
                 self.close_sma_cross_orders(filled_buy_orders, CloseType.COMPLETED)
 
             else:
+                if self.did_rsi_spike_and_recover(filled_buy_orders) and self.was_rsi_spike_sudden():
+                    self.logger().info("stop_actions_proposal_sma_cross(BUY) > rsi_did_spike_and_recover & rsi_spike_was_sudden")
+                    self.close_sma_cross_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
+
                 if self.should_close_sma_cross_orders_when_price_hits_sma:
                     if self.is_current_price_under_short_sma():
                         self.logger().info("stop_actions_proposal_sma_cross(BUY) > current_price_is_under_short_sma")
                         self.close_sma_cross_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
 
-                if self.did_rsi_spike_and_recover(filled_buy_orders):
-                    self.logger().info("stop_actions_proposal_sma_cross(BUY) > rsi_did_spike_and_recover")
-
-                    if self.was_rsi_spike_sudden():
-                        self.logger().info("stop_actions_proposal_sma_cross(BUY) > rsi_spike_was_sudden")
-                        self.close_sma_cross_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
-                    elif not self.should_close_sma_cross_orders_when_price_hits_sma:
-                        self.logger().info("stop_actions_proposal_sma_cross(BUY) > setting self.should_close_when_price_hits_sma to TRUE")
-                        self.should_close_sma_cross_orders_when_price_hits_sma = True
+                elif self.should_long_orders_activate_trailing_stop(filled_buy_orders):
+                    self.logger().info("stop_actions_proposal_sma_cross(BUY) > long_orders_should_activate_trailing_stop. Setting self.should_close_when_price_hits_sma to TRUE.")
+                    self.should_close_sma_cross_orders_when_price_hits_sma = True
 
     def stop_actions_proposal_mean_reversion(self):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_MEAN_REVERSION)
@@ -379,28 +375,26 @@ class ExcaliburStrategy(PkStrategy):
         return False
 
     def compute_rsi_crash_and_recovery_thresholds(self, filled_sell_orders: List[TrackedOrderDetails]) -> Tuple[Decimal, Decimal]:
-        worst_filled_price = min(filled_sell_orders, key=lambda order: order.last_filled_price).last_filled_price
-        pnl_pct: Decimal = (worst_filled_price - self.get_latest_close()) / worst_filled_price * 100
+        pnl_pct: Decimal = self.compute_short_orders_pnl_pct(filled_sell_orders)
 
-        if pnl_pct > self.config.second_pnl_pct_for_rsi_crash_or_spike_and_recovery_thresholds:
+        if pnl_pct > self.config.sma_cross_second_trailing_stop_activation_pct:
             self.logger().info("compute_rsi_crash_and_recovery_thresholds() > returning 32.5, 34.5")
             return Decimal(32.5), Decimal(34.5)
 
-        if pnl_pct > self.config.first_pnl_pct_for_rsi_crash_or_spike_and_recovery_thresholds:
+        if pnl_pct > self.config.sma_cross_first_trailing_stop_activation_pct:
             self.logger().info("compute_rsi_crash_and_recovery_thresholds() > returning 31.0, 33.0")
             return Decimal(31.0), Decimal(33.0)
 
         return Decimal(28.0), Decimal(30.0)
 
     def compute_rsi_spike_and_recovery_thresholds(self, filled_buy_orders: List[TrackedOrderDetails]) -> Tuple[Decimal, Decimal]:
-        worst_filled_price = max(filled_buy_orders, key=lambda order: order.last_filled_price).last_filled_price
-        pnl_pct: Decimal = (self.get_latest_close() - worst_filled_price) / worst_filled_price * 100
+        pnl_pct: Decimal = self.compute_long_orders_pnl_pct(filled_buy_orders)
 
-        if pnl_pct > self.config.second_pnl_pct_for_rsi_crash_or_spike_and_recovery_thresholds:
+        if pnl_pct > self.config.sma_cross_second_trailing_stop_activation_pct:
             self.logger().info("compute_rsi_spike_and_recovery_thresholds() > returning 67.5, 65.5")
             return Decimal(67.5), Decimal(65.5)
 
-        if pnl_pct > self.config.first_pnl_pct_for_rsi_crash_or_spike_and_recovery_thresholds:
+        if pnl_pct > self.config.sma_cross_first_trailing_stop_activation_pct:
             self.logger().info("compute_rsi_spike_and_recovery_thresholds() > returning 69.0, 67.0")
             return Decimal(69.0), Decimal(67.0)
 
@@ -457,6 +451,14 @@ class ExcaliburStrategy(PkStrategy):
 
         return max_rsi - min_rsi > self.config.min_rsi_delta_for_sudden_change
 
+    def should_short_orders_activate_trailing_stop(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
+        pnl_pct: Decimal = self.compute_short_orders_pnl_pct(filled_sell_orders)
+        return pnl_pct > self.config.sma_cross_first_trailing_stop_activation_pct
+
+    def should_long_orders_activate_trailing_stop(self, filled_buy_orders: List[TrackedOrderDetails]) -> bool:
+        pnl_pct: Decimal = self.compute_long_orders_pnl_pct(filled_buy_orders)
+        return pnl_pct > self.config.sma_cross_first_trailing_stop_activation_pct
+
     def did_price_suddenly_rise_to_short_sma(self) -> bool:
         close_series: pd.Series = self.processed_data["close"]
         recent_prices = close_series.iloc[-17:-2]  # 15 items, last one excluded
@@ -501,6 +503,14 @@ class ExcaliburStrategy(PkStrategy):
         close_latest_complete_candle = close_series.iloc[-2]
 
         return close_latest_complete_candle < kc_lower_latest_complete_candle and current_close > current_kc_lower
+
+    def compute_short_orders_pnl_pct(self, filled_sell_orders: List[TrackedOrderDetails]) -> Decimal:
+        worst_filled_price = min(filled_sell_orders, key=lambda order: order.last_filled_price).last_filled_price
+        return (worst_filled_price - self.get_latest_close()) / worst_filled_price * 100
+
+    def compute_long_orders_pnl_pct(self, filled_buy_orders: List[TrackedOrderDetails]) -> Decimal:
+        worst_filled_price = max(filled_buy_orders, key=lambda order: order.last_filled_price).last_filled_price
+        return (self.get_latest_close() - worst_filled_price) / worst_filled_price * 100
 
     def close_sma_cross_orders(self, filled_orders: List[TrackedOrderDetails], close_type: CloseType):
         self.market_close_orders(filled_orders, close_type)
