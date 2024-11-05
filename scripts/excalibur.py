@@ -59,7 +59,8 @@ class ExcaliburStrategy(PkStrategy):
             )
 
         return TripleBarrier(
-            open_order_type=OrderType.MARKET
+            open_order_type=OrderType.MARKET,
+            stop_loss=self.config.mean_reversion_stop_loss_pct / 100
         )
 
     def update_processed_data(self):
@@ -200,18 +201,18 @@ class ExcaliburStrategy(PkStrategy):
         if not self.can_create_order(side, ORDER_REF_MEAN_REVERSION, 0):
             return False
 
-        if was_an_order_recently_opened(active_tracked_orders, 4 * 60, self.get_market_data_provider_time()):
+        if was_an_order_recently_opened(active_tracked_orders, 5 * 60, self.get_market_data_provider_time()):
             self.logger().info("can_create_mean_reversion_order() > Recently opened an order - not doing it again")
             return False
 
         if side == TradeType.SELL:
-            if self.did_price_drop_back_into_kc():
+            if self.did_price_drop_back_into_kc() and self.did_rsi_spike():
                 self.logger().info("can_create_mean_reversion_order() > Price just dropped back into KC")
                 return True
 
             return False
 
-        if self.did_price_rise_back_into_kc():
+        if self.did_price_rise_back_into_kc() and self.did_rsi_crash():
             self.logger().info("can_create_mean_reversion_order() > KC just rose back into KC")
             return True
 
@@ -312,6 +313,18 @@ class ExcaliburStrategy(PkStrategy):
 
     def is_current_price_under_short_sma(self) -> bool:
         return not self.is_current_price_over_short_sma()
+
+    def did_rsi_crash(self) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI"]
+        rsi_latest_complete_candle = rsi_series.iloc[-2]
+
+        return rsi_latest_complete_candle < 30
+
+    def did_rsi_spike(self) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI"]
+        rsi_latest_complete_candle = rsi_series.iloc[-2]
+
+        return rsi_latest_complete_candle > 70
 
     # TODO: also replace by KC?
     def did_rsi_crash_and_recover(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
