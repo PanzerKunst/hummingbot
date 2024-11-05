@@ -318,15 +318,14 @@ class ExcaliburStrategy(PkStrategy):
         rsi_series: pd.Series = self.processed_data["RSI"]
         rsi_latest_complete_candle = rsi_series.iloc[-2]
 
-        return rsi_latest_complete_candle < 30
+        return rsi_latest_complete_candle < 31
 
     def did_rsi_spike(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI"]
         rsi_latest_complete_candle = rsi_series.iloc[-2]
 
-        return rsi_latest_complete_candle > 70
+        return rsi_latest_complete_candle > 69
 
-    # TODO: also replace by KC?
     def did_rsi_crash_and_recover(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
         rsi_crash_threshold, rsi_recovery_threshold = self.compute_rsi_crash_and_recovery_thresholds(filled_sell_orders)
 
