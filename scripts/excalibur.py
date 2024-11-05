@@ -149,13 +149,13 @@ class ExcaliburStrategy(PkStrategy):
         if side == TradeType.SELL:
             if self.did_short_sma_cross_under_long():
                 self.logger().info("can_create_sma_cross_order() > Short SMA crossed under long")
-                return not self.is_price_too_far_from_sma() and not self.did_price_suddenly_rise_to_short_sma()
+                return not self.is_rsi_too_low_to_open_short() and not self.did_price_suddenly_rise_to_short_sma()
 
             return False
 
         if self.did_short_sma_cross_over_long():
             self.logger().info("can_create_sma_cross_order() > Short SMA crossed over long")
-            return not self.is_price_too_far_from_sma() and not self.did_price_suddenly_drop_to_short_sma()
+            return not self.is_rsi_too_high_to_open_long() and not self.did_price_suddenly_drop_to_short_sma()
 
         return False
 
@@ -361,7 +361,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def compute_rsi_crash_and_recovery_thresholds(self, filled_sell_orders: List[TrackedOrderDetails]) -> Tuple[Decimal, Decimal]:
         if len(filled_sell_orders) == 0:  # Mean reversion case
-            return Decimal(29.0), Decimal(31.0)
+            return Decimal(30.0), Decimal(32.0)
 
         worst_filled_price = min(filled_sell_orders, key=lambda order: order.last_filled_price).last_filled_price
         pnl_pct: Decimal = (worst_filled_price - self.get_latest_close()) / worst_filled_price * 100
@@ -378,7 +378,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def compute_rsi_spike_and_recovery_thresholds(self, filled_buy_orders: List[TrackedOrderDetails]) -> Tuple[Decimal, Decimal]:
         if len(filled_buy_orders) == 0:  # Mean reversion case
-            return Decimal(71.0), Decimal(69.0)
+            return Decimal(70.0), Decimal(68.0)
 
         worst_filled_price = max(filled_buy_orders, key=lambda order: order.last_filled_price).last_filled_price
         pnl_pct: Decimal = (self.get_latest_close() - worst_filled_price) / worst_filled_price * 100
@@ -393,30 +393,30 @@ class ExcaliburStrategy(PkStrategy):
 
         return Decimal(72.0), Decimal(70.0)
 
-    def is_price_too_far_from_sma(self) -> bool:
-        latest_sma = self.get_latest_sma("long")
-        latest_close = self.get_latest_close()
-        delta_pct: Decimal = abs(latest_close - latest_sma) / latest_close * 100
+    def is_rsi_too_low_to_open_short(self) -> bool:
+        current_rsi = self.get_current_rsi()
 
-        self.logger().info(f"is_price_too_far_from_sma(): {delta_pct > self.config.max_price_delta_pct_with_sma_to_open_position} | latest_close:{latest_close} | latest_sma:{latest_sma} | delta_pct:{delta_pct}")
+        self.logger().info(f"is_rsi_too_low_to_open_short() | current_rsi:{current_rsi}")
 
-        return delta_pct > self.config.max_price_delta_pct_with_sma_to_open_position
+        return current_rsi < 37.5
+
+    def is_rsi_too_high_to_open_long(self) -> bool:
+        current_rsi = self.get_current_rsi()
+
+        self.logger().info(f"is_rsi_too_high_to_open_long() | current_rsi:{current_rsi}")
+
+        return current_rsi > 62.5
 
     def was_rsi_crash_sudden(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI"]
+        rsi_series: pd.Series = self.processed_data["RSI"].reset_index(drop=True)  # The original index is the DF's timestamp
         recent_rsis = rsi_series.iloc[-25:]
 
         min_rsi = recent_rsis.min()
         min_rsi_index = recent_rsis.idxmin()
 
         # Find the index for the 7 preceding elements, taking care not to go out of bounds
-        start_index = recent_rsis.index.get_loc(min_rsi_index) - 7
-
-        # TODO: remove
-        self.logger().info(f"was_rsi_crash_sudden() | start_index 1:{start_index}")
-
-        start_index = max(0, start_index)
-        start_index = recent_rsis.index[start_index]
+        start_index = min_rsi_index - 7
+        start_index = max(0, start_index)  # Ensure we do not go negative
 
         self.logger().info(f"was_rsi_crash_sudden() | min_rsi_index:{min_rsi_index} | start_index:{start_index}")
 
@@ -427,19 +427,14 @@ class ExcaliburStrategy(PkStrategy):
         return max_rsi - min_rsi > self.config.min_rsi_delta_for_sudden_change
 
     def was_rsi_spike_sudden(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI"]
+        rsi_series: pd.Series = self.processed_data["RSI"].reset_index(drop=True)
         recent_rsis = rsi_series.iloc[-25:]
 
         max_rsi = recent_rsis.max()
         max_rsi_index = recent_rsis.idxmax()
 
-        start_index = recent_rsis.index.get_loc(max_rsi_index) - 7
-
-        # TODO: remove
-        self.logger().info(f"was_rsi_spike_sudden() | start_index 1:{start_index}")
-
+        start_index = max_rsi_index - 7
         start_index = max(0, start_index)
-        start_index = recent_rsis.index[start_index]
 
         self.logger().info(f"was_rsi_spike_sudden() | max_rsi_index:{max_rsi_index} | start_index:{start_index}")
 
