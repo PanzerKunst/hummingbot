@@ -42,7 +42,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     # Triple Barrier
     sma_cross_stop_loss_pct: Decimal = Field(0.7, client_data=ClientFieldData(is_updatable=True))
-    mean_reversion_stop_loss_pct: Decimal = Field(0.2, client_data=ClientFieldData(is_updatable=True))
+    mean_reversion_stop_loss_pct: Decimal = Field(0.3, client_data=ClientFieldData(is_updatable=True))
     mean_reversion_take_profit_pct: Decimal = Field(1.5, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
@@ -52,8 +52,8 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     # Order settings
     entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
-    rsi_threshold_take_profit_sell: int = Field(28, client_data=ClientFieldData(is_updatable=True))
-    rsi_threshold_take_profit_buy: int = Field(72, client_data=ClientFieldData(is_updatable=True))
     max_price_delta_pct_with_sma_to_open_position: Decimal = Field(1.5, client_data=ClientFieldData(is_updatable=True))
     min_rsi_delta_for_sudden_change: int = Field(15, client_data=ClientFieldData(is_updatable=True))
     min_price_delta_pct_for_sudden_reversal_to_short_sma: Decimal = Field(0.75, client_data=ClientFieldData(is_updatable=True))
+    first_pnl_pct_for_rsi_crash_or_spike_and_recovery_thresholds: Decimal = Field(2.5, client_data=ClientFieldData(is_updatable=True))
+    second_pnl_pct_for_rsi_crash_or_spike_and_recovery_thresholds: Decimal = Field(3.25, client_data=ClientFieldData(is_updatable=True))

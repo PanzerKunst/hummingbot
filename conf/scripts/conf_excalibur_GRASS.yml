@@ -1,14 +1,14 @@
 markets: {}
 candles_config:
-- connector: binance_perpetual
+- connector: okx_perpetual
   interval: 1m
   max_records: 330
-  trading_pair: MOODENG-USDT
+  trading_pair: GRASS-USDT
 controllers_config: []
 config_update_interval: 10
 script_file_name: excalibur_config.py
 connector_name: hyperliquid_perpetual
-trading_pair: MOODENG-USD
+trading_pair: GRASS-USD
 total_amount_quote: 30
 leverage: 5
 unfilled_order_expiration_min: 1
@@ -16,15 +16,15 @@ limit_take_profit_price_delta_bps: 0
 market_order_twap_count: 1
 market_order_twap_interval: 5
 position_mode: ONEWAY
-sma_cross_stop_loss_pct: 1.0
-mean_reversion_stop_loss_pct: 0.5
-mean_reversion_take_profit_pct: 2.0
+sma_cross_stop_loss_pct: 1.75
+mean_reversion_stop_loss_pct: 0.75
+mean_reversion_take_profit_pct: 3.0
 rsi_length: 20
 sma_short: 75
 sma_long: 300
 entry_price_delta_bps: 0
-max_price_delta_pct_with_sma_to_open_position: 2.0
+max_price_delta_pct_with_sma_to_open_position: 3.5
 min_rsi_delta_for_sudden_change: 15
-min_price_delta_pct_for_sudden_reversal_to_short_sma: 1.0
-first_pnl_pct_for_rsi_crash_or_spike_and_recovery_thresholds: 3.3
-second_pnl_pct_for_rsi_crash_or_spike_and_recovery_thresholds: 4.3
+min_price_delta_pct_for_sudden_reversal_to_short_sma: 1.75
+first_pnl_pct_for_rsi_crash_or_spike_and_recovery_thresholds: 5.75
+second_pnl_pct_for_rsi_crash_or_spike_and_recovery_thresholds: 7.5

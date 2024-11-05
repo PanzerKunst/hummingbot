@@ -1,6 +1,6 @@
 import asyncio
 from decimal import Decimal
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import pandas as pd
 
@@ -18,6 +18,7 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 # Trends via comparing 2 SMAs
 # Generate config file: create --script-config excalibur
 # Start the bot: start --script excalibur.py --conf conf_excalibur_GOAT.yml
+#                start --script excalibur.py --conf conf_excalibur_GRASS.yml
 #                start --script excalibur.py --conf conf_excalibur_MOODENG.yml
 #                start --script excalibur.py --conf conf_excalibur_POPCAT.yml
 # Quickstart script: -p=a -f excalibur.py -c conf_excalibur_POPCAT.yml
@@ -198,13 +199,13 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         if side == TradeType.SELL:
-            if self.did_rsi_spike_and_recover() and self.was_rsi_spike_sudden():
+            if self.did_rsi_spike_and_recover([]) and self.was_rsi_spike_sudden():
                 self.logger().info("can_create_mean_reversion_order() > Sudden RSI spike just ended")
                 return True
 
             return False
 
-        if self.did_rsi_crash_and_recover() and self.was_rsi_crash_sudden():
+        if self.did_rsi_crash_and_recover([]) and self.was_rsi_crash_sudden():
             self.logger().info("can_create_mean_reversion_order() > Sudden RSI crash just ended")
             return True
 
@@ -224,7 +225,7 @@ class ExcaliburStrategy(PkStrategy):
                         self.logger().info("stop_actions_proposal_sma_cross(SELL) > current_price_is_over_short_sma")
                         self.close_sma_cross_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
 
-                if self.did_rsi_crash_and_recover():
+                if self.did_rsi_crash_and_recover(filled_sell_orders):
                     self.logger().info("stop_actions_proposal_sma_cross(SELL) > rsi_did_crash_and_recover")
 
                     if self.was_rsi_crash_sudden():
@@ -245,7 +246,7 @@ class ExcaliburStrategy(PkStrategy):
                         self.logger().info("stop_actions_proposal_sma_cross(BUY) > current_price_is_under_short_sma")
                         self.close_sma_cross_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
 
-                if self.did_rsi_spike_and_recover():
+                if self.did_rsi_spike_and_recover(filled_buy_orders):
                     self.logger().info("stop_actions_proposal_sma_cross(BUY) > rsi_did_spike_and_recover")
 
                     if self.was_rsi_spike_sudden():
@@ -261,12 +262,12 @@ class ExcaliburStrategy(PkStrategy):
         if len(filled_sell_orders) > 0:
             if self.is_current_price_under_short_sma():
                 self.logger().info("stop_actions_proposal_mean_reversion(SELL) > current_price_is_under_short_sma")
-                self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
+                self.market_close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
 
         if len(filled_buy_orders) > 0:
             if self.is_current_price_over_short_sma():
                 self.logger().info("stop_actions_proposal_mean_reversion(BUY) > current_price_is_over_short_sma")
-                self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
+                self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
 
     def get_latest_close(self) -> Decimal:
         close_series: pd.Series = self.processed_data["close"]
@@ -306,8 +307,8 @@ class ExcaliburStrategy(PkStrategy):
     def is_current_price_under_short_sma(self) -> bool:
         return not self.is_current_price_over_short_sma()
 
-    def did_rsi_crash_and_recover(self) -> bool:
-        rsi_recovery_threshold = 30
+    def did_rsi_crash_and_recover(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
+        rsi_crash_threshold, rsi_recovery_threshold = self.compute_rsi_crash_and_recovery_thresholds(filled_sell_orders)
 
         if self.get_current_rsi() < rsi_recovery_threshold:
             return False
@@ -315,9 +316,9 @@ class ExcaliburStrategy(PkStrategy):
         rsi_series: pd.Series = self.processed_data["RSI"]
         older_rsis = rsi_series.iloc[-13:-1]  # 12 items, last one excluded
 
-        min_rsi = older_rsis.min()
+        min_rsi = Decimal(older_rsis.min())
 
-        if min_rsi > self.config.rsi_threshold_take_profit_sell:
+        if min_rsi > rsi_crash_threshold:
             return False
 
         min_rsi_index = older_rsis.idxmin()
@@ -332,8 +333,8 @@ class ExcaliburStrategy(PkStrategy):
 
         return False
 
-    def did_rsi_spike_and_recover(self) -> bool:
-        rsi_recovery_threshold = 70
+    def did_rsi_spike_and_recover(self, filled_buy_orders: List[TrackedOrderDetails]) -> bool:
+        rsi_spike_threshold, rsi_recovery_threshold = self.compute_rsi_spike_and_recovery_thresholds(filled_buy_orders)
 
         if self.get_current_rsi() > rsi_recovery_threshold:
             return False
@@ -341,9 +342,9 @@ class ExcaliburStrategy(PkStrategy):
         rsi_series: pd.Series = self.processed_data["RSI"]
         older_rsis = rsi_series.iloc[-13:-1]  # 12 items, last one excluded
 
-        max_rsi = older_rsis.max()
+        max_rsi = Decimal(older_rsis.max())
 
-        if max_rsi < self.config.rsi_threshold_take_profit_buy:
+        if max_rsi < rsi_spike_threshold:
             return False
 
         max_rsi_index = older_rsis.idxmax()
@@ -357,6 +358,40 @@ class ExcaliburStrategy(PkStrategy):
             return True
 
         return False
+
+    def compute_rsi_crash_and_recovery_thresholds(self, filled_sell_orders: List[TrackedOrderDetails]) -> Tuple[Decimal, Decimal]:
+        if len(filled_sell_orders) == 0:  # Mean reversion case
+            return Decimal(29.0), Decimal(31.0)
+
+        worst_filled_price = min(filled_sell_orders, key=lambda order: order.last_filled_price).last_filled_price
+        pnl_pct: Decimal = (worst_filled_price - self.get_latest_close()) / worst_filled_price * 100
+
+        if pnl_pct > self.config.second_pnl_pct_for_rsi_crash_or_spike_and_recovery_thresholds:
+            self.logger().info("compute_rsi_crash_and_recovery_thresholds() > returning 32.5, 34.5")
+            return Decimal(32.5), Decimal(34.5)
+
+        if pnl_pct > self.config.first_pnl_pct_for_rsi_crash_or_spike_and_recovery_thresholds:
+            self.logger().info("compute_rsi_crash_and_recovery_thresholds() > returning 31.0, 33.0")
+            return Decimal(31.0), Decimal(33.0)
+
+        return Decimal(28.0), Decimal(30.0)
+
+    def compute_rsi_spike_and_recovery_thresholds(self, filled_buy_orders: List[TrackedOrderDetails]) -> Tuple[Decimal, Decimal]:
+        if len(filled_buy_orders) == 0:  # Mean reversion case
+            return Decimal(71.0), Decimal(69.0)
+
+        worst_filled_price = max(filled_buy_orders, key=lambda order: order.last_filled_price).last_filled_price
+        pnl_pct: Decimal = (self.get_latest_close() - worst_filled_price) / worst_filled_price * 100
+
+        if pnl_pct > self.config.second_pnl_pct_for_rsi_crash_or_spike_and_recovery_thresholds:
+            self.logger().info("compute_rsi_spike_and_recovery_thresholds() > returning 67.5, 65.5")
+            return Decimal(67.5), Decimal(65.5)
+
+        if pnl_pct > self.config.first_pnl_pct_for_rsi_crash_or_spike_and_recovery_thresholds:
+            self.logger().info("compute_rsi_spike_and_recovery_thresholds() > returning 69.0, 67.0")
+            return Decimal(69.0), Decimal(67.0)
+
+        return Decimal(72.0), Decimal(70.0)
 
     def is_price_too_far_from_sma(self) -> bool:
         latest_sma = self.get_latest_sma("long")
