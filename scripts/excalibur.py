@@ -100,8 +100,8 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
-        # TODO self.create_actions_proposal_sma_cross()
-        # self.create_actions_proposal_mean_reversion()
+        self.create_actions_proposal_sma_cross()
+        self.create_actions_proposal_mean_reversion()
 
         return []  # Always return []
 
@@ -199,18 +199,15 @@ class ExcaliburStrategy(PkStrategy):
         if not self.can_create_order(side, ORDER_REF_MEAN_REVERSION, 3):
             return False
 
-        if len(active_tracked_orders) > 0:
-            return False
-
         if side == TradeType.SELL:
-            if self.did_rsi_spike_and_recover([]) and self.was_rsi_spike_sudden():
-                self.logger().info("can_create_mean_reversion_order() > Sudden RSI spike just ended")
+            if self.did_price_drop_back_into_kc():
+                self.logger().info("can_create_mean_reversion_order() > Price just dropped back into KC")
                 return True
 
             return False
 
-        if self.did_rsi_crash_and_recover([]) and self.was_rsi_crash_sudden():
-            self.logger().info("can_create_mean_reversion_order() > Sudden RSI crash just ended")
+        if self.did_price_rise_back_into_kc():
+            self.logger().info("can_create_mean_reversion_order() > KC just rose back into KC")
             return True
 
         return False
@@ -311,6 +308,7 @@ class ExcaliburStrategy(PkStrategy):
     def is_current_price_under_short_sma(self) -> bool:
         return not self.is_current_price_over_short_sma()
 
+    # TODO: also replace by KC?
     def did_rsi_crash_and_recover(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
         rsi_crash_threshold, rsi_recovery_threshold = self.compute_rsi_crash_and_recovery_thresholds(filled_sell_orders)
 
@@ -364,9 +362,6 @@ class ExcaliburStrategy(PkStrategy):
         return False
 
     def compute_rsi_crash_and_recovery_thresholds(self, filled_sell_orders: List[TrackedOrderDetails]) -> Tuple[Decimal, Decimal]:
-        if len(filled_sell_orders) == 0:  # Mean reversion case
-            return Decimal(30.0), Decimal(32.0)
-
         worst_filled_price = min(filled_sell_orders, key=lambda order: order.last_filled_price).last_filled_price
         pnl_pct: Decimal = (worst_filled_price - self.get_latest_close()) / worst_filled_price * 100
 
@@ -381,9 +376,6 @@ class ExcaliburStrategy(PkStrategy):
         return Decimal(28.0), Decimal(30.0)
 
     def compute_rsi_spike_and_recovery_thresholds(self, filled_buy_orders: List[TrackedOrderDetails]) -> Tuple[Decimal, Decimal]:
-        if len(filled_buy_orders) == 0:  # Mean reversion case
-            return Decimal(70.0), Decimal(68.0)
-
         worst_filled_price = max(filled_buy_orders, key=lambda order: order.last_filled_price).last_filled_price
         pnl_pct: Decimal = (self.get_latest_close() - worst_filled_price) / worst_filled_price * 100
 
@@ -470,6 +462,28 @@ class ExcaliburStrategy(PkStrategy):
         self.logger().info(f"did_price_suddenly_drop_to_short_sma() | self.get_latest_close():{self.get_latest_close()} | max_price:{max_price} | price_delta_pct:{price_delta_pct}")
 
         return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_sma
+
+    def did_price_drop_back_into_kc(self) -> bool:
+        kc_upper_series: pd.Series = self.processed_data["KC_upper"]
+        kc_upper_latest_complete_candle = kc_upper_series.iloc[-2]
+        kc_upper_2candles_before = kc_upper_series.iloc[-3]
+
+        close_series: pd.Series = self.processed_data["close"]
+        close_latest_complete_candle = close_series.iloc[-2]
+        close_2candles_before = close_series.iloc[-3]
+
+        return close_2candles_before > kc_upper_2candles_before and close_latest_complete_candle < kc_upper_latest_complete_candle
+
+    def did_price_rise_back_into_kc(self) -> bool:
+        kc_lower_series: pd.Series = self.processed_data["KC_lower"]
+        kc_lower_latest_complete_candle = kc_lower_series.iloc[-2]
+        kc_lower_2candles_before = kc_lower_series.iloc[-3]
+
+        close_series: pd.Series = self.processed_data["close"]
+        close_latest_complete_candle = close_series.iloc[-2]
+        close_2candles_before = close_series.iloc[-3]
+
+        return close_2candles_before < kc_lower_2candles_before and close_latest_complete_candle > kc_lower_latest_complete_candle
 
     def close_sma_cross_orders(self, filled_orders: List[TrackedOrderDetails], close_type: CloseType):
         self.market_close_orders(filled_orders, close_type)
