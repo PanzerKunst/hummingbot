@@ -198,7 +198,7 @@ class ExcaliburStrategy(PkStrategy):
             asyncio.get_running_loop().create_task(self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier, ORDER_REF_MEAN_REVERSION))
 
     def can_create_mean_reversion_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, ORDER_REF_MEAN_REVERSION, 0):
+        if not self.can_create_order(side, ORDER_REF_MEAN_REVERSION, 3):
             return False
 
         if was_an_order_recently_opened(active_tracked_orders, 5 * 60, self.get_market_data_provider_time()):
