@@ -33,7 +33,6 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     trading_pair: str = "POPCAT-USD"
     total_amount_quote: int = Field(30, client_data=ClientFieldData(is_updatable=True))
     leverage: int = 5
-    cooldown_time_min: int = Field(0, client_data=ClientFieldData(is_updatable=True))
     unfilled_order_expiration_min: int = Field(1, client_data=ClientFieldData(is_updatable=True))
     limit_take_profit_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
     market_order_twap_count: int = 1
@@ -42,6 +41,9 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     position_mode: PositionMode = PositionMode.ONEWAY
 
     # Triple Barrier
+    sma_cross_stop_loss_pct: Decimal = Field(0.7, client_data=ClientFieldData(is_updatable=True))
+    mean_reversion_stop_loss_pct: Decimal = Field(0.2, client_data=ClientFieldData(is_updatable=True))
+    mean_reversion_take_profit_pct: Decimal = Field(1.5, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
     rsi_length: int = Field(20, client_data=ClientFieldData(is_updatable=True))

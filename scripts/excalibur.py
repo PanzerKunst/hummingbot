@@ -22,6 +22,9 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 #                start --script excalibur.py --conf conf_excalibur_POPCAT.yml
 # Quickstart script: -p=a -f excalibur.py -c conf_excalibur_POPCAT.yml
 
+ORDER_REF_SMA_CROSS = "SmaCross"
+ORDER_REF_MEAN_REVERSION = "MeanReversion"
+
 
 class ExcaliburStrategy(PkStrategy):
     @classmethod
@@ -32,7 +35,7 @@ class ExcaliburStrategy(PkStrategy):
         super().__init__(connectors, config)
 
         self.processed_data = pd.DataFrame()
-        self.reset_context()
+        self.reset_context_sma_cross()
 
     def start(self, clock: Clock, timestamp: float) -> None:
         self._last_timestamp = timestamp
@@ -46,10 +49,17 @@ class ExcaliburStrategy(PkStrategy):
                 for trading_pair in self.market_data_provider.get_trading_pairs(connector_name):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
-    @staticmethod
-    def get_triple_barrier() -> TripleBarrier:
+    def get_triple_barrier(self, order_ref: str) -> TripleBarrier:
+        if order_ref == ORDER_REF_SMA_CROSS:
+            return TripleBarrier(
+                open_order_type=OrderType.MARKET,
+                stop_loss=self.config.sma_cross_stop_loss_pct / 100
+            )
+
         return TripleBarrier(
-            open_order_type=OrderType.MARKET
+            open_order_type=OrderType.MARKET,
+            stop_loss=self.config.mean_reversion_stop_loss_pct / 100,
+            take_profit=self.config.mean_reversion_take_profit_pct / 100
         )
 
     def update_processed_data(self):
@@ -87,18 +97,8 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
-        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side()
-        active_orders = active_sell_orders + active_buy_orders
-
-        if self.can_create_sma_cross_order(TradeType.SELL, active_orders):
-            entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
-            triple_barrier = self.get_triple_barrier()
-            asyncio.get_running_loop().create_task(self.create_twap_market_orders(TradeType.SELL, entry_price, triple_barrier))
-
-        if self.can_create_sma_cross_order(TradeType.BUY, active_orders):
-            entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
-            triple_barrier = self.get_triple_barrier()
-            asyncio.get_running_loop().create_task(self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier))
+        self.create_actions_proposal_sma_cross()
+        self.create_actions_proposal_mean_reversion()
 
         return []  # Always return []
 
@@ -110,55 +110,8 @@ class ExcaliburStrategy(PkStrategy):
 
         self.check_orders()
 
-        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side()
-
-        if len(filled_sell_orders) > 0:
-            if self.did_short_sma_cross_over_long():
-                self.logger().info("stop_actions_proposal() > Short SMA crossed over long")
-                self.close_orders(filled_sell_orders, CloseType.COMPLETED)
-
-            else:
-                if self.should_close_when_price_hits_sma:
-                    if self.is_current_price_over_short_sma():
-                        self.logger().info("stop_actions_proposal(SELL) > current_price_is_over_short_sma")
-                        self.close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
-
-                elif self.did_price_suddenly_rise_to_short_sma():
-                    self.close_orders(filled_sell_orders, CloseType.COMPLETED)
-
-                if self.did_rsi_crash_and_recover():
-                    self.logger().info("stop_actions_proposal(SELL) > rsi_did_crash_and_recover")
-
-                    if self.was_rsi_crash_sudden():
-                        self.logger().info("stop_actions_proposal(SELL) > rsi_crash_was_sudden")
-                        self.close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
-                    elif not self.should_close_when_price_hits_sma:
-                        self.logger().info("stop_actions_proposal(SELL) > setting self.should_close_when_price_hits_sma to TRUE")
-                        self.should_close_when_price_hits_sma = True
-
-        if len(filled_buy_orders) > 0:
-            if self.did_short_sma_cross_under_long():
-                self.logger().info("stop_actions_proposal() > Short SMA crossed under long")
-                self.close_orders(filled_buy_orders, CloseType.COMPLETED)
-
-            else:
-                if self.should_close_when_price_hits_sma:
-                    if self.is_current_price_under_short_sma():
-                        self.logger().info("stop_actions_proposal(BUY) > current_price_is_under_short_sma")
-                        self.close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
-
-                elif self.did_price_suddenly_drop_to_short_sma():
-                    self.close_orders(filled_sell_orders, CloseType.COMPLETED)
-
-                if self.did_rsi_spike_and_recover():
-                    self.logger().info("stop_actions_proposal(BUY) > rsi_did_spike_and_recover")
-
-                    if self.was_rsi_spike_sudden():
-                        self.logger().info("stop_actions_proposal(BUY) > rsi_spike_was_sudden")
-                        self.close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
-                    elif not self.should_close_when_price_hits_sma:
-                        self.logger().info("stop_actions_proposal(BUY) > setting self.should_close_when_price_hits_sma to TRUE")
-                        self.should_close_when_price_hits_sma = True
+        self.stop_actions_proposal_sma_cross()
+        self.stop_actions_proposal_mean_reversion()
 
         return []  # Always return []
 
@@ -186,7 +139,7 @@ class ExcaliburStrategy(PkStrategy):
     #
 
     def can_create_sma_cross_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side):
+        if not self.can_create_order(side, ORDER_REF_SMA_CROSS, 0):
             return False
 
         if len(active_tracked_orders) > 0:
@@ -209,13 +162,119 @@ class ExcaliburStrategy(PkStrategy):
     # Custom functions specific to this controller
     #
 
+    def create_actions_proposal_sma_cross(self):
+        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_SMA_CROSS)
+        active_orders = active_sell_orders + active_buy_orders
+
+        if self.can_create_sma_cross_order(TradeType.SELL, active_orders):
+            entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
+            triple_barrier = self.get_triple_barrier(ORDER_REF_SMA_CROSS)
+            asyncio.get_running_loop().create_task(self.create_twap_market_orders(TradeType.SELL, entry_price, triple_barrier, ORDER_REF_SMA_CROSS))
+
+        if self.can_create_sma_cross_order(TradeType.BUY, active_orders):
+            entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
+            triple_barrier = self.get_triple_barrier(ORDER_REF_SMA_CROSS)
+            asyncio.get_running_loop().create_task(self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier, ORDER_REF_SMA_CROSS))
+
+    def create_actions_proposal_mean_reversion(self):
+        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_MEAN_REVERSION)
+        active_orders = active_sell_orders + active_buy_orders
+
+        if self.can_create_mean_reversion_order(TradeType.SELL, active_orders):
+            entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
+            triple_barrier = self.get_triple_barrier(ORDER_REF_MEAN_REVERSION)
+            asyncio.get_running_loop().create_task(self.create_twap_market_orders(TradeType.SELL, entry_price, triple_barrier, ORDER_REF_MEAN_REVERSION))
+
+        if self.can_create_mean_reversion_order(TradeType.BUY, active_orders):
+            entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
+            triple_barrier = self.get_triple_barrier(ORDER_REF_MEAN_REVERSION)
+            asyncio.get_running_loop().create_task(self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier, ORDER_REF_MEAN_REVERSION))
+
+    def can_create_mean_reversion_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
+        if not self.can_create_order(side, ORDER_REF_MEAN_REVERSION, 3):
+            return False
+
+        if len(active_tracked_orders) > 0:
+            return False
+
+        if side == TradeType.SELL:
+            if self.did_rsi_spike_and_recover() and self.was_rsi_spike_sudden():
+                self.logger().info("can_create_mean_reversion_order() > Sudden RSI spike just ended")
+                return True
+
+            return False
+
+        if self.did_rsi_crash_and_recover() and self.was_rsi_crash_sudden():
+            self.logger().info("can_create_mean_reversion_order() > Sudden RSI crash just ended")
+            return True
+
+        return False
+
+    def stop_actions_proposal_sma_cross(self):
+        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_SMA_CROSS)
+
+        if len(filled_sell_orders) > 0:
+            if self.did_short_sma_cross_over_long():
+                self.logger().info("stop_actions_proposal_sma_cross(SELL) > Short SMA crossed over long")
+                self.close_sma_cross_orders(filled_sell_orders, CloseType.COMPLETED)
+
+            else:
+                if self.should_close_sma_cross_orders_when_price_hits_sma:
+                    if self.is_current_price_over_short_sma():
+                        self.logger().info("stop_actions_proposal_sma_cross(SELL) > current_price_is_over_short_sma")
+                        self.close_sma_cross_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
+
+                if self.did_rsi_crash_and_recover():
+                    self.logger().info("stop_actions_proposal_sma_cross(SELL) > rsi_did_crash_and_recover")
+
+                    if self.was_rsi_crash_sudden():
+                        self.logger().info("stop_actions_proposal_sma_cross(SELL) > rsi_crash_was_sudden")
+                        self.close_sma_cross_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
+                    elif not self.should_close_sma_cross_orders_when_price_hits_sma:
+                        self.logger().info("stop_actions_proposal_sma_cross(SELL) > setting self.should_close_when_price_hits_sma to TRUE")
+                        self.should_close_sma_cross_orders_when_price_hits_sma = True
+
+        if len(filled_buy_orders) > 0:
+            if self.did_short_sma_cross_under_long():
+                self.logger().info("stop_actions_proposal_sma_cross(BUY) > Short SMA crossed under long")
+                self.close_sma_cross_orders(filled_buy_orders, CloseType.COMPLETED)
+
+            else:
+                if self.should_close_sma_cross_orders_when_price_hits_sma:
+                    if self.is_current_price_under_short_sma():
+                        self.logger().info("stop_actions_proposal_sma_cross(BUY) > current_price_is_under_short_sma")
+                        self.close_sma_cross_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
+
+                if self.did_rsi_spike_and_recover():
+                    self.logger().info("stop_actions_proposal_sma_cross(BUY) > rsi_did_spike_and_recover")
+
+                    if self.was_rsi_spike_sudden():
+                        self.logger().info("stop_actions_proposal_sma_cross(BUY) > rsi_spike_was_sudden")
+                        self.close_sma_cross_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
+                    elif not self.should_close_sma_cross_orders_when_price_hits_sma:
+                        self.logger().info("stop_actions_proposal_sma_cross(BUY) > setting self.should_close_when_price_hits_sma to TRUE")
+                        self.should_close_sma_cross_orders_when_price_hits_sma = True
+
+    def stop_actions_proposal_mean_reversion(self):
+        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_MEAN_REVERSION)
+
+        if len(filled_sell_orders) > 0:
+            if self.is_current_price_under_short_sma():
+                self.logger().info("stop_actions_proposal_mean_reversion(SELL) > current_price_is_under_short_sma")
+                self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
+
+        if len(filled_buy_orders) > 0:
+            if self.is_current_price_over_short_sma():
+                self.logger().info("stop_actions_proposal_mean_reversion(BUY) > current_price_is_over_short_sma")
+                self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
+
     def get_latest_close(self) -> Decimal:
         close_series: pd.Series = self.processed_data["close"]
         return Decimal(close_series.iloc[-2])
 
-    def get_latest_rsi(self) -> Decimal:
+    def get_current_rsi(self) -> Decimal:
         rsi_series: pd.Series = self.processed_data["RSI"]
-        return Decimal(rsi_series.iloc[-2])
+        return Decimal(rsi_series.iloc[-1])
 
     def get_latest_sma(self, short_or_long: str) -> Decimal:
         return self._get_sma_at_index(short_or_long, -2)
@@ -248,22 +307,56 @@ class ExcaliburStrategy(PkStrategy):
         return not self.is_current_price_over_short_sma()
 
     def did_rsi_crash_and_recover(self) -> bool:
-        rsi_last_complete_candle = self.get_latest_rsi()
+        rsi_recovery_threshold = 30
+
+        if self.get_current_rsi() < rsi_recovery_threshold:
+            return False
+
         rsi_series: pd.Series = self.processed_data["RSI"]
-        older_rsis = rsi_series.iloc[-14:-2]  # 12 items, last one excluded
+        older_rsis = rsi_series.iloc[-13:-1]  # 12 items, last one excluded
 
-        self.logger().info(f"did_rsi_crash_and_recover() | rsi_last_complete_candle:{rsi_last_complete_candle} | older_rsis.min():{older_rsis.min()}")
+        min_rsi = older_rsis.min()
 
-        return older_rsis.min() < self.config.rsi_threshold_take_profit_sell and rsi_last_complete_candle > 30
+        if min_rsi > self.config.rsi_threshold_take_profit_sell:
+            return False
+
+        min_rsi_index = older_rsis.idxmin()
+
+        # Extract the RSI values from min_rsi_index to the second-to-last entry in the series
+        recovery_rsis = rsi_series.loc[min_rsi_index:rsi_series.index[-2]]
+
+        # Check if all RSI values in the range are below 30
+        if (recovery_rsis < rsi_recovery_threshold).all():
+            self.logger().info(f"did_rsi_crash_and_recover() | min_rsi_index:{min_rsi_index} | recovery_rsis:{recovery_rsis}")
+            return True
+
+        return False
 
     def did_rsi_spike_and_recover(self) -> bool:
-        rsi_last_complete_candle = self.get_latest_rsi()
+        rsi_recovery_threshold = 70
+
+        if self.get_current_rsi() > rsi_recovery_threshold:
+            return False
+
         rsi_series: pd.Series = self.processed_data["RSI"]
-        older_rsis = rsi_series.iloc[-14:-2]
+        older_rsis = rsi_series.iloc[-13:-1]  # 12 items, last one excluded
 
-        self.logger().info(f"did_rsi_spike_and_recover() | rsi_last_complete_candle:{rsi_last_complete_candle} | older_rsis.max():{older_rsis.max()}")
+        max_rsi = older_rsis.max()
 
-        return older_rsis.max() > self.config.rsi_threshold_take_profit_buy and rsi_last_complete_candle < 70
+        if max_rsi < self.config.rsi_threshold_take_profit_buy:
+            return False
+
+        max_rsi_index = older_rsis.idxmax()
+
+        # Extract the RSI values from max_rsi_index to the second-to-last entry in the series
+        recovery_rsis = rsi_series.loc[max_rsi_index:rsi_series.index[-2]]
+
+        # Check if all RSI values in the range are above 70
+        if (recovery_rsis > rsi_recovery_threshold).all():
+            self.logger().info(f"did_rsi_spike_and_recover() | max_rsi_index:{max_rsi_index} | recovery_rsis:{recovery_rsis}")
+            return True
+
+        return False
 
     def is_price_too_far_from_sma(self) -> bool:
         latest_sma = self.get_latest_sma("long")
@@ -276,13 +369,21 @@ class ExcaliburStrategy(PkStrategy):
 
     def was_rsi_crash_sudden(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI"]
-        recent_rsis = rsi_series.iloc[-26:-1]  # 25 items, last one excluded
+        recent_rsis = rsi_series.iloc[-25:]
 
         min_rsi = recent_rsis.min()
         min_rsi_index = recent_rsis.idxmin()
 
-        # Determine the range to search for the max RSI value, considering only 7 preceding items
-        start_index = max(min_rsi_index - 7, recent_rsis.index[0])
+        # Find the index for the 7 preceding elements, taking care not to go out of bounds
+        start_index = recent_rsis.index.get_loc(min_rsi_index) - 7
+
+        # TODO: remove
+        self.logger().info(f"was_rsi_crash_sudden() | start_index 1:{start_index}")
+
+        start_index = max(0, start_index)
+        start_index = recent_rsis.index[start_index]
+
+        self.logger().info(f"was_rsi_crash_sudden() | min_rsi_index:{min_rsi_index} | start_index:{start_index}")
 
         max_rsi = recent_rsis.loc[start_index:min_rsi_index].max()
 
@@ -292,13 +393,20 @@ class ExcaliburStrategy(PkStrategy):
 
     def was_rsi_spike_sudden(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI"]
-        recent_rsis = rsi_series.iloc[-26:-1]  # 25 items, last one excluded
+        recent_rsis = rsi_series.iloc[-25:]
 
         max_rsi = recent_rsis.max()
         max_rsi_index = recent_rsis.idxmax()
 
-        # Determine the range to search for the min RSI value, considering only 7 preceding items
-        start_index = max(max_rsi_index - 7, recent_rsis.index[0])
+        start_index = recent_rsis.index.get_loc(max_rsi_index) - 7
+
+        # TODO: remove
+        self.logger().info(f"was_rsi_spike_sudden() | start_index 1:{start_index}")
+
+        start_index = max(0, start_index)
+        start_index = recent_rsis.index[start_index]
+
+        self.logger().info(f"was_rsi_spike_sudden() | max_rsi_index:{max_rsi_index} | start_index:{start_index}")
 
         min_rsi = recent_rsis.loc[start_index:max_rsi_index].min()
 
@@ -307,14 +415,11 @@ class ExcaliburStrategy(PkStrategy):
         return max_rsi - min_rsi > self.config.min_rsi_delta_for_sudden_change
 
     def did_price_suddenly_rise_to_short_sma(self) -> bool:
-        if self.is_current_price_under_short_sma():
-            return False
-
         close_series: pd.Series = self.processed_data["close"]
-        recent_prices = close_series.iloc[-12:-2]  # 10 items, last one excluded
+        recent_prices = close_series.iloc[-17:-2]  # 15 items, last one excluded
         min_price: Decimal = Decimal(recent_prices.min())
 
-        price_delta_pct: Decimal = (self.get_latest_close() - min_price) / 100
+        price_delta_pct: Decimal = (self.get_latest_close() - min_price) * 100
 
         self.logger().info(f"did_price_suddenly_rise_to_short_sma() | self.get_latest_close():{self.get_latest_close()} | min_price:{min_price} | price_delta_pct:{price_delta_pct}")
 
@@ -322,22 +427,19 @@ class ExcaliburStrategy(PkStrategy):
         return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_sma
 
     def did_price_suddenly_drop_to_short_sma(self) -> bool:
-        if self.is_current_price_over_short_sma():
-            return False
-
         close_series: pd.Series = self.processed_data["close"]
-        recent_prices = close_series.iloc[-12:-2]  # 10 items, last one excluded
+        recent_prices = close_series.iloc[-17:-2]  # 15 items, last one excluded
         max_price: Decimal = Decimal(recent_prices.max())
 
-        price_delta_pct: Decimal = (max_price - self.get_latest_close()) / 100
+        price_delta_pct: Decimal = (max_price - self.get_latest_close()) * 100
 
         self.logger().info(f"did_price_suddenly_drop_to_short_sma() | self.get_latest_close():{self.get_latest_close()} | max_price:{max_price} | price_delta_pct:{price_delta_pct}")
 
         return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_sma
 
-    def close_orders(self, filled_orders: List[TrackedOrderDetails], close_type: CloseType):
+    def close_sma_cross_orders(self, filled_orders: List[TrackedOrderDetails], close_type: CloseType):
         self.market_close_orders(filled_orders, close_type)
-        self.reset_context()
+        self.reset_context_sma_cross()
 
-    def reset_context(self):
-        self.should_close_when_price_hits_sma = False
+    def reset_context_sma_cross(self):
+        self.should_close_sma_cross_orders_when_price_hits_sma = False
