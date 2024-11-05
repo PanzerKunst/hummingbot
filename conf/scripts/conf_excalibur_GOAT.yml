@@ -22,7 +22,7 @@ rsi_length: 20
 sma_short: 75
 sma_long: 300
 kc_length: 20
-kc_scalar: 3.5
+kc_scalar: 3.0
 entry_price_delta_bps: 0
 min_rsi_delta_for_sudden_change: 15
 min_price_delta_pct_for_sudden_reversal_to_short_sma: 1.0
