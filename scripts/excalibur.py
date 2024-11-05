@@ -83,7 +83,7 @@ class ExcaliburStrategy(PkStrategy):
         candles_df["SMA_short"] = candles_df.ta.sma(length=self.config.sma_short)
         candles_df["SMA_long"] = candles_df.ta.sma(length=self.config.sma_long)
 
-        kc_df = candles_df.ta.kc(candles_df["high"], candles_df["low"], candles_df["close"], length=self.config.kc_length, scalar=self.config.kc_scalar)
+        kc_df = candles_df.ta.kc(length=self.config.kc_length, scalar=self.config.kc_scalar)
 
         # TODO: remove
         self.logger().error(f"kc_df COLUMNS: {kc_df.columns}")
