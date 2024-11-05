@@ -406,7 +406,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_rsi_too_high_to_open_long() | current_rsi:{current_rsi}")
 
-        return current_rsi < 62.5
+        return current_rsi > 62.5
 
     def was_rsi_crash_sudden(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI"].reset_index(drop=True)  # The original index is the DF's timestamp
