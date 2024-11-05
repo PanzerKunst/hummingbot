@@ -84,12 +84,8 @@ class ExcaliburStrategy(PkStrategy):
         candles_df["SMA_long"] = candles_df.ta.sma(length=self.config.sma_long)
 
         kc_df = candles_df.ta.kc(length=self.config.kc_length, scalar=self.config.kc_scalar)
-
-        # TODO: remove
-        self.logger().error(f"kc_df COLUMNS: {kc_df.columns}")
-
-        # TODO candles_df["KC_lower"] = kc_df[f"KC_L_{self.config.kc_length}_{self.config.kc_scalar}"]
-        # candles_df["KC_upper"] = kc_df[f"KC_U_{self.config.kc_length}_{self.config.kc_scalar}"]
+        candles_df["KC_lower"] = kc_df[f"KCLe_{self.config.kc_length}_{self.config.kc_scalar}"]
+        candles_df["KC_upper"] = kc_df[f"KCUe_{self.config.kc_length}_{self.config.kc_scalar}"]
 
         candles_df.dropna(inplace=True)
 
@@ -134,7 +130,9 @@ class ExcaliburStrategy(PkStrategy):
                     "volume",
                     "RSI",
                     "SMA_short",
-                    "SMA_long"
+                    "SMA_long",
+                    "KC_lower",
+                    "KC_upper"
                 ]
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display], table_format="psql"))
