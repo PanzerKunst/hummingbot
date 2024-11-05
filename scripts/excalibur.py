@@ -224,7 +224,7 @@ class ExcaliburStrategy(PkStrategy):
                         self.logger().info("stop_actions_proposal_sma_cross(SELL) > current_price_is_over_short_sma")
                         self.close_sma_cross_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
 
-                if self.did_rsi_crash_and_recover(filled_sell_orders):
+                if self.did_rsi_crash_and_recover():
                     self.logger().info("stop_actions_proposal_sma_cross(SELL) > rsi_did_crash_and_recover")
 
                     if self.was_rsi_crash_sudden():
@@ -245,7 +245,7 @@ class ExcaliburStrategy(PkStrategy):
                         self.logger().info("stop_actions_proposal_sma_cross(BUY) > current_price_is_under_short_sma")
                         self.close_sma_cross_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
 
-                if self.did_rsi_spike_and_recover(filled_buy_orders):
+                if self.did_rsi_spike_and_recover():
                     self.logger().info("stop_actions_proposal_sma_cross(BUY) > rsi_did_spike_and_recover")
 
                     if self.was_rsi_spike_sudden():
@@ -416,10 +416,10 @@ class ExcaliburStrategy(PkStrategy):
 
     def did_price_suddenly_rise_to_short_sma(self) -> bool:
         close_series: pd.Series = self.processed_data["close"]
-        recent_prices = close_series.iloc[-12:-2]  # 10 items, last one excluded
+        recent_prices = close_series.iloc[-17:-2]  # 15 items, last one excluded
         min_price: Decimal = Decimal(recent_prices.min())
 
-        price_delta_pct: Decimal = (self.get_latest_close() - min_price) / 100
+        price_delta_pct: Decimal = (self.get_latest_close() - min_price) * 100
 
         self.logger().info(f"did_price_suddenly_rise_to_short_sma() | self.get_latest_close():{self.get_latest_close()} | min_price:{min_price} | price_delta_pct:{price_delta_pct}")
 
@@ -428,10 +428,10 @@ class ExcaliburStrategy(PkStrategy):
 
     def did_price_suddenly_drop_to_short_sma(self) -> bool:
         close_series: pd.Series = self.processed_data["close"]
-        recent_prices = close_series.iloc[-12:-2]  # 10 items, last one excluded
+        recent_prices = close_series.iloc[-17:-2]  # 15 items, last one excluded
         max_price: Decimal = Decimal(recent_prices.max())
 
-        price_delta_pct: Decimal = (max_price - self.get_latest_close()) / 100
+        price_delta_pct: Decimal = (max_price - self.get_latest_close()) * 100
 
         self.logger().info(f"did_price_suddenly_drop_to_short_sma() | self.get_latest_close():{self.get_latest_close()} | max_price:{max_price} | price_delta_pct:{price_delta_pct}")
 
