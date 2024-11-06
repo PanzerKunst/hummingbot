@@ -342,14 +342,14 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_rsi_too_low_to_open_short() | current_rsi:{current_rsi}")
 
-        return current_rsi < 37.5
+        return current_rsi < 40
 
     def is_rsi_too_high_to_open_long(self) -> bool:
         current_rsi = self.get_current_rsi()
 
         self.logger().info(f"is_rsi_too_high_to_open_long() | current_rsi:{current_rsi}")
 
-        return current_rsi > 62.5
+        return current_rsi > 60
 
     def should_short_orders_activate_trailing_stop(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
         pnl_pct: Decimal = self.compute_short_orders_pnl_pct(filled_sell_orders)
