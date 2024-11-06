@@ -194,7 +194,7 @@ class ExcaliburStrategy(PkStrategy):
                         self.close_sma_cross_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
 
                 elif self.should_short_orders_activate_trailing_stop(filled_sell_orders):
-                    self.logger().info("stop_actions_proposal_sma_cross(SELL) > short_orders_should_activate_trailing_stop. Setting self.should_close_when_price_hits_sma to TRUE.")
+                    self.logger().info("stop_actions_proposal_sma_cross(SELL) > short_orders_should_activate_trailing_stop. Setting self.should_close_sma_cross_orders_when_price_crosses_indicator to TRUE.")
                     self.should_close_sma_cross_orders_when_price_crosses_indicator = True
 
         if len(filled_buy_orders) > 0:
@@ -209,7 +209,7 @@ class ExcaliburStrategy(PkStrategy):
                         self.close_sma_cross_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
 
                 elif self.should_long_orders_activate_trailing_stop(filled_buy_orders):
-                    self.logger().info("stop_actions_proposal_sma_cross(BUY) > long_orders_should_activate_trailing_stop. Setting self.should_close_when_price_hits_sma to TRUE.")
+                    self.logger().info("stop_actions_proposal_sma_cross(BUY) > long_orders_should_activate_trailing_stop. Setting self.should_close_sma_cross_orders_when_price_crosses_indicator to TRUE.")
                     self.should_close_sma_cross_orders_when_price_crosses_indicator = True
 
     #
