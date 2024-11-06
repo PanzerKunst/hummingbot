@@ -240,13 +240,13 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         if side == TradeType.SELL:
-            if self.did_price_drop_back_into_bb() and self.did_rsi_spike_and_recover():
+            if self.did_rsi_spike_and_recover() and self.did_price_drop_back_into_bb():
                 self.logger().info("can_create_mean_reversion_order() > Price just dropped back into BB")
                 return True
 
             return False
 
-        if self.did_price_rise_back_into_bb() and self.did_rsi_crash_and_recover():
+        if self.did_rsi_crash_and_recover() and self.did_price_rise_back_into_bb():
             self.logger().info("can_create_mean_reversion_order() > Price just rose back into BB")
             return True
 
@@ -385,28 +385,50 @@ class ExcaliburStrategy(PkStrategy):
     def did_price_drop_back_into_bb(self) -> bool:
         bb_upper_series: pd.Series = self.processed_data["BB_upper"]
         current_bb_upper = bb_upper_series.iloc[-1]
-        bb_upper_latest_complete_candle = bb_upper_series.iloc[-2]
+        previous_bb_uppers = bb_upper_series.iloc[-4:-1]  # 3 items, last one excluded
+
+        high_series: pd.Series = self.processed_data["high"]
+        previous_highs = high_series.iloc[-4:-1]  # Must be same indexes as `previous_bb_uppers`
 
         close_series: pd.Series = self.processed_data["close"]
         current_close = close_series.iloc[-1]
 
-        high_series: pd.Series = self.processed_data["high"]
-        high_latest_complete_candle = high_series.iloc[-2]
+        if current_close > current_bb_upper:
+            return False
 
-        return high_latest_complete_candle > bb_upper_latest_complete_candle and current_close < current_bb_upper
+        self.logger().info(f"did_price_drop_back_into_bb() | current_close:{current_close} | current_bb_upper:{current_bb_upper}")
+
+        # Check if any previous_high is greater than previous_bb_upper
+        for previous_high, previous_bb_upper in zip(previous_highs, previous_bb_uppers):
+            if previous_high > previous_bb_upper:
+                self.logger().info("did_price_drop_back_into_bb() | previous_high > previous_bb_upper")
+                return True
+
+        return False
 
     def did_price_rise_back_into_bb(self) -> bool:
         bb_lower_series: pd.Series = self.processed_data["BB_lower"]
         current_bb_lower = bb_lower_series.iloc[-1]
-        bb_lower_latest_complete_candle = bb_lower_series.iloc[-2]
+        previous_bb_lowers = bb_lower_series.iloc[-4:-1]
+
+        low_series: pd.Series = self.processed_data["low"]
+        previous_lows = low_series.iloc[-4:-1]  # Must be same indexes as `previous_bb_lowers`
 
         close_series: pd.Series = self.processed_data["close"]
         current_close = close_series.iloc[-1]
 
-        low_series: pd.Series = self.processed_data["low"]
-        low_latest_complete_candle = low_series.iloc[-2]
+        if current_close < current_bb_lower:
+            return False
 
-        return low_latest_complete_candle < bb_lower_latest_complete_candle and current_close > current_bb_lower
+        self.logger().info(f"did_price_rise_back_into_bb() | current_close:{current_close} | current_bb_lower:{current_bb_lower}")
+
+        # Check if any previous_low is less than previous_bb_lower
+        for previous_low, previous_bb_lower in zip(previous_lows, previous_bb_lowers):
+            if previous_low < previous_bb_lower:
+                self.logger().info("did_price_drop_back_into_bb() | previous_low < previous_bb_lower")
+                return True
+
+        return False
 
     # Since based on real-time data, use only to close positions
     def is_current_price_under_lower_bb(self) -> bool:
