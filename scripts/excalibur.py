@@ -85,9 +85,8 @@ class ExcaliburStrategy(PkStrategy):
         candles_df["SMA_short"] = candles_df.ta.sma(length=self.config.sma_short)
         candles_df["SMA_long"] = candles_df.ta.sma(length=self.config.sma_long)
 
-        kc_df = candles_df.ta.kc(length=self.config.kc_length, scalar=self.config.kc_scalar)
-        candles_df["KC_lower"] = kc_df[f"KCLe_{self.config.kc_length}_{self.config.kc_scalar}"]
-        candles_df["KC_upper"] = kc_df[f"KCUe_{self.config.kc_length}_{self.config.kc_scalar}"]
+        bb_df = candles_df.ta.bbands(length=self.config.bb_length, std=self.config.bb_std_dev)
+        self.logger().error(f"bb_df.columns: {bb_df.columns}")
 
         candles_df.dropna(inplace=True)
 
@@ -102,8 +101,8 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
-        self.create_actions_proposal_sma_cross()
-        self.create_actions_proposal_mean_reversion()
+        # TODO self.create_actions_proposal_sma_cross()
+        # self.create_actions_proposal_mean_reversion()
 
         return []  # Always return []
 
@@ -133,8 +132,8 @@ class ExcaliburStrategy(PkStrategy):
                     "RSI",
                     "SMA_short",
                     "SMA_long",
-                    "KC_lower",
-                    "KC_upper"
+                    "BB_lower",
+                    "BB_upper"
                 ]
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display], table_format="psql"))
@@ -383,7 +382,7 @@ class ExcaliburStrategy(PkStrategy):
         return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_sma
 
     def did_price_drop_back_into_bb(self) -> bool:
-        bb_upper_series: pd.Series = self.processed_data["KC_upper"]
+        bb_upper_series: pd.Series = self.processed_data["BB_upper"]
         current_bb_upper = bb_upper_series.iloc[-1]
         bb_upper_latest_complete_candle = bb_upper_series.iloc[-2]
 
@@ -396,7 +395,7 @@ class ExcaliburStrategy(PkStrategy):
         return high_latest_complete_candle > bb_upper_latest_complete_candle and current_close < current_bb_upper
 
     def did_price_rise_back_into_bb(self) -> bool:
-        bb_lower_series: pd.Series = self.processed_data["KC_lower"]
+        bb_lower_series: pd.Series = self.processed_data["BB_lower"]
         current_bb_lower = bb_lower_series.iloc[-1]
         bb_lower_latest_complete_candle = bb_lower_series.iloc[-2]
 
@@ -410,7 +409,7 @@ class ExcaliburStrategy(PkStrategy):
 
     # Since based on real-time data, use only to close positions
     def is_current_price_under_lower_bb(self) -> bool:
-        bb_lower_series: pd.Series = self.processed_data["KC_lower"]
+        bb_lower_series: pd.Series = self.processed_data["BB_lower"]
         current_bb_lower = bb_lower_series.iloc[-1]
 
         close_series: pd.Series = self.processed_data["close"]
@@ -419,7 +418,7 @@ class ExcaliburStrategy(PkStrategy):
         return current_close < current_bb_lower
 
     def is_current_price_over_upper_bb(self) -> bool:
-        bb_upper_series: pd.Series = self.processed_data["KC_upper"]
+        bb_upper_series: pd.Series = self.processed_data["BB_upper"]
         current_bb_upper = bb_upper_series.iloc[-1]
 
         close_series: pd.Series = self.processed_data["close"]
