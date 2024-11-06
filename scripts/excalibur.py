@@ -86,7 +86,8 @@ class ExcaliburStrategy(PkStrategy):
         candles_df["SMA_long"] = candles_df.ta.sma(length=self.config.sma_long)
 
         bb_df = candles_df.ta.bbands(length=self.config.bb_length, std=self.config.bb_std_dev)
-        self.logger().error(f"bb_df.columns: {bb_df.columns}")
+        candles_df["BB_lower"] = bb_df[f"BBL_{self.config.bb_length}_{self.config.bb_std_dev}"]
+        candles_df["BB_upper"] = bb_df[f"BBU_{self.config.bb_length}_{self.config.bb_std_dev}"]
 
         candles_df.dropna(inplace=True)
 
