@@ -19,8 +19,6 @@ position_mode: ONEWAY
 rsi_length: 20
 sma_short: 75
 sma_long: 300
-bb_length: 20
-bb_std_dev: 2.5
 entry_price_delta_bps: 0
 min_price_delta_pct_for_sudden_reversal_to_short_sma: 1.75
 sma_cross_trailing_stop_activation_pct: 1.5
