@@ -313,7 +313,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"did_rsi_crash_and_recover() | current_rsi:{current_rsi} | min_rsi:{min_rsi} | recent_rsis.iloc[0]:{recent_rsis.iloc[0]}")
 
-        return recent_rsis.iloc[0] > min_rsi + 10
+        return recent_rsis.iloc[0] > min_rsi + 13
 
     def did_rsi_spike_and_recover(self) -> bool:
         current_rsi = self.get_current_rsi()
@@ -331,7 +331,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"did_rsi_spike_and_recover() | current_rsi:{current_rsi} | max_rsi:{max_rsi} | recent_rsis.iloc[0]:{recent_rsis.iloc[0]}")
 
-        return recent_rsis.iloc[0] < max_rsi - 10
+        return recent_rsis.iloc[0] < max_rsi - 13
 
     def is_rsi_too_low_to_open_short(self) -> bool:
         current_rsi = self.get_current_rsi()
