@@ -20,5 +20,5 @@ rsi_length: 20
 sma_short: 75
 sma_long: 300
 entry_price_delta_bps: 0
-min_price_delta_pct_for_sudden_reversal_to_short_sma: 0.75
+min_price_delta_pct_for_sudden_reversal_to_short_sma: 1.0
 sma_cross_trailing_stop_activation_pct: 1.5

@@ -49,5 +49,5 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     # Order settings
     entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
-    min_price_delta_pct_for_sudden_reversal_to_short_sma: Decimal = Field(0.75, client_data=ClientFieldData(is_updatable=True))
+    min_price_delta_pct_for_sudden_reversal_to_short_sma: Decimal = Field(1.0, client_data=ClientFieldData(is_updatable=True))
     sma_cross_trailing_stop_activation_pct: Decimal = Field(1.5, client_data=ClientFieldData(is_updatable=True))
