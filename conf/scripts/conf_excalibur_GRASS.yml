@@ -16,14 +16,10 @@ limit_take_profit_price_delta_bps: 0
 market_order_twap_count: 1
 market_order_twap_interval: 5
 position_mode: ONEWAY
-sma_cross_stop_loss_pct: 1.75
-mean_reversion_stop_loss_pct: 0.75
-mean_reversion_take_profit_pct: 3.0
+stop_loss_pct: 1.25
 rsi_length: 20
 sma_short: 75
 sma_long: 300
 entry_price_delta_bps: 0
-min_rsi_delta_for_sudden_change: 15
-min_price_delta_pct_for_sudden_reversal_to_short_sma: 1.75
-first_pnl_pct_for_rsi_crash_or_spike_and_recovery_thresholds: 5.75
-second_pnl_pct_for_rsi_crash_or_spike_and_recovery_thresholds: 7.5
+min_price_delta_pct_for_sudden_reversal_to_short_sma: 1.5
+sma_cross_trailing_stop_activation_pct: 1.25
