@@ -54,13 +54,11 @@ class ExcaliburStrategy(PkStrategy):
     def get_triple_barrier(self, order_ref: str) -> TripleBarrier:
         if order_ref == ORDER_REF_SMA_CROSS:
             return TripleBarrier(
-                open_order_type=OrderType.MARKET,
-                stop_loss=self.config.sma_cross_stop_loss_pct / 100
+                open_order_type=OrderType.MARKET
             )
 
         return TripleBarrier(
-            open_order_type=OrderType.MARKET,
-            stop_loss=self.config.mean_reversion_stop_loss_pct / 100
+            open_order_type=OrderType.MARKET
         )
 
     def update_processed_data(self):
@@ -84,10 +82,6 @@ class ExcaliburStrategy(PkStrategy):
 
         candles_df["SMA_short"] = candles_df.ta.sma(length=self.config.sma_short)
         candles_df["SMA_long"] = candles_df.ta.sma(length=self.config.sma_long)
-
-        bb_df = candles_df.ta.bbands(length=self.config.bb_length, std=self.config.bb_std_dev)
-        candles_df["BB_lower"] = bb_df[f"BBL_{self.config.bb_length}_{self.config.bb_std_dev}"]
-        candles_df["BB_upper"] = bb_df[f"BBU_{self.config.bb_length}_{self.config.bb_std_dev}"]
 
         candles_df.dropna(inplace=True)
 
@@ -132,9 +126,7 @@ class ExcaliburStrategy(PkStrategy):
                     "volume",
                     "RSI",
                     "SMA_short",
-                    "SMA_long",
-                    "BB_lower",
-                    "BB_upper"
+                    "SMA_long"
                 ]
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display], table_format="psql"))
@@ -189,8 +181,8 @@ class ExcaliburStrategy(PkStrategy):
 
             else:
                 if self.should_close_sma_cross_orders_when_price_crosses_indicator:
-                    if self.is_current_price_over_short_sma() or self.is_current_price_over_upper_bb():
-                        self.logger().info("stop_actions_proposal_sma_cross(SELL) > current_price_is_over_short_sma or current_price_is_over_upper_bb")
+                    if self.is_current_price_over_short_sma():
+                        self.logger().info("stop_actions_proposal_sma_cross(SELL) > current_price_is_over_short_sma")
                         self.close_sma_cross_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
 
                 elif self.should_short_orders_activate_trailing_stop(filled_sell_orders):
@@ -204,8 +196,8 @@ class ExcaliburStrategy(PkStrategy):
 
             else:
                 if self.should_close_sma_cross_orders_when_price_crosses_indicator:
-                    if self.is_current_price_under_short_sma() or self.is_current_price_under_lower_bb():
-                        self.logger().info("stop_actions_proposal_sma_cross(BUY) > current_price_is_under_short_sma or current_price_is_under_lower_bb")
+                    if self.is_current_price_under_short_sma():
+                        self.logger().info("stop_actions_proposal_sma_cross(BUY) > current_price_is_under_short_sma")
                         self.close_sma_cross_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
 
                 elif self.should_long_orders_activate_trailing_stop(filled_buy_orders):
@@ -241,13 +233,13 @@ class ExcaliburStrategy(PkStrategy):
 
         if side == TradeType.SELL:
             if self.did_rsi_spike_and_recover():
-                self.logger().info("can_create_mean_reversion_order() > Price just dropped back into BB")
+                self.logger().info("can_create_mean_reversion_order() > RSI spiked and recovered")
                 return True
 
             return False
 
         if self.did_rsi_crash_and_recover():
-            self.logger().info("can_create_mean_reversion_order() > Price just rose back into BB")
+            self.logger().info("can_create_mean_reversion_order() > RSI crashed and recovered")
             return True
 
         return False
@@ -256,13 +248,13 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_MEAN_REVERSION)
 
         if len(filled_sell_orders) > 0:
-            if self.is_current_price_under_short_sma() or self.is_current_price_under_lower_bb():
-                self.logger().info("stop_actions_proposal_mean_reversion(SELL) > current_price_is_under_short_sma or current_price_is_under_lower_bb")
+            if self.is_current_price_under_short_sma():
+                self.logger().info("stop_actions_proposal_mean_reversion(SELL) > current_price_is_under_short_sma")
                 self.market_close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
 
         if len(filled_buy_orders) > 0:
-            if self.is_current_price_over_short_sma() or self.is_current_price_over_upper_bb():
-                self.logger().info("stop_actions_proposal_mean_reversion(BUY) > current_price_is_over_short_sma or current_price_is_over_upper_bb")
+            if self.is_current_price_over_short_sma():
+                self.logger().info("stop_actions_proposal_mean_reversion(BUY) > current_price_is_over_short_sma")
                 self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
 
     def get_latest_close(self) -> Decimal:
@@ -383,25 +375,6 @@ class ExcaliburStrategy(PkStrategy):
         self.logger().info(f"did_price_suddenly_drop_to_short_sma() | self.get_latest_close():{self.get_latest_close()} | max_price:{max_price} | price_delta_pct:{price_delta_pct}")
 
         return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_sma
-
-    # Since based on real-time data, use only to close positions
-    def is_current_price_under_lower_bb(self) -> bool:
-        bb_lower_series: pd.Series = self.processed_data["BB_lower"]
-        current_bb_lower = bb_lower_series.iloc[-1]
-
-        close_series: pd.Series = self.processed_data["close"]
-        current_close = close_series.iloc[-1]
-
-        return current_close < current_bb_lower
-
-    def is_current_price_over_upper_bb(self) -> bool:
-        bb_upper_series: pd.Series = self.processed_data["BB_upper"]
-        current_bb_upper = bb_upper_series.iloc[-1]
-
-        close_series: pd.Series = self.processed_data["close"]
-        current_close = close_series.iloc[-1]
-
-        return current_close > current_bb_upper
 
     def compute_short_orders_pnl_pct(self, filled_sell_orders: List[TrackedOrderDetails]) -> Decimal:
         worst_filled_price = min(filled_sell_orders, key=lambda order: order.last_filled_price).last_filled_price
