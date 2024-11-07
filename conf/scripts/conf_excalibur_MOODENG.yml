@@ -16,7 +16,7 @@ limit_take_profit_price_delta_bps: 0
 market_order_twap_count: 1
 market_order_twap_interval: 5
 position_mode: ONEWAY
-stop_loss_mean_reversion_pct: 1.25
+stop_loss_pct: 1.25
 rsi_length: 20
 sma_short: 75
 sma_long: 300
