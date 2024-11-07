@@ -240,13 +240,13 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         if side == TradeType.SELL:
-            if self.did_rsi_spike_and_recover() and self.did_price_drop_back_into_bb():
+            if self.did_rsi_spike_and_recover():
                 self.logger().info("can_create_mean_reversion_order() > Price just dropped back into BB")
                 return True
 
             return False
 
-        if self.did_rsi_crash_and_recover() and self.did_price_rise_back_into_bb():
+        if self.did_rsi_crash_and_recover():
             self.logger().info("can_create_mean_reversion_order() > Price just rose back into BB")
             return True
 
@@ -304,38 +304,40 @@ class ExcaliburStrategy(PkStrategy):
         return not self.is_current_price_over_short_sma()
 
     def did_rsi_crash_and_recover(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI"]
-        older_rsis = rsi_series.iloc[-6:-1]  # 5 items, last one excluded
-        min_rsi = Decimal(older_rsis.min())
-
-        if min_rsi > 27:
-            return False
-
         current_rsi = self.get_current_rsi()
 
-        if current_rsi - min_rsi < 3:
+        if current_rsi < 30:
             return False
 
-        self.logger().info(f"did_rsi_crash_and_recover() | current_rsi:{current_rsi} | min_rsi:{min_rsi}")
+        rsi_series: pd.Series = self.processed_data["RSI"].reset_index(drop=True)
+        recent_rsis = rsi_series.iloc[-8:-1]  # 7 items, last one excluded
 
-        return True
+        min_rsi = Decimal(recent_rsis.min())
+
+        if min_rsi > 28:
+            return False
+
+        self.logger().info(f"did_rsi_crash_and_recover() | current_rsi:{current_rsi} | min_rsi:{min_rsi} | recent_rsis.loc[0]:{recent_rsis.loc[0]}")
+
+        return recent_rsis.loc[0] > min_rsi + 5
 
     def did_rsi_spike_and_recover(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI"]
-        older_rsis = rsi_series.iloc[-6:-1]  # 5 items, last one excluded
-        max_rsi = Decimal(older_rsis.max())
-
-        if max_rsi < 73:
-            return False
-
         current_rsi = self.get_current_rsi()
 
-        if max_rsi - current_rsi < 3:
+        if current_rsi > 70:
             return False
 
-        self.logger().info(f"did_rsi_spike_and_recover() | current_rsi:{current_rsi} | max_rsi:{max_rsi}")
+        rsi_series: pd.Series = self.processed_data["RSI"].reset_index(drop=True)
+        recent_rsis = rsi_series.iloc[-8:-1]  # 7 items, last one excluded
 
-        return True
+        max_rsi = Decimal(recent_rsis.max())
+
+        if max_rsi < 72:
+            return False
+
+        self.logger().info(f"did_rsi_spike_and_recover() | current_rsi:{current_rsi} | max_rsi:{max_rsi} | recent_rsis.loc[0]:{recent_rsis.loc[0]}")
+
+        return recent_rsis.loc[0] < max_rsi - 5
 
     def is_rsi_too_low_to_open_short(self) -> bool:
         current_rsi = self.get_current_rsi()
@@ -381,54 +383,6 @@ class ExcaliburStrategy(PkStrategy):
         self.logger().info(f"did_price_suddenly_drop_to_short_sma() | self.get_latest_close():{self.get_latest_close()} | max_price:{max_price} | price_delta_pct:{price_delta_pct}")
 
         return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_sma
-
-    def did_price_drop_back_into_bb(self) -> bool:
-        bb_upper_series: pd.Series = self.processed_data["BB_upper"]
-        current_bb_upper = bb_upper_series.iloc[-1]
-        previous_bb_uppers = bb_upper_series.iloc[-4:-1]  # 3 items, last one excluded
-
-        high_series: pd.Series = self.processed_data["high"]
-        previous_highs = high_series.iloc[-4:-1]  # Must be same indexes as `previous_bb_uppers`
-
-        close_series: pd.Series = self.processed_data["close"]
-        current_close = close_series.iloc[-1]
-
-        if current_close > current_bb_upper:
-            return False
-
-        self.logger().info(f"did_price_drop_back_into_bb() | current_close:{current_close} | current_bb_upper:{current_bb_upper}")
-
-        # Check if any previous_high is greater than previous_bb_upper
-        for previous_high, previous_bb_upper in zip(previous_highs, previous_bb_uppers):
-            if previous_high > previous_bb_upper:
-                self.logger().info("did_price_drop_back_into_bb() | previous_high > previous_bb_upper")
-                return True
-
-        return False
-
-    def did_price_rise_back_into_bb(self) -> bool:
-        bb_lower_series: pd.Series = self.processed_data["BB_lower"]
-        current_bb_lower = bb_lower_series.iloc[-1]
-        previous_bb_lowers = bb_lower_series.iloc[-4:-1]
-
-        low_series: pd.Series = self.processed_data["low"]
-        previous_lows = low_series.iloc[-4:-1]  # Must be same indexes as `previous_bb_lowers`
-
-        close_series: pd.Series = self.processed_data["close"]
-        current_close = close_series.iloc[-1]
-
-        if current_close < current_bb_lower:
-            return False
-
-        self.logger().info(f"did_price_rise_back_into_bb() | current_close:{current_close} | current_bb_lower:{current_bb_lower}")
-
-        # Check if any previous_low is less than previous_bb_lower
-        for previous_low, previous_bb_lower in zip(previous_lows, previous_bb_lowers):
-            if previous_low < previous_bb_lower:
-                self.logger().info("did_price_drop_back_into_bb() | previous_low < previous_bb_lower")
-                return True
-
-        return False
 
     # Since based on real-time data, use only to close positions
     def is_current_price_under_lower_bb(self) -> bool:
