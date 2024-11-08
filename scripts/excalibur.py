@@ -53,12 +53,12 @@ class ExcaliburStrategy(PkStrategy):
         if order_ref == ORDER_REF_SMA_CROSS:
             return TripleBarrier(
                 open_order_type=OrderType.MARKET,
-                stop_loss=self.config.stop_loss_pct / 100
+                stop_loss=self.config.sma_cross_stop_loss_pct / 100
             )
 
         return TripleBarrier(
             open_order_type=OrderType.MARKET,
-            stop_loss=self.config.stop_loss_pct / 100
+            stop_loss=self.config.mean_reversion_stop_loss_pct / 100
         )
 
     def update_processed_data(self):
@@ -225,8 +225,6 @@ class ExcaliburStrategy(PkStrategy):
     def can_create_mean_reversion_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
         if not self.can_create_order(side, ORDER_REF_MEAN_REVERSION, 10):
             return False
-
-        # TODO: low SL
 
         if len(active_tracked_orders) > 0:
             return False
