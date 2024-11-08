@@ -160,13 +160,13 @@ class ExcaliburStrategy(PkStrategy):
         if side == TradeType.SELL:
             if self.did_short_sma_cross_under_long():
                 self.logger().info("can_create_sma_cross_order() > Short SMA crossed under long")
-                return not self.is_rsi_too_low_to_open_short() and not self.did_price_suddenly_rise_to_short_sma()
+                return self.is_price_close_enough_to_short_sma() and not self.is_rsi_too_low_to_open_short() and not self.did_price_suddenly_rise_to_short_sma()
 
             return False
 
         if self.did_short_sma_cross_over_long():
             self.logger().info("can_create_sma_cross_order() > Short SMA crossed over long")
-            return not self.is_rsi_too_high_to_open_long() and not self.did_price_suddenly_drop_to_short_sma()
+            return self.is_price_close_enough_to_short_sma() and not self.is_rsi_too_high_to_open_long() and not self.did_price_suddenly_drop_to_short_sma()
 
         return False
 
@@ -307,6 +307,13 @@ class ExcaliburStrategy(PkStrategy):
         self.logger().info(f"did_rsi_spike_and_recover() | current_rsi:{current_rsi} | max_rsi:{max_rsi} | recent_rsis.iloc[0]:{recent_rsis.iloc[0]}")
 
         return recent_rsis.iloc[0] < max_rsi - 15
+
+    def is_price_close_enough_to_short_sma(self):
+        delta_pct: Decimal = (self.get_latest_close() - self.get_latest_sma("short")) / self.get_latest_close() * 100
+
+        self.logger().info(f"is_price_close_enough_to_short_sma() | latest_close:{self.get_latest_close()} | latest_short_sma:{self.get_latest_sma('short')} | delta_pct:{delta_pct}")
+
+        return abs(delta_pct) < self.config.max_price_delta_pct_with_short_sma_to_open
 
     def is_rsi_too_low_to_open_short(self) -> bool:
         current_rsi = self.get_current_rsi()
