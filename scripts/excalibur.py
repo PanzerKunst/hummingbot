@@ -35,7 +35,6 @@ class ExcaliburStrategy(PkStrategy):
         super().__init__(connectors, config)
 
         self.processed_data = pd.DataFrame()
-        self.reset_context_sma_cross()
 
     def start(self, clock: Clock, timestamp: float) -> None:
         self._last_timestamp = timestamp
@@ -177,32 +176,12 @@ class ExcaliburStrategy(PkStrategy):
         if len(filled_sell_orders) > 0:
             if self.did_short_sma_cross_over_long():
                 self.logger().info("stop_actions_proposal_sma_cross(SELL) > Short SMA crossed over long")
-                self.close_sma_cross_orders(filled_sell_orders, CloseType.COMPLETED)
-
-            else:
-                if self.should_close_sma_cross_orders_when_price_crosses_indicator:
-                    if self.is_current_price_over_short_sma():
-                        self.logger().info("stop_actions_proposal_sma_cross(SELL) > current_price_is_over_short_sma")
-                        self.close_sma_cross_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
-
-                elif self.should_short_orders_activate_trailing_stop(filled_sell_orders):
-                    self.logger().info("stop_actions_proposal_sma_cross(SELL) > short_orders_should_activate_trailing_stop. Setting self.should_close_sma_cross_orders_when_price_crosses_indicator to TRUE.")
-                    self.should_close_sma_cross_orders_when_price_crosses_indicator = True
+                self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
 
         if len(filled_buy_orders) > 0:
             if self.did_short_sma_cross_under_long():
                 self.logger().info("stop_actions_proposal_sma_cross(BUY) > Short SMA crossed under long")
-                self.close_sma_cross_orders(filled_buy_orders, CloseType.COMPLETED)
-
-            else:
-                if self.should_close_sma_cross_orders_when_price_crosses_indicator:
-                    if self.is_current_price_under_short_sma():
-                        self.logger().info("stop_actions_proposal_sma_cross(BUY) > current_price_is_under_short_sma")
-                        self.close_sma_cross_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
-
-                elif self.should_long_orders_activate_trailing_stop(filled_buy_orders):
-                    self.logger().info("stop_actions_proposal_sma_cross(BUY) > long_orders_should_activate_trailing_stop. Setting self.should_close_sma_cross_orders_when_price_crosses_indicator to TRUE.")
-                    self.should_close_sma_cross_orders_when_price_crosses_indicator = True
+                self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
 
     #
     # Custom functions specific to this controller
@@ -363,14 +342,6 @@ class ExcaliburStrategy(PkStrategy):
 
         return max_rsi > 70
 
-    def should_short_orders_activate_trailing_stop(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
-        pnl_pct: Decimal = self.compute_short_orders_pnl_pct(filled_sell_orders)
-        return pnl_pct > self.config.sma_cross_trailing_stop_activation_pct
-
-    def should_long_orders_activate_trailing_stop(self, filled_buy_orders: List[TrackedOrderDetails]) -> bool:
-        pnl_pct: Decimal = self.compute_long_orders_pnl_pct(filled_buy_orders)
-        return pnl_pct > self.config.sma_cross_trailing_stop_activation_pct
-
     def did_price_suddenly_rise_to_short_sma(self) -> bool:
         close_series: pd.Series = self.processed_data["close"]
         recent_prices = close_series.iloc[-22:-2]  # 20 items, last one excluded
@@ -393,18 +364,3 @@ class ExcaliburStrategy(PkStrategy):
         self.logger().info(f"did_price_suddenly_drop_to_short_sma() | self.get_latest_close():{self.get_latest_close()} | max_price:{max_price} | price_delta_pct:{price_delta_pct}")
 
         return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_sma
-
-    def compute_short_orders_pnl_pct(self, filled_sell_orders: List[TrackedOrderDetails]) -> Decimal:
-        worst_filled_price = min(filled_sell_orders, key=lambda order: order.last_filled_price).last_filled_price
-        return (worst_filled_price - self.get_latest_close()) / worst_filled_price * 100
-
-    def compute_long_orders_pnl_pct(self, filled_buy_orders: List[TrackedOrderDetails]) -> Decimal:
-        worst_filled_price = max(filled_buy_orders, key=lambda order: order.last_filled_price).last_filled_price
-        return (self.get_latest_close() - worst_filled_price) / worst_filled_price * 100
-
-    def close_sma_cross_orders(self, filled_orders: List[TrackedOrderDetails], close_type: CloseType):
-        self.market_close_orders(filled_orders, close_type)
-        self.reset_context_sma_cross()
-
-    def reset_context_sma_cross(self):
-        self.should_close_sma_cross_orders_when_price_crosses_indicator = False
