@@ -309,9 +309,10 @@ class ExcaliburStrategy(PkStrategy):
         return recent_rsis.iloc[0] < max_rsi - Decimal(17.5)
 
     def is_price_close_enough_to_short_sma(self):
-        delta_pct: Decimal = (self.get_latest_close() - self.get_latest_sma("short")) / self.get_latest_close() * 100
+        latest_close = self.get_latest_close()
+        delta_pct: Decimal = (latest_close - self.get_latest_sma("short")) / latest_close * 100
 
-        self.logger().info(f"is_price_close_enough_to_short_sma() | latest_close:{self.get_latest_close()} | latest_short_sma:{self.get_latest_sma('short')} | delta_pct:{delta_pct}")
+        self.logger().info(f"is_price_close_enough_to_short_sma() | latest_close:{latest_close} | latest_short_sma:{self.get_latest_sma('short')} | delta_pct:{delta_pct}")
 
         return abs(delta_pct) < self.config.max_price_delta_pct_with_short_sma_to_open
 
@@ -351,23 +352,25 @@ class ExcaliburStrategy(PkStrategy):
 
     def did_price_suddenly_rise_to_short_sma(self) -> bool:
         close_series: pd.Series = self.processed_data["close"]
+        latest_close = self.get_latest_close()
         recent_prices = close_series.iloc[-22:-2]  # 20 items, last one excluded
         min_price: Decimal = Decimal(recent_prices.min())
 
-        price_delta_pct: Decimal = (self.get_latest_close() - min_price) * 100
+        price_delta_pct: Decimal = (latest_close - min_price) / latest_close * 100
 
-        self.logger().info(f"did_price_suddenly_rise_to_short_sma() | self.get_latest_close():{self.get_latest_close()} | min_price:{min_price} | price_delta_pct:{price_delta_pct}")
+        self.logger().info(f"did_price_suddenly_rise_to_short_sma() | latest_close:{latest_close} | min_price:{min_price} | price_delta_pct:{price_delta_pct}")
 
         # The percentage difference between min_price and current_price is over x%
         return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_sma
 
     def did_price_suddenly_drop_to_short_sma(self) -> bool:
         close_series: pd.Series = self.processed_data["close"]
+        latest_close = self.get_latest_close()
         recent_prices = close_series.iloc[-22:-2]  # 20 items, last one excluded
         max_price: Decimal = Decimal(recent_prices.max())
 
-        price_delta_pct: Decimal = (max_price - self.get_latest_close()) * 100
+        price_delta_pct: Decimal = (max_price - latest_close) / latest_close * 100
 
-        self.logger().info(f"did_price_suddenly_drop_to_short_sma() | self.get_latest_close():{self.get_latest_close()} | max_price:{max_price} | price_delta_pct:{price_delta_pct}")
+        self.logger().info(f"did_price_suddenly_drop_to_short_sma() | latest_close:{latest_close} | max_price:{max_price} | price_delta_pct:{price_delta_pct}")
 
         return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_sma
