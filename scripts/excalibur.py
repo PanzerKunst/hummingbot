@@ -13,13 +13,11 @@ from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.pk.excalibur_config import ExcaliburConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
-from scripts.pk.pk_utils import was_an_order_recently_opened
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 # Trends via comparing 2 SMAs
 # Generate config file: create --script-config excalibur
 # Start the bot: start --script excalibur.py --conf conf_excalibur_GOAT.yml
-#                start --script excalibur.py --conf conf_excalibur_GRASS.yml
 #                start --script excalibur.py --conf conf_excalibur_MOODENG.yml
 #                start --script excalibur.py --conf conf_excalibur_POPCAT.yml
 # Quickstart script: -p=a -f excalibur.py -c conf_excalibur_POPCAT.yml
@@ -225,12 +223,12 @@ class ExcaliburStrategy(PkStrategy):
             asyncio.get_running_loop().create_task(self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier, ORDER_REF_MEAN_REVERSION))
 
     def can_create_mean_reversion_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        # No cooldown for MR orders, as having one could result in missed trades
-        if not self.can_create_order(side, ORDER_REF_MEAN_REVERSION, 0):
+        if not self.can_create_order(side, ORDER_REF_MEAN_REVERSION, 10):
             return False
 
-        if was_an_order_recently_opened(active_tracked_orders, 5 * 60, self.get_market_data_provider_time()):
-            self.logger().info("can_create_mean_reversion_order() > Recently opened an order - not doing it again")
+        # TODO: low SL
+
+        if len(active_tracked_orders) > 0:
             return False
 
         if side == TradeType.SELL:
@@ -357,7 +355,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def did_price_suddenly_rise_to_short_sma(self) -> bool:
         close_series: pd.Series = self.processed_data["close"]
-        recent_prices = close_series.iloc[-17:-2]  # 15 items, last one excluded
+        recent_prices = close_series.iloc[-22:-2]  # 20 items, last one excluded
         min_price: Decimal = Decimal(recent_prices.min())
 
         price_delta_pct: Decimal = (self.get_latest_close() - min_price) * 100
@@ -369,7 +367,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def did_price_suddenly_drop_to_short_sma(self) -> bool:
         close_series: pd.Series = self.processed_data["close"]
-        recent_prices = close_series.iloc[-17:-2]  # 15 items, last one excluded
+        recent_prices = close_series.iloc[-22:-2]  # 20 items, last one excluded
         max_price: Decimal = Decimal(recent_prices.max())
 
         price_delta_pct: Decimal = (max_price - self.get_latest_close()) * 100
