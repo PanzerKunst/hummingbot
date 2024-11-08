@@ -321,7 +321,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_rsi_too_low_to_open_short() | current_rsi:{current_rsi}")
 
-        if current_rsi < 40:
+        if current_rsi < 37.5:
             return True
 
         rsi_series: pd.Series = self.processed_data["RSI"]
@@ -338,7 +338,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_rsi_too_high_to_open_long() | current_rsi:{current_rsi}")
 
-        if current_rsi > 60:
+        if current_rsi > 62.5:
             return True
 
         rsi_series: pd.Series = self.processed_data["RSI"]
