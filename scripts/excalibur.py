@@ -15,7 +15,7 @@ from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
-# Trends via comparing 2 SMAs
+# Trend following via comparing 2 SMAs, and mean reversion based on RSI & SMA
 # Generate config file: create --script-config excalibur
 # Start the bot: start --script excalibur.py --conf conf_excalibur_GOAT.yml
 #                start --script excalibur.py --conf conf_excalibur_MOODENG.yml
