@@ -41,8 +41,8 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     position_mode: PositionMode = PositionMode.ONEWAY
 
     # Triple Barrier
-    sma_cross_stop_loss_pct: Decimal = Field(1.25, client_data=ClientFieldData(is_updatable=True))
-    mean_reversion_stop_loss_pct: Decimal = Field(0.3, client_data=ClientFieldData(is_updatable=True))
+    sma_cross_stop_loss_pct: Decimal = Field(2.25, client_data=ClientFieldData(is_updatable=True))
+    mean_reversion_stop_loss_pct: Decimal = Field(0.6, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
     rsi_length: int = Field(20, client_data=ClientFieldData(is_updatable=True))
@@ -51,5 +51,5 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     # Order settings
     entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
+    max_price_delta_pct_with_short_sma_to_open: Decimal = Field(1.0, client_data=ClientFieldData(is_updatable=True))
     min_price_delta_pct_for_sudden_reversal_to_short_sma: Decimal = Field(0.75, client_data=ClientFieldData(is_updatable=True))
-    sma_cross_trailing_stop_activation_pct: Decimal = Field(1.25, client_data=ClientFieldData(is_updatable=True))

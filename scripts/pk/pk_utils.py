@@ -21,7 +21,7 @@ def are_positions_equal(position_1: Position, position_2: Position) -> bool:
             and position_1.amount == position_2.amount)
 
 
-def calculate_delta_bps(price_a: Decimal, price_b: Decimal) -> Decimal:
+def compute_delta_bps(price_a: Decimal, price_b: Decimal) -> Decimal:
     if price_b == 0:
         return Decimal("Infinity")
 
@@ -40,6 +40,16 @@ def compute_recent_price_delta_pct(low_series: pd.Series, high_series: pd.Series
     highest_price = Decimal(last_highs.max())
 
     return (highest_price - lowest_price) / highest_price * 100
+
+
+def compute_short_orders_pnl_pct(filled_sell_orders: List[TrackedOrderDetails], current_price: Decimal) -> Decimal:
+    worst_filled_price = min(filled_sell_orders, key=lambda order: order.last_filled_price).last_filled_price
+    return (worst_filled_price - current_price) / worst_filled_price * 100
+
+
+def compute_long_orders_pnl_pct(filled_buy_orders: List[TrackedOrderDetails], current_price: Decimal) -> Decimal:
+    worst_filled_price = max(filled_buy_orders, key=lambda order: order.last_filled_price).last_filled_price
+    return (current_price - worst_filled_price) / worst_filled_price * 100
 
 
 def has_current_price_reached_stop_loss(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
