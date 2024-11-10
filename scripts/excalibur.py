@@ -78,6 +78,7 @@ class ExcaliburStrategy(PkStrategy):
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
 
         candles_df["RSI"] = candles_df.ta.rsi(length=self.config.rsi_length)
+        candles_df["RSI_mr"] = candles_df.ta.rsi(length=self.config.rsi_mr_length)
 
         candles_df["SMA_short"] = candles_df.ta.sma(length=self.config.sma_short)
         candles_df["SMA_long"] = candles_df.ta.sma(length=self.config.sma_long)
@@ -124,6 +125,7 @@ class ExcaliburStrategy(PkStrategy):
                     "close",
                     "volume",
                     "RSI",
+                    "RSI_mr",
                     "SMA_short",
                     "SMA_long"
                 ]
@@ -202,7 +204,7 @@ class ExcaliburStrategy(PkStrategy):
             asyncio.get_running_loop().create_task(self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier, ORDER_REF_MEAN_REVERSION))
 
     def can_create_mean_reversion_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, ORDER_REF_MEAN_REVERSION, 10):
+        if not self.can_create_order(side, ORDER_REF_MEAN_REVERSION, 3):
             return False
 
         if len(active_tracked_orders) > 0:
@@ -238,8 +240,9 @@ class ExcaliburStrategy(PkStrategy):
         close_series: pd.Series = self.processed_data["close"]
         return Decimal(close_series.iloc[-2])
 
-    def get_current_rsi(self) -> Decimal:
-        rsi_series: pd.Series = self.processed_data["RSI"]
+    def get_current_rsi(self, default_or_mr: str) -> Decimal:
+        column_name = "RSI" if default_or_mr == "default" else "RSI_mr"
+        rsi_series: pd.Series = self.processed_data[column_name]
         return Decimal(rsi_series.iloc[-1])
 
     def get_latest_sma(self, short_or_long: str) -> Decimal:
@@ -273,40 +276,46 @@ class ExcaliburStrategy(PkStrategy):
         return not self.is_current_price_over_short_sma()
 
     def did_rsi_crash_and_recover(self) -> bool:
-        current_rsi = self.get_current_rsi()
+        current_rsi = self.get_current_rsi("mr")
 
-        if not (30 < current_rsi < 31):
+        if not (32 < current_rsi < 33):
             return False
 
-        rsi_series: pd.Series = self.processed_data["RSI"].reset_index(drop=True)
-        recent_rsis = rsi_series.iloc[-11:-1]  # 10 items, last one excluded
+        rsi_series: pd.Series = self.processed_data["RSI_mr"].reset_index(drop=True)
+        recent_rsis = rsi_series.iloc[-16:-1]  # 15 items, last one excluded
 
         min_rsi = Decimal(recent_rsis.min())
 
-        if min_rsi > 27:
+        if min_rsi > 30:
             return False
 
-        self.logger().info(f"did_rsi_crash_and_recover() | current_rsi:{current_rsi} | min_rsi:{min_rsi} | recent_rsis.iloc[0]:{recent_rsis.iloc[0]}")
+        min_rsi_index = recent_rsis.idxmin()
+        max_rsi = recent_rsis.iloc[0:min_rsi_index].max()
 
-        return recent_rsis.iloc[0] > min_rsi + Decimal(17.5)
+        self.logger().info(f"did_rsi_crash_and_recover() | current_rsi:{current_rsi} | min_rsi:{min_rsi} | max_rsi:{max_rsi}")
+
+        return max_rsi > min_rsi + 15
 
     def did_rsi_spike_and_recover(self) -> bool:
-        current_rsi = self.get_current_rsi()
+        current_rsi = self.get_current_rsi("mr")
 
-        if not (69 < current_rsi < 70):
+        if not (67 < current_rsi < 68):
             return False
 
-        rsi_series: pd.Series = self.processed_data["RSI"].reset_index(drop=True)
-        recent_rsis = rsi_series.iloc[-11:-1]  # 10 items, last one excluded
+        rsi_series: pd.Series = self.processed_data["RSI_mr"].reset_index(drop=True)
+        recent_rsis = rsi_series.iloc[-16:-1]  # 15 items, last one excluded
 
         max_rsi = Decimal(recent_rsis.max())
 
-        if max_rsi < 73:
+        if max_rsi < 70:
             return False
 
-        self.logger().info(f"did_rsi_spike_and_recover() | current_rsi:{current_rsi} | max_rsi:{max_rsi} | recent_rsis.iloc[0]:{recent_rsis.iloc[0]}")
+        max_rsi_index = recent_rsis.idxmax()
+        min_rsi = recent_rsis.iloc[0:max_rsi_index].min()
 
-        return recent_rsis.iloc[0] < max_rsi - Decimal(17.5)
+        self.logger().info(f"did_rsi_spike_and_recover() | current_rsi:{current_rsi} | max_rsi:{max_rsi} | min_rsi:{min_rsi}")
+
+        return min_rsi < max_rsi - 15
 
     def is_price_close_enough_to_short_sma(self):
         latest_close = self.get_latest_close()
@@ -317,7 +326,7 @@ class ExcaliburStrategy(PkStrategy):
         return abs(delta_pct) < self.config.max_price_delta_pct_with_short_sma_to_open
 
     def is_rsi_too_low_to_open_short(self) -> bool:
-        current_rsi = self.get_current_rsi()
+        current_rsi = self.get_current_rsi("default")
 
         self.logger().info(f"is_rsi_too_low_to_open_short() | current_rsi:{current_rsi}")
 
@@ -334,7 +343,7 @@ class ExcaliburStrategy(PkStrategy):
         return min_rsi < 30
 
     def is_rsi_too_high_to_open_long(self) -> bool:
-        current_rsi = self.get_current_rsi()
+        current_rsi = self.get_current_rsi("default")
 
         self.logger().info(f"is_rsi_too_high_to_open_long() | current_rsi:{current_rsi}")
 
