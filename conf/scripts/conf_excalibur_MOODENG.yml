@@ -23,5 +23,5 @@ rsi_mr_length: 40
 sma_short: 75
 sma_long: 300
 entry_price_delta_bps: 0
-max_price_delta_pct_with_short_sma_to_open: 1.5
+max_price_delta_pct_with_short_sma_to_open: 2.0
 min_price_delta_pct_for_sudden_reversal_to_short_sma: 1.0
