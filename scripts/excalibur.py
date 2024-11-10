@@ -278,7 +278,7 @@ class ExcaliburStrategy(PkStrategy):
     def did_rsi_crash_and_recover(self) -> bool:
         current_rsi = self.get_current_rsi("mr")
 
-        if not (31 < current_rsi < 32):
+        if not (32 < current_rsi < 33):
             return False
 
         rsi_series: pd.Series = self.processed_data["RSI_mr"].reset_index(drop=True)
@@ -286,7 +286,7 @@ class ExcaliburStrategy(PkStrategy):
 
         min_rsi = Decimal(recent_rsis.min())
 
-        if min_rsi > 29:
+        if min_rsi > 30:
             return False
 
         min_rsi_index = recent_rsis.idxmin()
@@ -299,7 +299,7 @@ class ExcaliburStrategy(PkStrategy):
     def did_rsi_spike_and_recover(self) -> bool:
         current_rsi = self.get_current_rsi("mr")
 
-        if not (68 < current_rsi < 69):
+        if not (67 < current_rsi < 68):
             return False
 
         rsi_series: pd.Series = self.processed_data["RSI_mr"].reset_index(drop=True)
@@ -307,7 +307,7 @@ class ExcaliburStrategy(PkStrategy):
 
         max_rsi = Decimal(recent_rsis.max())
 
-        if max_rsi < 71:
+        if max_rsi < 70:
             return False
 
         max_rsi_index = recent_rsis.idxmax()
