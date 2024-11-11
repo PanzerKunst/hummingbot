@@ -196,12 +196,12 @@ class ExcaliburStrategy(PkStrategy):
         if self.can_create_mean_reversion_order(TradeType.SELL, active_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
             triple_barrier = self.get_triple_barrier(ORDER_REF_MEAN_REVERSION)
-            self.create_order(TradeType.SELL, entry_price, triple_barrier, ORDER_REF_MEAN_REVERSION)
+            asyncio.get_running_loop().create_task(self.create_twap_market_orders(TradeType.SELL, entry_price, triple_barrier, ORDER_REF_MEAN_REVERSION))
 
         if self.can_create_mean_reversion_order(TradeType.BUY, active_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
             triple_barrier = self.get_triple_barrier(ORDER_REF_MEAN_REVERSION)
-            self.create_order(TradeType.BUY, entry_price, triple_barrier, ORDER_REF_MEAN_REVERSION)
+            asyncio.get_running_loop().create_task(self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier, ORDER_REF_MEAN_REVERSION))
 
     def can_create_mean_reversion_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
         if not self.can_create_order(side, ORDER_REF_MEAN_REVERSION, 3):
@@ -278,7 +278,7 @@ class ExcaliburStrategy(PkStrategy):
     def did_rsi_crash_and_recover(self) -> bool:
         current_rsi = self.get_current_rsi("mr")
 
-        if not (31.5 < current_rsi < 32.5):
+        if not (32 < current_rsi < 33):
             return False
 
         rsi_series: pd.Series = self.processed_data["RSI_mr"].reset_index(drop=True)
@@ -299,7 +299,7 @@ class ExcaliburStrategy(PkStrategy):
     def did_rsi_spike_and_recover(self) -> bool:
         current_rsi = self.get_current_rsi("mr")
 
-        if not (67.5 < current_rsi < 68.5):
+        if not (67 < current_rsi < 68):
             return False
 
         rsi_series: pd.Series = self.processed_data["RSI_mr"].reset_index(drop=True)

@@ -127,7 +127,7 @@ class PkStrategy(StrategyV2Base):
         filled_buy_orders = [order for order in active_buy_orders if order.last_filled_at]
         return filled_sell_orders, filled_buy_orders
 
-    def create_order(self, side: TradeType, entry_price: Decimal, triple_barrier: TripleBarrier, ref: Optional[str] = None, amount_multiplier: Decimal = 1):
+    def create_limit_order(self, side: TradeType, entry_price: Decimal, triple_barrier: TripleBarrier, ref: Optional[str] = None, amount_multiplier: Decimal = 1):
         executor_config = self.get_executor_config(side, entry_price, amount_multiplier)
         self.create_individual_order(executor_config, triple_barrier, ref)
 
