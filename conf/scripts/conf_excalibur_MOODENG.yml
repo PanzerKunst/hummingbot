@@ -17,7 +17,7 @@ market_order_twap_count: 1
 market_order_twap_interval: 5
 position_mode: ONEWAY
 sma_cross_stop_loss_pct: 3.0
-mean_reversion_stop_loss_pct: 1.0
+mean_reversion_stop_loss_pct: 1.5
 rsi_length: 20
 rsi_mr_length: 40
 sma_short: 75
