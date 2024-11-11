@@ -19,7 +19,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
             connector="binance_perpetual",
             interval="1m",
             max_records=330,
-            trading_pair = "POPCAT-USDT"
+            trading_pair = "TURBO-USDT"
         )
     ]
 
@@ -30,7 +30,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     # Used by PkStrategy
     connector_name: str = "hyperliquid_perpetual"
-    trading_pair: str = "POPCAT-USD"
+    trading_pair: str = "TURBO-USD"
     total_amount_quote: int = Field(30, client_data=ClientFieldData(is_updatable=True))
     leverage: int = 5
     unfilled_order_expiration_min: int = Field(1, client_data=ClientFieldData(is_updatable=True))
