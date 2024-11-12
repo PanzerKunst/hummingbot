@@ -84,13 +84,8 @@ class ExcaliburStrategy(PkStrategy):
         candles_df["SMA_long"] = candles_df.ta.sma(length=self.config.sma_long)
 
         srsi_df = candles_df.ta.stochrsi(length=self.config.srsi_stoch_length, rsi_length=self.config.srsi_rsi_length, k=self.config.srsi_k, d=self.config.srsi_d)
-
-        # TODO: remove
-        self.logger().info(f"srsi_df.columns:{srsi_df.columns}")
-
-        # candles_df["MACD"] = macd_df[f"MACD_{self.config.macd_short}_{self.config.macd_long}_{self.config.macd_signal}"]
-        # candles_df["MACDs"] = macd_df[f"MACDs_{self.config.macd_short}_{self.config.macd_long}_{self.config.macd_signal}"]
-        # candles_df["MACDh"] = macd_df[f"MACDh_{self.config.macd_short}_{self.config.macd_long}_{self.config.macd_signal}"]
+        candles_df["SRSIk"] = srsi_df[f"STOCHRSIk_{self.config.srsi_stoch_length}_{self.config.srsi_rsi_length}_{self.config.srsi_k}_{self.config.srsi_d}"]
+        candles_df["SRSId"] = srsi_df[f"STOCHRSId_{self.config.srsi_stoch_length}_{self.config.srsi_rsi_length}_{self.config.srsi_k}_{self.config.srsi_d}"]
 
         candles_df.dropna(inplace=True)
 
@@ -136,7 +131,9 @@ class ExcaliburStrategy(PkStrategy):
                     "RSI",
                     "RSI_mr",
                     "SMA_short",
-                    "SMA_long"
+                    "SMA_long",
+                    "SRSIk",
+                    "SRSId"
                 ]
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display], table_format="psql"))
