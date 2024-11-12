@@ -277,9 +277,9 @@ class ExcaliburStrategy(PkStrategy):
 
     def did_rsi_crash_and_recover(self) -> bool:
         current_rsi = self.get_current_rsi("mr")
-        rsi_crash_recovery_second_threshold: Decimal = self.config.rsi_crash_recovery_threshold + Decimal(0.5)
+        rsi_recovery_second_threshold: Decimal = self.config.rsi_crash_recovery_threshold + Decimal(0.5)
 
-        if not (self.config.rsi_crash_recovery_threshold < current_rsi < rsi_crash_recovery_second_threshold):
+        if not (self.config.rsi_crash_recovery_threshold < current_rsi < rsi_recovery_second_threshold):
             return False
 
         rsi_series: pd.Series = self.processed_data["RSI_mr"].reset_index(drop=True)
@@ -293,15 +293,15 @@ class ExcaliburStrategy(PkStrategy):
         min_rsi_index = recent_rsis.idxmin()
         max_rsi = recent_rsis.iloc[0:min_rsi_index].max()
 
-        self.logger().info(f"did_rsi_crash_and_recover() | current_rsi:{current_rsi} | min_rsi:{min_rsi} | max_rsi:{max_rsi}")
+        self.logger().info(f"did_rsi_crash_and_recover() | current_rsi:{current_rsi} | min_rsi:{min_rsi} | max_rsi:{max_rsi} | delta:{max_rsi-min_rsi}")
 
         return max_rsi > min_rsi + 15
 
     def did_rsi_spike_and_recover(self) -> bool:
         current_rsi = self.get_current_rsi("mr")
-        rsi_spike_recovery_second_threshold: Decimal = self.config.rsi_spike_recovery_threshold - Decimal(0.5)
+        rsi_recovery_second_threshold: Decimal = self.config.rsi_spike_recovery_threshold - Decimal(0.5)
 
-        if not (rsi_spike_recovery_second_threshold < current_rsi < self.config.rsi_spike_recovery_threshold):
+        if not (rsi_recovery_second_threshold < current_rsi < self.config.rsi_spike_recovery_threshold):
             return False
 
         rsi_series: pd.Series = self.processed_data["RSI_mr"].reset_index(drop=True)
@@ -315,7 +315,7 @@ class ExcaliburStrategy(PkStrategy):
         max_rsi_index = recent_rsis.idxmax()
         min_rsi = recent_rsis.iloc[0:max_rsi_index].min()
 
-        self.logger().info(f"did_rsi_spike_and_recover() | current_rsi:{current_rsi} | max_rsi:{max_rsi} | min_rsi:{min_rsi}")
+        self.logger().info(f"did_rsi_spike_and_recover() | current_rsi:{current_rsi} | max_rsi:{max_rsi} | min_rsi:{min_rsi} | delta:{max_rsi-min_rsi}")
 
         return min_rsi < max_rsi - 15
 
