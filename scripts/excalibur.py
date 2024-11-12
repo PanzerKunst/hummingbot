@@ -23,7 +23,8 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 # Quickstart script: -p=a -f excalibur.py -c conf_excalibur_POPCAT.yml
 
 ORDER_REF_SMA_CROSS = "SmaCross"
-ORDER_REF_MEAN_REVERSION = "MeanReversion"
+ORDER_REF_MAJOR_MR = "MajorMR"
+ORDER_REF_MINOR_MR = "MinorMR"
 
 
 class ExcaliburStrategy(PkStrategy):
@@ -84,8 +85,8 @@ class ExcaliburStrategy(PkStrategy):
         candles_df["SMA_long"] = candles_df.ta.sma(length=self.config.sma_long)
 
         srsi_df = candles_df.ta.stochrsi(length=self.config.srsi_stoch_length, rsi_length=self.config.srsi_rsi_length, k=self.config.srsi_k, d=self.config.srsi_d)
-        candles_df["SRSIk"] = srsi_df[f"STOCHRSIk_{self.config.srsi_stoch_length}_{self.config.srsi_rsi_length}_{self.config.srsi_k}_{self.config.srsi_d}"]
-        candles_df["SRSId"] = srsi_df[f"STOCHRSId_{self.config.srsi_stoch_length}_{self.config.srsi_rsi_length}_{self.config.srsi_k}_{self.config.srsi_d}"]
+        candles_df["SRSI_k"] = srsi_df[f"STOCHRSIk_{self.config.srsi_stoch_length}_{self.config.srsi_rsi_length}_{self.config.srsi_k}_{self.config.srsi_d}"]
+        candles_df["SRSI_d"] = srsi_df[f"STOCHRSId_{self.config.srsi_stoch_length}_{self.config.srsi_rsi_length}_{self.config.srsi_k}_{self.config.srsi_d}"]
 
         candles_df.dropna(inplace=True)
 
@@ -100,8 +101,9 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
-        # TODO self.create_actions_proposal_sma_cross()
-        # TODO self.create_actions_proposal_mean_reversion()
+        self.create_actions_proposal_sma_cross()
+        self.create_actions_proposal_major_mr()
+        self.create_actions_proposal_minor_mr()
 
         return []  # Always return []
 
@@ -113,8 +115,9 @@ class ExcaliburStrategy(PkStrategy):
 
         self.check_orders()
 
-        # TODO self.stop_actions_proposal_sma_cross()
-        # TODO self.stop_actions_proposal_mean_reversion()
+        self.stop_actions_proposal_sma_cross()
+        self.stop_actions_proposal_major_mr()
+        self.stop_actions_proposal_minor_mr()
 
         return []  # Always return []
 
@@ -132,8 +135,8 @@ class ExcaliburStrategy(PkStrategy):
                     "RSI_mr",
                     "SMA_short",
                     "SMA_long",
-                    "SRSIk",
-                    "SRSId"
+                    "SRSI_k",
+                    "SRSI_d"
                 ]
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display], table_format="psql"))
@@ -195,51 +198,98 @@ class ExcaliburStrategy(PkStrategy):
     # Custom functions specific to this controller
     #
 
-    def create_actions_proposal_mean_reversion(self):
-        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_MEAN_REVERSION)
+    def create_actions_proposal_major_mr(self):
+        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_MAJOR_MR)
         active_orders = active_sell_orders + active_buy_orders
 
-        if self.can_create_mean_reversion_order(TradeType.SELL, active_orders):
+        if self.can_create_major_mr_order(TradeType.SELL, active_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
-            triple_barrier = self.get_triple_barrier(ORDER_REF_MEAN_REVERSION)
-            self.create_order(TradeType.SELL, entry_price, triple_barrier, ORDER_REF_MEAN_REVERSION)
+            triple_barrier = self.get_triple_barrier(ORDER_REF_MAJOR_MR)
+            self.create_order(TradeType.SELL, entry_price, triple_barrier, ORDER_REF_MAJOR_MR)
 
-        if self.can_create_mean_reversion_order(TradeType.BUY, active_orders):
+        if self.can_create_major_mr_order(TradeType.BUY, active_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
-            triple_barrier = self.get_triple_barrier(ORDER_REF_MEAN_REVERSION)
-            self.create_order(TradeType.BUY, entry_price, triple_barrier, ORDER_REF_MEAN_REVERSION)
+            triple_barrier = self.get_triple_barrier(ORDER_REF_MAJOR_MR)
+            self.create_order(TradeType.BUY, entry_price, triple_barrier, ORDER_REF_MAJOR_MR)
 
-    def can_create_mean_reversion_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, ORDER_REF_MEAN_REVERSION, 3):
+    def can_create_major_mr_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
+        if not self.can_create_order(side, ORDER_REF_MAJOR_MR, 3):
             return False
 
         if len(active_tracked_orders) > 0:
             return False
 
         if side == TradeType.SELL:
-            if self.did_rsi_spike_and_recover():
-                self.logger().info("can_create_mean_reversion_order() > RSI spiked and recovered")
+            if self.did_major_rsi_spike_and_recovery_happen():
+                self.logger().info("can_create_major_mr_order() > RSI spike and recovery")
                 return True
 
             return False
 
-        if self.did_rsi_crash_and_recover():
-            self.logger().info("can_create_mean_reversion_order() > RSI crashed and recovered")
+        if self.did_major_rsi_crash_and_recovery_happen():
+            self.logger().info("can_create_major_mr_order() > RSI crash and recovery")
             return True
 
         return False
 
-    def stop_actions_proposal_mean_reversion(self):
-        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_MEAN_REVERSION)
+    def stop_actions_proposal_major_mr(self):
+        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_MAJOR_MR)
 
         if len(filled_sell_orders) > 0:
             if self.is_current_price_under_short_sma():
-                self.logger().info("stop_actions_proposal_mean_reversion(SELL) > current_price_is_under_short_sma")
+                self.logger().info("stop_actions_proposal_major_mr(SELL) > current_price_is_under_short_sma")
                 self.market_close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
 
         if len(filled_buy_orders) > 0:
             if self.is_current_price_over_short_sma():
-                self.logger().info("stop_actions_proposal_mean_reversion(BUY) > current_price_is_over_short_sma")
+                self.logger().info("stop_actions_proposal_major_mr(BUY) > current_price_is_over_short_sma")
+                self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
+
+    def create_actions_proposal_minor_mr(self):
+        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_MINOR_MR)
+        active_orders = active_sell_orders + active_buy_orders
+
+        if self.can_create_minor_mr_order(TradeType.SELL, active_orders):
+            entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
+            triple_barrier = self.get_triple_barrier(ORDER_REF_MINOR_MR)
+            self.create_order(TradeType.SELL, entry_price, triple_barrier, ORDER_REF_MINOR_MR)
+
+        if self.can_create_minor_mr_order(TradeType.BUY, active_orders):
+            entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
+            triple_barrier = self.get_triple_barrier(ORDER_REF_MINOR_MR)
+            self.create_order(TradeType.BUY, entry_price, triple_barrier, ORDER_REF_MINOR_MR)
+
+    def can_create_minor_mr_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
+        if not self.can_create_order(side, ORDER_REF_MINOR_MR, 3):
+            return False
+
+        if len(active_tracked_orders) > 0:
+            return False
+
+        if side == TradeType.SELL:
+            if self.does_srsi_indicate_to_open_minor_mr_short() and self.did_minor_rsi_spike_happen():
+                self.logger().info("can_create_minor_mr_order() > Opening Minor Short MR")
+                return True
+
+            return False
+
+        if self.does_srsi_indicate_to_open_minor_mr_long() and self.did_minor_rsi_crash_happen():
+            self.logger().info("can_create_minor_mr_order() > Opening Minor Long MR")
+            return True
+
+        return False
+
+    def stop_actions_proposal_minor_mr(self):
+        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_MINOR_MR)
+
+        if len(filled_sell_orders) > 0:
+            if self.should_close_minor_mr_short():
+                self.logger().info("stop_actions_proposal_minor_mr(SELL) > should_close_mr_short")
+                self.market_close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
+
+        if len(filled_buy_orders) > 0:
+            if self.should_close_minor_mr_long():
+                self.logger().info("stop_actions_proposal_minor_mr(BUY) > should_close_minor_mr_long")
                 self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
 
     def get_latest_close(self) -> Decimal:
@@ -261,6 +311,16 @@ class ExcaliburStrategy(PkStrategy):
         sma_series: pd.Series = self.processed_data[f"SMA_{short_or_long}"]
         return Decimal(sma_series.iloc[index])
 
+    def get_current_srsi(self, k_or_d: str) -> Decimal:
+        return self._get_srsi_at_index(k_or_d, -1)
+
+    def get_latest_srsi(self, k_or_d: str) -> Decimal:
+        return self._get_srsi_at_index(k_or_d, -2)
+
+    def _get_srsi_at_index(self, k_or_d: str, index: int) -> Decimal:
+        srsi_series: pd.Series = self.processed_data[f"SRSI_{k_or_d}"]
+        return Decimal(srsi_series.iloc[index])
+
     def did_short_sma_cross_under_long(self) -> bool:
         return not self.is_latest_short_sma_over_long() and self.is_previous_short_sma_over_long()
 
@@ -281,49 +341,51 @@ class ExcaliburStrategy(PkStrategy):
     def is_current_price_under_short_sma(self) -> bool:
         return not self.is_current_price_over_short_sma()
 
-    def did_rsi_crash_and_recover(self) -> bool:
+    def did_major_rsi_spike_and_recovery_happen(self) -> bool:
         current_rsi = self.get_current_rsi("mr")
-        rsi_recovery_second_threshold: Decimal = self.config.rsi_crash_recovery_threshold + Decimal(0.5)
+        rsi_recovery_second_threshold: Decimal = self.config.rsi_major_spike_recovery_threshold - Decimal(0.5)
 
-        if not (self.config.rsi_crash_recovery_threshold < current_rsi < rsi_recovery_second_threshold):
+        if not (rsi_recovery_second_threshold < current_rsi < self.config.rsi_major_spike_recovery_threshold):
             return False
 
         rsi_series: pd.Series = self.processed_data["RSI_mr"].reset_index(drop=True)
         recent_rsis = rsi_series.iloc[-16:-1]  # 15 items, last one excluded
 
-        min_rsi = Decimal(recent_rsis.min())
+        peak_rsi = Decimal(recent_rsis.max())
 
-        if min_rsi > self.config.rsi_crash_bottom_threshold:
+        if peak_rsi < self.config.rsi_major_spike_peak_threshold:
             return False
 
-        min_rsi_index = recent_rsis.idxmin()
-        max_rsi = Decimal(recent_rsis.iloc[0:min_rsi_index].max())
+        peak_rsi_index = recent_rsis.idxmax()
+        bottom_rsi = Decimal(recent_rsis.iloc[0:peak_rsi_index].min())
+        intro_delta: Decimal = peak_rsi - bottom_rsi
 
-        self.logger().info(f"did_rsi_crash_and_recover() | current_rsi:{current_rsi} | min_rsi:{min_rsi} | max_rsi:{max_rsi} | delta:{max_rsi-min_rsi}")
+        self.logger().info(f"did_major_rsi_spike_and_recovery_happen() | bottom_rsi:{bottom_rsi} | peak_rsi:{peak_rsi} | current_rsi:{current_rsi} | intro_delta:{intro_delta}")
 
-        return max_rsi > min_rsi + 15
+        return intro_delta > 15
 
-    def did_rsi_spike_and_recover(self) -> bool:
+    def did_major_rsi_crash_and_recovery_happen(self) -> bool:
         current_rsi = self.get_current_rsi("mr")
-        rsi_recovery_second_threshold: Decimal = self.config.rsi_spike_recovery_threshold - Decimal(0.5)
+        rsi_recovery_second_threshold: Decimal = self.config.rsi_major_crash_recovery_threshold + Decimal(0.5)
 
-        if not (rsi_recovery_second_threshold < current_rsi < self.config.rsi_spike_recovery_threshold):
+        if not (self.config.rsi_major_crash_recovery_threshold < current_rsi < rsi_recovery_second_threshold):
             return False
 
         rsi_series: pd.Series = self.processed_data["RSI_mr"].reset_index(drop=True)
         recent_rsis = rsi_series.iloc[-16:-1]  # 15 items, last one excluded
 
-        max_rsi = Decimal(recent_rsis.max())
+        bottom_rsi = Decimal(recent_rsis.min())
 
-        if max_rsi < self.config.rsi_spike_peak_threshold:
+        if bottom_rsi > self.config.rsi_major_crash_bottom_threshold:
             return False
 
-        max_rsi_index = recent_rsis.idxmax()
-        min_rsi = Decimal(recent_rsis.iloc[0:max_rsi_index].min())
+        bottom_rsi_index = recent_rsis.idxmin()
+        peak_rsi = Decimal(recent_rsis.iloc[0:bottom_rsi_index].max())
+        intro_delta: Decimal = peak_rsi - bottom_rsi
 
-        self.logger().info(f"did_rsi_spike_and_recover() | current_rsi:{current_rsi} | max_rsi:{max_rsi} | min_rsi:{min_rsi} | delta:{max_rsi-min_rsi}")
+        self.logger().info(f"did_major_rsi_crash_and_recovery_happen() | peak_rsi:{peak_rsi} | bottom_rsi:{bottom_rsi} | current_rsi:{current_rsi} | intro_delta:{intro_delta}")
 
-        return min_rsi < max_rsi - 15
+        return intro_delta > 15
 
     def is_price_close_enough_to_short_sma(self):
         latest_close = self.get_latest_close()
@@ -368,8 +430,9 @@ class ExcaliburStrategy(PkStrategy):
         return max_rsi > 70
 
     def did_price_suddenly_rise_to_short_sma(self) -> bool:
-        close_series: pd.Series = self.processed_data["close"]
         latest_close = self.get_latest_close()
+
+        close_series: pd.Series = self.processed_data["close"]
         recent_prices = close_series.iloc[-22:-2]  # 20 items, last one excluded
         min_price: Decimal = Decimal(recent_prices.min())
 
@@ -381,8 +444,9 @@ class ExcaliburStrategy(PkStrategy):
         return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_sma
 
     def did_price_suddenly_drop_to_short_sma(self) -> bool:
-        close_series: pd.Series = self.processed_data["close"]
         latest_close = self.get_latest_close()
+
+        close_series: pd.Series = self.processed_data["close"]
         recent_prices = close_series.iloc[-22:-2]  # 20 items, last one excluded
         max_price: Decimal = Decimal(recent_prices.max())
 
@@ -391,3 +455,107 @@ class ExcaliburStrategy(PkStrategy):
         self.logger().info(f"did_price_suddenly_drop_to_short_sma() | latest_close:{latest_close} | max_price:{max_price} | price_delta_pct:{price_delta_pct}")
 
         return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_sma
+
+    def does_srsi_indicate_to_open_minor_mr_short(self) -> bool:
+        latest_srsi_k = self.get_latest_srsi("k")
+
+        if latest_srsi_k < 80:
+            return False
+
+        srsi_k_series: pd.Series = self.processed_data["SRSI_k"]
+        recent_srsi_ks = srsi_k_series.iloc[-7:-2]  # 5 items, last one excluded
+        peak_srsi_k: Decimal = Decimal(recent_srsi_ks.max())
+
+        srsi_delta: Decimal = peak_srsi_k - latest_srsi_k
+
+        self.logger().info(f"does_srsi_indicate_to_open_minor_mr_short() | peak_srsi_k:{peak_srsi_k} | latest_srsi_k:{latest_srsi_k} | srsi_delta:{srsi_delta}")
+
+        return srsi_delta > 3
+
+    def does_srsi_indicate_to_open_minor_mr_long(self) -> bool:
+        latest_srsi_k = self.get_latest_srsi("k")
+
+        if latest_srsi_k > 20:
+            return False
+
+        srsi_k_series: pd.Series = self.processed_data["SRSI_k"]
+        recent_srsi_ks = srsi_k_series.iloc[-7:-2]  # 5 items, last one excluded
+        bottom_srsi_k: Decimal = Decimal(recent_srsi_ks.min())
+
+        srsi_delta: Decimal = latest_srsi_k - bottom_srsi_k
+
+        self.logger().info(f"does_srsi_indicate_to_open_minor_mr_long() | bottom_srsi_k:{bottom_srsi_k} | latest_srsi_k:{latest_srsi_k} | srsi_delta:{srsi_delta}")
+
+        return srsi_delta > 3
+
+    def should_close_minor_mr_short(self) -> bool:
+        current_srsi_k = self.get_current_srsi("k")
+
+        if current_srsi_k > 20:
+            return False
+
+        srsi_k_series: pd.Series = self.processed_data["SRSI_k"]
+        recent_srsi_ks = srsi_k_series.iloc[-7:-2]  # 5 items, last one excluded
+        bottom_srsi_k: Decimal = Decimal(recent_srsi_ks.min())
+
+        srsi_delta: Decimal = current_srsi_k - bottom_srsi_k
+
+        self.logger().info(f"should_close_minor_mr_short() | bottom_srsi_k:{bottom_srsi_k} | current_srsi_k:{current_srsi_k} | srsi_delta:{srsi_delta}")
+
+        return srsi_delta > 3
+
+    def should_close_minor_mr_long(self) -> bool:
+        current_srsi_k = self.get_current_srsi("k")
+
+        if current_srsi_k < 80:
+            return False
+
+        srsi_k_series: pd.Series = self.processed_data["SRSI_k"]
+        recent_srsi_ks = srsi_k_series.iloc[-7:-2]  # 5 items, last one excluded
+        peak_srsi_k: Decimal = Decimal(recent_srsi_ks.max())
+
+        srsi_delta: Decimal = peak_srsi_k - current_srsi_k
+
+        self.logger().info(f"should_close_minor_mr_long() | peak_srsi_k:{peak_srsi_k} | current_srsi_k:{current_srsi_k} | srsi_delta:{srsi_delta}")
+
+        return srsi_delta > 3
+
+    def did_minor_rsi_spike_happen(self) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI_mr"].reset_index(drop=True)
+        recent_rsis = rsi_series.iloc[-16:-1]  # 15 items, last one excluded
+
+        peak_rsi = Decimal(recent_rsis.max())
+
+        if peak_rsi < 60:
+            return False
+
+        peak_rsi_index = recent_rsis.idxmax()
+        bottom_rsi = Decimal(recent_rsis.iloc[0:peak_rsi_index].min())
+        intro_delta: Decimal = peak_rsi - bottom_rsi
+
+        current_rsi = self.get_current_rsi("mr")
+        outro_delta: Decimal = peak_rsi - current_rsi
+
+        self.logger().info(f"did_minor_rsi_spike_happen() | bottom_rsi:{bottom_rsi} | peak_rsi:{peak_rsi} | current_rsi:{current_rsi} | intro_delta:{intro_delta} | outro_delta:{outro_delta}")
+
+        return intro_delta > 10 and outro_delta > Decimal(1.5)
+
+    def did_minor_rsi_crash_happen(self) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI_mr"].reset_index(drop=True)
+        recent_rsis = rsi_series.iloc[-16:-1]  # 15 items, last one excluded
+
+        bottom_rsi = Decimal(recent_rsis.min())
+
+        if bottom_rsi > 40:
+            return False
+
+        bottom_rsi_index = recent_rsis.idxmin()
+        peak_rsi = Decimal(recent_rsis.iloc[0:bottom_rsi_index].max())
+        intro_delta: Decimal = peak_rsi - bottom_rsi
+
+        current_rsi = self.get_current_rsi("mr")
+        outro_delta: Decimal = current_rsi - bottom_rsi
+
+        self.logger().info(f"did_minor_rsi_crash_happen() | peak_rsi:{peak_rsi} | bottom_rsi:{bottom_rsi} | current_rsi:{current_rsi} | intro_delta:{intro_delta} | outro_delta:{outro_delta}")
+
+        return intro_delta > 10 and outro_delta > Decimal(1.5)
