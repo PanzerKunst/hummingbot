@@ -19,7 +19,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
             connector="binance_perpetual",
             interval="1m",
             max_records=330,
-            trading_pair = "TURBO-USDT"
+            trading_pair = "POPCAT-USDT"
         )
     ]
 
@@ -30,7 +30,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     # Used by PkStrategy
     connector_name: str = "hyperliquid_perpetual"
-    trading_pair: str = "TURBO-USD"
+    trading_pair: str = "POPCAT-USD"
     total_amount_quote: int = Field(30, client_data=ClientFieldData(is_updatable=True))
     leverage: int = 5
     unfilled_order_expiration_min: int = Field(1, client_data=ClientFieldData(is_updatable=True))
@@ -42,7 +42,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     # Triple Barrier
     sma_cross_stop_loss_pct: Decimal = Field(2.25, client_data=ClientFieldData(is_updatable=True))
-    mean_reversion_stop_loss_pct: Decimal = Field(1.1, client_data=ClientFieldData(is_updatable=True))
+    mean_reversion_stop_loss_pct: Decimal = Field(0.75, client_data=ClientFieldData(is_updatable=True))
 
     # Technical analysis
     rsi_length: int = Field(20, client_data=ClientFieldData(is_updatable=True))

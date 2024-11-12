@@ -3,12 +3,12 @@ candles_config:
 - connector: binance_perpetual
   interval: 1m
   max_records: 330
-  trading_pair: TURBO-USDT
+  trading_pair: POPCAT-USDT
 controllers_config: []
 config_update_interval: 10
 script_file_name: excalibur_config.py
 connector_name: hyperliquid_perpetual
-trading_pair: TURBO-USD
+trading_pair: POPCAT-USD
 total_amount_quote: 30
 leverage: 5
 unfilled_order_expiration_min: 1
@@ -17,7 +17,7 @@ market_order_twap_count: 1
 market_order_twap_interval: 5
 position_mode: ONEWAY
 sma_cross_stop_loss_pct: 2.25
-mean_reversion_stop_loss_pct: 1.1
+mean_reversion_stop_loss_pct: 0.75
 rsi_length: 20
 rsi_mr_length: 40
 sma_short: 75

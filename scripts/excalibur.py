@@ -19,8 +19,8 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 # Generate config file: create --script-config excalibur
 # Start the bot: start --script excalibur.py --conf conf_excalibur_GOAT.yml
 #                start --script excalibur.py --conf conf_excalibur_MOODENG.yml
-#                start --script excalibur.py --conf conf_excalibur_TURBO.yml
-# Quickstart script: -p=a -f excalibur.py -c conf_excalibur_TURBO.yml
+#                start --script excalibur.py --conf conf_excalibur_POPCAT.yml
+# Quickstart script: -p=a -f excalibur.py -c conf_excalibur_POPCAT.yml
 
 ORDER_REF_SMA_CROSS = "SmaCross"
 ORDER_REF_MEAN_REVERSION = "MeanReversion"
@@ -278,7 +278,7 @@ class ExcaliburStrategy(PkStrategy):
     def did_rsi_crash_and_recover(self) -> bool:
         current_rsi = self.get_current_rsi("mr")
 
-        if not (31.5 < current_rsi < 32.5):
+        if not (33.5 < current_rsi < 34.5):
             return False
 
         rsi_series: pd.Series = self.processed_data["RSI_mr"].reset_index(drop=True)
@@ -286,7 +286,7 @@ class ExcaliburStrategy(PkStrategy):
 
         min_rsi = Decimal(recent_rsis.min())
 
-        if min_rsi > 30:
+        if min_rsi > 32:
             return False
 
         min_rsi_index = recent_rsis.idxmin()
@@ -294,7 +294,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"did_rsi_crash_and_recover() | current_rsi:{current_rsi} | min_rsi:{min_rsi} | max_rsi:{max_rsi}")
 
-        return max_rsi > min_rsi + 15
+        return max_rsi > min_rsi + 13
 
     def did_rsi_spike_and_recover(self) -> bool:
         current_rsi = self.get_current_rsi("mr")
@@ -315,7 +315,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"did_rsi_spike_and_recover() | current_rsi:{current_rsi} | max_rsi:{max_rsi} | min_rsi:{min_rsi}")
 
-        return min_rsi < max_rsi - 15
+        return min_rsi < max_rsi - 13
 
     def is_price_close_enough_to_short_sma(self):
         latest_close = self.get_latest_close()
