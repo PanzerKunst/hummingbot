@@ -83,6 +83,15 @@ class ExcaliburStrategy(PkStrategy):
         candles_df["SMA_short"] = candles_df.ta.sma(length=self.config.sma_short)
         candles_df["SMA_long"] = candles_df.ta.sma(length=self.config.sma_long)
 
+        srsi_df = candles_df.ta.stochrsi(length=self.config.srsi_stoch_length, rsi_length=self.config.srsi_rsi_length, k=self.config.srsi_k, d=self.config.srsi_d)
+
+        # TODO: remove
+        self.logger().info(f"srsi_df.columns:{srsi_df.columns}")
+
+        # candles_df["MACD"] = macd_df[f"MACD_{self.config.macd_short}_{self.config.macd_long}_{self.config.macd_signal}"]
+        # candles_df["MACDs"] = macd_df[f"MACDs_{self.config.macd_short}_{self.config.macd_long}_{self.config.macd_signal}"]
+        # candles_df["MACDh"] = macd_df[f"MACDh_{self.config.macd_short}_{self.config.macd_long}_{self.config.macd_signal}"]
+
         candles_df.dropna(inplace=True)
 
         self.processed_data = candles_df
@@ -96,8 +105,8 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
-        self.create_actions_proposal_sma_cross()
-        self.create_actions_proposal_mean_reversion()
+        # TODO self.create_actions_proposal_sma_cross()
+        # TODO self.create_actions_proposal_mean_reversion()
 
         return []  # Always return []
 
@@ -109,8 +118,8 @@ class ExcaliburStrategy(PkStrategy):
 
         self.check_orders()
 
-        self.stop_actions_proposal_sma_cross()
-        self.stop_actions_proposal_mean_reversion()
+        # TODO self.stop_actions_proposal_sma_cross()
+        # TODO self.stop_actions_proposal_mean_reversion()
 
         return []  # Always return []
 

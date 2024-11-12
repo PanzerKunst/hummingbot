@@ -49,6 +49,10 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     rsi_mr_length: int = Field(40, client_data=ClientFieldData(is_updatable=True))
     sma_short: int = Field(75, client_data=ClientFieldData(is_updatable=True))
     sma_long: int = Field(300, client_data=ClientFieldData(is_updatable=True))
+    srsi_stoch_length: int = Field(40, client_data=ClientFieldData(is_updatable=True))
+    srsi_rsi_length: int = Field(40, client_data=ClientFieldData(is_updatable=True))
+    srsi_k: int = Field(10, client_data=ClientFieldData(is_updatable=True))
+    srsi_d: int = Field(10, client_data=ClientFieldData(is_updatable=True))
 
     # Order settings
     entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
