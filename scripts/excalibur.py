@@ -291,7 +291,7 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         min_rsi_index = recent_rsis.idxmin()
-        max_rsi = recent_rsis.iloc[0:min_rsi_index].max()
+        max_rsi = Decimal(recent_rsis.iloc[0:min_rsi_index].max())
 
         self.logger().info(f"did_rsi_crash_and_recover() | current_rsi:{current_rsi} | min_rsi:{min_rsi} | max_rsi:{max_rsi} | delta:{max_rsi-min_rsi}")
 
@@ -313,7 +313,7 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         max_rsi_index = recent_rsis.idxmax()
-        min_rsi = recent_rsis.iloc[0:max_rsi_index].min()
+        min_rsi = Decimal(recent_rsis.iloc[0:max_rsi_index].min())
 
         self.logger().info(f"did_rsi_spike_and_recover() | current_rsi:{current_rsi} | max_rsi:{max_rsi} | min_rsi:{min_rsi} | delta:{max_rsi-min_rsi}")
 
