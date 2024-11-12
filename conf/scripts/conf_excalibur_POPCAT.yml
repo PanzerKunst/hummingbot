@@ -25,7 +25,7 @@ sma_long: 300
 entry_price_delta_bps: 0
 max_price_delta_pct_with_short_sma_to_open: 1.5
 min_price_delta_pct_for_sudden_reversal_to_short_sma: 1.0
-rsi_crash_bottom_threshold: 37.0
-rsi_crash_recovery_threshold: 38.5
+rsi_crash_bottom_threshold: 36.0
+rsi_crash_recovery_threshold: 37.5
 rsi_spike_peak_threshold: 64
 rsi_spike_recovery_threshold: 62.5
