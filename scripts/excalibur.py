@@ -269,11 +269,8 @@ class ExcaliburStrategy(PkStrategy):
         return Decimal(sma_series.iloc[index])
 
     def get_current_stoch(self) -> Decimal:
-        return self._get_stoch_at_index(-1)
-
-    def _get_stoch_at_index(self, index: int) -> Decimal:
         stoch_series: pd.Series = self.processed_data["STOCH_k"]
-        return Decimal(stoch_series.iloc[index])
+        return Decimal(stoch_series.iloc[-1])
 
     def did_short_sma_cross_under_long(self) -> bool:
         return not self.is_latest_short_sma_over_long() and self.is_previous_short_sma_over_long()
@@ -412,7 +409,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def is_stoch_good_to_open_mr_short(self) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_k"]
-        recent_stochs = stoch_series.iloc[-7:-2]  # 5 items, last one excluded
+        recent_stochs = stoch_series.iloc[-6:-1]  # 5 items, last one excluded
         peak_stoch: Decimal = Decimal(recent_stochs.max())
 
         if peak_stoch < 90:
@@ -427,7 +424,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def is_stoch_good_to_open_mr_long(self) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_k"]
-        recent_stochs = stoch_series.iloc[-7:-2]  # 5 items, last one excluded
+        recent_stochs = stoch_series.iloc[-6:-1]  # 5 items, last one excluded
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
 
         if bottom_stoch > 10:
@@ -442,7 +439,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def should_close_mr_short(self) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_k"]
-        recent_stochs = stoch_series.iloc[-7:-2]  # 5 items, last one excluded
+        recent_stochs = stoch_series.iloc[-6:-1]  # 5 items, last one excluded
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
 
         if bottom_stoch > 18:
@@ -457,7 +454,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def should_close_mr_long(self) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_k"]
-        recent_stochs = stoch_series.iloc[-7:-2]  # 5 items, last one excluded
+        recent_stochs = stoch_series.iloc[-6:-1]  # 5 items, last one excluded
         peak_stoch: Decimal = Decimal(recent_stochs.max())
 
         if peak_stoch < 82:
