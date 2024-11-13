@@ -302,7 +302,7 @@ class ExcaliburStrategy(PkStrategy):
         bottom_rsi = Decimal(recent_rsis.iloc[0:peak_rsi_index].min())
         start_delta: Decimal = peak_rsi - bottom_rsi
 
-        if start_delta < 10:
+        if start_delta < 12:
             return False
 
         current_rsi = self.get_current_rsi("mr")
@@ -325,7 +325,7 @@ class ExcaliburStrategy(PkStrategy):
         peak_rsi = Decimal(recent_rsis.iloc[0:bottom_rsi_index].max())
         start_delta: Decimal = peak_rsi - bottom_rsi
 
-        if start_delta < 10:
+        if start_delta < 12:
             return False
 
         current_rsi = self.get_current_rsi("mr")
