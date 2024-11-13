@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import Dict, List
 
 import pandas as pd
+from pandas_ta import stoch
 
 from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
@@ -84,9 +85,15 @@ class ExcaliburStrategy(PkStrategy):
         candles_df["SMA_short"] = candles_df.ta.sma(length=self.config.sma_short)
         candles_df["SMA_long"] = candles_df.ta.sma(length=self.config.sma_long)
 
-        stoch_df = candles_df.ta.stoch(fast_k=40, slow_k=8)
+        # Calling the lower-level function, because the one in core.py has a bug in the argument names
+        stoch_df = stoch(
+            high=candles_df["high"],
+            low=candles_df["low"],
+            close=candles_df["close"],
+            k=self.config.stoch_k_length,
+            smooth_k=self.config.stoch_k_smoothing
+        )
 
-        self.logger().info(f"stoch_fast_k:{self.config.stoch_fast_k} | stoch_slow_k:{self.config.stoch_slow_k}")
         self.logger().info(f"stoch_df.columns:{stoch_df.columns}")
 
         candles_df["STOCH_k"] = stoch_df["STOCHk_14_3_3"]
