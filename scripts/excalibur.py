@@ -84,13 +84,12 @@ class ExcaliburStrategy(PkStrategy):
         candles_df["SMA_short"] = candles_df.ta.sma(length=self.config.sma_short)
         candles_df["SMA_long"] = candles_df.ta.sma(length=self.config.sma_long)
 
-        stoch_df = candles_df.ta.stoch(fast_k=self.config.stoch_fast_k, slow_k=self.config.stoch_slow_k, slow_d=self.config.stoch_slow_k)
+        stoch_df = candles_df.ta.stoch(fast_k=self.config.stoch_fast_k, slow_k=self.config.stoch_slow_k)
 
         self.logger().info(f"stoch_fast_k:{self.config.stoch_fast_k} | stoch_slow_k:{self.config.stoch_slow_k}")
         self.logger().info(f"stoch_df.columns:{stoch_df.columns}")
 
-        # TODO candles_df["SRSI_k"] = srsi_df[f"STOCHRSIk_{self.config.srsi_stoch_length}_{self.config.srsi_rsi_length}_{self.config.srsi_k}_{self.config.srsi_d}"]
-        # TODO candles_df["SRSI_d"] = srsi_df[f"STOCHRSId_{self.config.srsi_stoch_length}_{self.config.srsi_rsi_length}_{self.config.srsi_k}_{self.config.srsi_d}"]
+        candles_df["STOCH_k"] = stoch_df["STOCHk_14_3_3"]
 
         candles_df.dropna(inplace=True)
 
@@ -139,8 +138,7 @@ class ExcaliburStrategy(PkStrategy):
                     "RSI_mr",
                     "SMA_short",
                     "SMA_long",
-                    "SRSI_k",
-                    "SRSI_d"
+                    "STOCH_k"
                 ]
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display], table_format="psql"))
