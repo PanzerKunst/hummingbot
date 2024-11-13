@@ -246,7 +246,7 @@ class ExcaliburStrategy(PkStrategy):
 
         if len(filled_buy_orders) > 0:
             if self.should_close_mr_long():
-                self.logger().info("stop_actions_proposal_mr() > should_close_minor_mr_long")
+                self.logger().info("stop_actions_proposal_mr() > should_close_mr_long")
                 self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
 
     def get_latest_close(self) -> Decimal:
@@ -441,33 +441,31 @@ class ExcaliburStrategy(PkStrategy):
         return current_stoch > min_acceptable_stoch
 
     def should_close_mr_short(self) -> bool:
-        current_stoch = self.get_current_stoch()
-
-        if current_stoch > 20:
-            return False
-
         stoch_series: pd.Series = self.processed_data["STOCH_k"]
         recent_stochs = stoch_series.iloc[-7:-2]  # 5 items, last one excluded
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
 
-        stoch_delta: Decimal = current_stoch - bottom_stoch
-
-        self.logger().info(f"should_close_minor_mr_short() | bottom_stoch:{bottom_stoch} | current_stoch:{current_stoch} | stoch_delta:{stoch_delta}")
-
-        return stoch_delta > 2
-
-    def should_close_mr_long(self) -> bool:
-        current_stoch = self.get_current_stoch()
-
-        if current_stoch < 80:
+        if bottom_stoch > 18:
             return False
 
+        current_stoch = self.get_current_stoch()
+        min_acceptable_stoch: Decimal = bottom_stoch + 2
+
+        self.logger().info(f"should_close_mr_short() | bottom_stoch:{bottom_stoch} | current_stoch:{current_stoch} | min_acceptable_stoch:{min_acceptable_stoch}")
+
+        return current_stoch > min_acceptable_stoch
+
+    def should_close_mr_long(self) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_k"]
         recent_stochs = stoch_series.iloc[-7:-2]  # 5 items, last one excluded
         peak_stoch: Decimal = Decimal(recent_stochs.max())
 
-        stoch_delta: Decimal = peak_stoch - current_stoch
+        if peak_stoch < 82:
+            return False
 
-        self.logger().info(f"should_close_minor_mr_long() | peak_stoch:{peak_stoch} | current_stoch:{current_stoch} | stoch_delta:{stoch_delta}")
+        current_stoch = self.get_current_stoch()
+        max_acceptable_stoch: Decimal = peak_stoch - 2
 
-        return stoch_delta > 2
+        self.logger().info(f"should_close_mr_long() | peak_stoch:{peak_stoch} | current_stoch:{current_stoch} | max_acceptable_stoch:{max_acceptable_stoch}")
+
+        return current_stoch < max_acceptable_stoch
