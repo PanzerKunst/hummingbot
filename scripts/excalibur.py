@@ -86,6 +86,7 @@ class ExcaliburStrategy(PkStrategy):
 
         stoch_df = candles_df.ta.stoch(fast_k=self.config.stoch_fast_k, slow_k=self.config.stoch_slow_k)
 
+        self.logger().info(f"stoch_fast_k:{self.config.stoch_fast_k} | stoch_slow_k:{self.config.stoch_slow_k}")
         self.logger().info(f"stoch_df.columns:{stoch_df.columns}")
 
         # TODO candles_df["SRSI_k"] = srsi_df[f"STOCHRSIk_{self.config.srsi_stoch_length}_{self.config.srsi_rsi_length}_{self.config.srsi_k}_{self.config.srsi_d}"]
