@@ -84,7 +84,7 @@ class ExcaliburStrategy(PkStrategy):
         candles_df["SMA_short"] = candles_df.ta.sma(length=self.config.sma_short)
         candles_df["SMA_long"] = candles_df.ta.sma(length=self.config.sma_long)
 
-        stoch_df = candles_df.ta.stoch(fast_k=self.config.stoch_fast_k, slow_k=self.config.stoch_slow_k)
+        stoch_df = candles_df.ta.stoch(self.config.stoch_fast_k, self.config.stoch_slow_k)
 
         self.logger().info(f"stoch_fast_k:{self.config.stoch_fast_k} | stoch_slow_k:{self.config.stoch_slow_k}")
         self.logger().info(f"stoch_df.columns:{stoch_df.columns}")
