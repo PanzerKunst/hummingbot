@@ -84,9 +84,12 @@ class ExcaliburStrategy(PkStrategy):
         candles_df["SMA_short"] = candles_df.ta.sma(length=self.config.sma_short)
         candles_df["SMA_long"] = candles_df.ta.sma(length=self.config.sma_long)
 
-        srsi_df = candles_df.ta.stochrsi(length=self.config.srsi_stoch_length, rsi_length=self.config.srsi_rsi_length, k=self.config.srsi_k, d=self.config.srsi_d)
-        candles_df["SRSI_k"] = srsi_df[f"STOCHRSIk_{self.config.srsi_stoch_length}_{self.config.srsi_rsi_length}_{self.config.srsi_k}_{self.config.srsi_d}"]
-        candles_df["SRSI_d"] = srsi_df[f"STOCHRSId_{self.config.srsi_stoch_length}_{self.config.srsi_rsi_length}_{self.config.srsi_k}_{self.config.srsi_d}"]
+        stoch_df = candles_df.ta.stoch(fast_k=self.config.stoch_fast_k, slow_k=self.config.stoch_slow_k)
+
+        self.logger().info(f"stoch_df.columns:{stoch_df.columns}")
+
+        # TODO candles_df["SRSI_k"] = srsi_df[f"STOCHRSIk_{self.config.srsi_stoch_length}_{self.config.srsi_rsi_length}_{self.config.srsi_k}_{self.config.srsi_d}"]
+        # TODO candles_df["SRSI_d"] = srsi_df[f"STOCHRSId_{self.config.srsi_stoch_length}_{self.config.srsi_rsi_length}_{self.config.srsi_k}_{self.config.srsi_d}"]
 
         candles_df.dropna(inplace=True)
 
@@ -101,9 +104,9 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
-        self.create_actions_proposal_sma_cross()
-        self.create_actions_proposal_major_mr()
-        self.create_actions_proposal_minor_mr()
+        # TODO self.create_actions_proposal_sma_cross()
+        # TODO self.create_actions_proposal_major_mr()
+        # TODO self.create_actions_proposal_minor_mr()
 
         return []  # Always return []
 
@@ -470,7 +473,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"does_srsi_indicate_to_open_minor_mr_short() | peak_srsi_k:{peak_srsi_k} | latest_srsi_k:{latest_srsi_k} | srsi_delta:{srsi_delta}")
 
-        return srsi_delta > 3
+        return srsi_delta > 2
 
     def does_srsi_indicate_to_open_minor_mr_long(self) -> bool:
         latest_srsi_k = self.get_latest_srsi("k")
@@ -486,7 +489,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"does_srsi_indicate_to_open_minor_mr_long() | bottom_srsi_k:{bottom_srsi_k} | latest_srsi_k:{latest_srsi_k} | srsi_delta:{srsi_delta}")
 
-        return srsi_delta > 3
+        return srsi_delta > 2
 
     def should_close_minor_mr_short(self) -> bool:
         current_srsi_k = self.get_current_srsi("k")
@@ -502,7 +505,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"should_close_minor_mr_short() | bottom_srsi_k:{bottom_srsi_k} | current_srsi_k:{current_srsi_k} | srsi_delta:{srsi_delta}")
 
-        return srsi_delta > 3
+        return srsi_delta > 2
 
     def should_close_minor_mr_long(self) -> bool:
         current_srsi_k = self.get_current_srsi("k")
@@ -518,7 +521,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"should_close_minor_mr_long() | peak_srsi_k:{peak_srsi_k} | current_srsi_k:{current_srsi_k} | srsi_delta:{srsi_delta}")
 
-        return srsi_delta > 3
+        return srsi_delta > 2
 
     def did_minor_rsi_spike_happen(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI_mr"].reset_index(drop=True)
