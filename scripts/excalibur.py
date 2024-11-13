@@ -271,9 +271,6 @@ class ExcaliburStrategy(PkStrategy):
     def get_current_stoch(self) -> Decimal:
         return self._get_stoch_at_index(-1)
 
-    def get_latest_stoch(self) -> Decimal:
-        return self._get_stoch_at_index(-2)
-
     def _get_stoch_at_index(self, index: int) -> Decimal:
         stoch_series: pd.Series = self.processed_data["STOCH_k"]
         return Decimal(stoch_series.iloc[index])
@@ -303,17 +300,17 @@ class ExcaliburStrategy(PkStrategy):
 
         peak_rsi_index = recent_rsis.idxmax()
         bottom_rsi = Decimal(recent_rsis.iloc[0:peak_rsi_index].min())
-        intro_delta: Decimal = peak_rsi - bottom_rsi
+        start_delta: Decimal = peak_rsi - bottom_rsi
 
-        if intro_delta < 10:
+        if start_delta < 10:
             return False
 
         current_rsi = self.get_current_rsi("mr")
-        outro_delta: Decimal = peak_rsi - current_rsi
+        end_delta: Decimal = peak_rsi - current_rsi
 
-        self.logger().info(f"did_rsi_spike() | bottom_rsi:{bottom_rsi} | peak_rsi:{peak_rsi} | current_rsi:{current_rsi} | intro_delta:{intro_delta} | outro_delta:{outro_delta}")
+        self.logger().info(f"did_rsi_spike() | bottom_rsi:{bottom_rsi} | peak_rsi:{peak_rsi} | current_rsi:{current_rsi} | start_delta:{start_delta} | end_delta:{end_delta}")
 
-        return outro_delta > Decimal(1.5)
+        return end_delta > Decimal(1.5)
 
     def did_rsi_crash(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI_mr"].reset_index(drop=True)
@@ -326,17 +323,17 @@ class ExcaliburStrategy(PkStrategy):
 
         bottom_rsi_index = recent_rsis.idxmin()
         peak_rsi = Decimal(recent_rsis.iloc[0:bottom_rsi_index].max())
-        intro_delta: Decimal = peak_rsi - bottom_rsi
+        start_delta: Decimal = peak_rsi - bottom_rsi
 
-        if intro_delta < 10:
+        if start_delta < 10:
             return False
 
         current_rsi = self.get_current_rsi("mr")
-        outro_delta: Decimal = current_rsi - bottom_rsi
+        end_delta: Decimal = current_rsi - bottom_rsi
 
-        self.logger().info(f"did_rsi_crash() | peak_rsi:{peak_rsi} | bottom_rsi:{bottom_rsi} | current_rsi:{current_rsi} | intro_delta:{intro_delta} | outro_delta:{outro_delta}")
+        self.logger().info(f"did_rsi_crash() | peak_rsi:{peak_rsi} | bottom_rsi:{bottom_rsi} | current_rsi:{current_rsi} | start_delta:{start_delta} | end_delta:{end_delta}")
 
-        return outro_delta > Decimal(1.5)
+        return end_delta > Decimal(1.5)
 
     def is_price_close_enough_to_short_sma(self):
         latest_close = self.get_latest_close()
@@ -408,34 +405,34 @@ class ExcaliburStrategy(PkStrategy):
         return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_sma
 
     def is_stoch_good_to_open_mr_short(self) -> bool:
-        latest_stoch = self.get_latest_stoch()
+        current_stoch = self.get_current_stoch()
 
-        if latest_stoch < 80:
+        if current_stoch < 80:
             return False
 
         stoch_series: pd.Series = self.processed_data["STOCH_k"]
         recent_stochs = stoch_series.iloc[-7:-2]  # 5 items, last one excluded
         peak_stoch: Decimal = Decimal(recent_stochs.max())
 
-        stoch_delta: Decimal = peak_stoch - latest_stoch
+        stoch_delta: Decimal = peak_stoch - current_stoch
 
-        self.logger().info(f"is_stoch_good_to_open_mr_short() | peak_stoch:{peak_stoch} | latest_stoch:{latest_stoch} | stoch_delta:{stoch_delta}")
+        self.logger().info(f"is_stoch_good_to_open_mr_short() | peak_stoch:{peak_stoch} | current_stoch:{current_stoch} | stoch_delta:{stoch_delta}")
 
         return stoch_delta > 0
 
     def is_stoch_good_to_open_mr_long(self) -> bool:
-        latest_stoch = self.get_latest_stoch()
+        current_stoch = self.get_current_stoch()
 
-        if latest_stoch > 20:
+        if current_stoch > 20:
             return False
 
         stoch_series: pd.Series = self.processed_data["STOCH_k"]
         recent_stochs = stoch_series.iloc[-7:-2]  # 5 items, last one excluded
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
 
-        stoch_delta: Decimal = latest_stoch - bottom_stoch
+        stoch_delta: Decimal = current_stoch - bottom_stoch
 
-        self.logger().info(f"is_stoch_good_to_open_mr_long() | bottom_stoch:{bottom_stoch} | latest_stoch:{latest_stoch} | stoch_delta:{stoch_delta}")
+        self.logger().info(f"is_stoch_good_to_open_mr_long() | bottom_stoch:{bottom_stoch} | current_stoch:{current_stoch} | stoch_delta:{stoch_delta}")
 
         return stoch_delta > 0
 
