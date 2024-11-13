@@ -418,7 +418,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_stoch_good_to_open_mr_short() | peak_stoch:{peak_stoch} | current_stoch:{current_stoch} | stoch_delta:{stoch_delta}")
 
-        return stoch_delta > 1  # TODO: 2?
+        return stoch_delta > 2
 
     def is_stoch_good_to_open_mr_long(self) -> bool:
         current_stoch = self.get_current_stoch()
@@ -434,7 +434,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_stoch_good_to_open_mr_long() | bottom_stoch:{bottom_stoch} | current_stoch:{current_stoch} | stoch_delta:{stoch_delta}")
 
-        return stoch_delta > 1
+        return stoch_delta > 2
 
     def should_close_mr_short(self) -> bool:
         current_stoch = self.get_current_stoch()
