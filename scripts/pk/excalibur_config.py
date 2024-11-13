@@ -50,6 +50,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     sma_long: int = 300
     stoch_k_length: int = 40
     stoch_k_smoothing: int = 8
+    stoch_d_smoothing: int = 8
 
     # Order settings
     entry_price_delta_bps: int = 0
