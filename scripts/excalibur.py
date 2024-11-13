@@ -286,58 +286,6 @@ class ExcaliburStrategy(PkStrategy):
         previous_short_minus_long: Decimal = self.get_previous_sma("short") - self.get_previous_sma("long")
         return previous_short_minus_long > 0
 
-    def did_rsi_spike(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI_mr"].reset_index(drop=True)
-        recent_rsis = rsi_series.iloc[-16:-1]  # 15 items, last one excluded
-
-        peak_rsi = Decimal(recent_rsis.max())
-
-        if peak_rsi < self.config.rsi_spike_peak_threshold:
-            return False
-
-        current_rsi = self.get_current_rsi("mr")
-        min_acceptable_rsi: Decimal = peak_rsi - 2
-
-        if current_rsi < min_acceptable_rsi:
-            return False
-
-        peak_rsi_index = recent_rsis.idxmax()
-        bottom_rsi = Decimal(recent_rsis.iloc[0:peak_rsi_index].min())
-        start_delta: Decimal = peak_rsi - bottom_rsi
-
-        if start_delta < 12:
-            return False
-
-        self.logger().info(f"did_rsi_spike() | bottom_rsi:{bottom_rsi} | peak_rsi:{peak_rsi} | current_rsi:{current_rsi} | start_delta:{start_delta}")
-
-        return current_rsi < min_acceptable_rsi + Decimal(0.5)
-
-    def did_rsi_crash(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI_mr"].reset_index(drop=True)
-        recent_rsis = rsi_series.iloc[-16:-1]  # 15 items, last one excluded
-
-        bottom_rsi = Decimal(recent_rsis.min())
-
-        if bottom_rsi > self.config.rsi_crash_bottom_threshold:
-            return False
-
-        current_rsi = self.get_current_rsi("mr")
-        max_acceptable_rsi: Decimal = bottom_rsi + 2
-
-        if current_rsi > max_acceptable_rsi:
-            return False
-
-        bottom_rsi_index = recent_rsis.idxmin()
-        peak_rsi = Decimal(recent_rsis.iloc[0:bottom_rsi_index].max())
-        start_delta: Decimal = peak_rsi - bottom_rsi
-
-        if start_delta < 12:
-            return False
-
-        self.logger().info(f"did_rsi_crash() | peak_rsi:{peak_rsi} | bottom_rsi:{bottom_rsi} | current_rsi:{current_rsi} | start_delta:{start_delta}")
-
-        return current_rsi > max_acceptable_rsi - Decimal(0.5)
-
     def is_price_close_enough_to_short_sma(self):
         latest_close = self.get_latest_close()
         delta_pct: Decimal = (latest_close - self.get_latest_sma("short")) / latest_close * 100
@@ -406,6 +354,58 @@ class ExcaliburStrategy(PkStrategy):
         self.logger().info(f"did_price_suddenly_drop_to_short_sma() | latest_close:{latest_close} | max_price:{max_price} | price_delta_pct:{price_delta_pct}")
 
         return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_sma
+
+    def did_rsi_spike(self) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI_mr"].reset_index(drop=True)
+        recent_rsis = rsi_series.iloc[-16:-1]  # 15 items, last one excluded
+
+        peak_rsi = Decimal(recent_rsis.max())
+
+        if peak_rsi < self.config.rsi_spike_peak_threshold:
+            return False
+
+        current_rsi = self.get_current_rsi("mr")
+        min_acceptable_rsi: Decimal = peak_rsi - 2
+
+        if current_rsi < min_acceptable_rsi:
+            return False
+
+        peak_rsi_index = recent_rsis.idxmax()
+        bottom_rsi = Decimal(recent_rsis.iloc[0:peak_rsi_index].min())
+        start_delta: Decimal = peak_rsi - bottom_rsi
+
+        if start_delta < 12:
+            return False
+
+        self.logger().info(f"did_rsi_spike() | bottom_rsi:{bottom_rsi} | peak_rsi:{peak_rsi} | current_rsi:{current_rsi} | start_delta:{start_delta}")
+
+        return current_rsi < min_acceptable_rsi + Decimal(0.5)
+
+    def did_rsi_crash(self) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI_mr"].reset_index(drop=True)
+        recent_rsis = rsi_series.iloc[-16:-1]  # 15 items, last one excluded
+
+        bottom_rsi = Decimal(recent_rsis.min())
+
+        if bottom_rsi > self.config.rsi_crash_bottom_threshold:
+            return False
+
+        current_rsi = self.get_current_rsi("mr")
+        max_acceptable_rsi: Decimal = bottom_rsi + 2
+
+        if current_rsi > max_acceptable_rsi:
+            return False
+
+        bottom_rsi_index = recent_rsis.idxmin()
+        peak_rsi = Decimal(recent_rsis.iloc[0:bottom_rsi_index].max())
+        start_delta: Decimal = peak_rsi - bottom_rsi
+
+        if start_delta < 12:
+            return False
+
+        self.logger().info(f"did_rsi_crash() | peak_rsi:{peak_rsi} | bottom_rsi:{bottom_rsi} | current_rsi:{current_rsi} | start_delta:{start_delta}")
+
+        return current_rsi > max_acceptable_rsi - Decimal(0.5)
 
     def is_stoch_good_to_open_mr_short(self) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_k"]
