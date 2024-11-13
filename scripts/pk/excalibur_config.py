@@ -41,7 +41,6 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     # Triple Barrier
     sma_cross_stop_loss_pct: Decimal = 2.25
-    mean_reversion_stop_loss_pct: Decimal = 0.75
 
     # Technical analysis
     rsi_length: int = 20
@@ -56,7 +55,5 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     entry_price_delta_bps: int = 0
     max_price_delta_pct_with_short_sma_to_open: Decimal = 1.5
     min_price_delta_pct_for_sudden_reversal_to_short_sma: Decimal = 1.0
-    rsi_major_spike_peak_threshold: Decimal = 64.0
-    rsi_major_spike_recovery_threshold: Decimal = 62.5
-    rsi_major_crash_bottom_threshold: Decimal = 36.0
-    rsi_major_crash_recovery_threshold: Decimal = 37.5
+    rsi_spike_peak_threshold: Decimal = 64.0
+    rsi_crash_bottom_threshold: Decimal = 36.0
