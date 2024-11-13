@@ -413,7 +413,7 @@ class ExcaliburStrategy(PkStrategy):
     def is_stoch_good_to_open_mr_short(self) -> bool:
         current_stoch = self.get_current_stoch()
 
-        if current_stoch < 80:
+        if current_stoch < 90:
             return False
 
         stoch_series: pd.Series = self.processed_data["STOCH_k"]
@@ -429,7 +429,7 @@ class ExcaliburStrategy(PkStrategy):
     def is_stoch_good_to_open_mr_long(self) -> bool:
         current_stoch = self.get_current_stoch()
 
-        if current_stoch > 20:
+        if current_stoch > 10:
             return False
 
         stoch_series: pd.Series = self.processed_data["STOCH_k"]
