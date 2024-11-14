@@ -97,6 +97,7 @@ class ExcaliburStrategy(PkStrategy):
         )
 
         candles_df["STOCH_k"] = stoch_df[f"STOCHk_{self.config.stoch_k_length}_{self.config.stoch_d_smoothing}_{self.config.stoch_k_smoothing}"]
+        candles_df["STOCH_d"] = stoch_df[f"STOCHd_{self.config.stoch_k_length}_{self.config.stoch_d_smoothing}_{self.config.stoch_k_smoothing}"]
 
         candles_df.dropna(inplace=True)
 
