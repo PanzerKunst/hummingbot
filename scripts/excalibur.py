@@ -369,7 +369,7 @@ class ExcaliburStrategy(PkStrategy):
             return True
 
         rsi_series: pd.Series = self.processed_data["RSI"]
-        recent_rsis = rsi_series.iloc[-11:-1]  # 10 items, last one excluded
+        recent_rsis = rsi_series.iloc[-10:]
 
         min_rsi = Decimal(recent_rsis.min())
 
@@ -386,7 +386,7 @@ class ExcaliburStrategy(PkStrategy):
             return True
 
         rsi_series: pd.Series = self.processed_data["RSI"]
-        recent_rsis = rsi_series.iloc[-11:-1]  # 10 items, last one excluded
+        recent_rsis = rsi_series.iloc[-10:]
 
         max_rsi = Decimal(recent_rsis.max())
 
@@ -398,7 +398,7 @@ class ExcaliburStrategy(PkStrategy):
         latest_close = self.get_latest_close()
 
         close_series: pd.Series = self.processed_data["close"]
-        recent_prices = close_series.iloc[-22:-2]  # 20 items, last one excluded
+        recent_prices = close_series.iloc[-21:-1]  # 20 items, last one excluded
         min_price: Decimal = Decimal(recent_prices.min())
 
         price_delta_pct: Decimal = (latest_close - min_price) / latest_close * 100
@@ -412,7 +412,7 @@ class ExcaliburStrategy(PkStrategy):
         latest_close = self.get_latest_close()
 
         close_series: pd.Series = self.processed_data["close"]
-        recent_prices = close_series.iloc[-22:-2]  # 20 items, last one excluded
+        recent_prices = close_series.iloc[-21:-1]  # 20 items, last one excluded
         max_price: Decimal = Decimal(recent_prices.max())
 
         price_delta_pct: Decimal = (max_price - latest_close) / latest_close * 100
@@ -427,7 +427,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def did_rsi_spike(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI_mr"].reset_index(drop=True)
-        recent_rsis = rsi_series.iloc[-16:-1]  # 15 items, last one excluded
+        recent_rsis = rsi_series.iloc[-15:]
 
         peak_rsi = Decimal(recent_rsis.max())
 
@@ -453,7 +453,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def did_rsi_crash(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI_mr"].reset_index(drop=True)
-        recent_rsis = rsi_series.iloc[-16:-1]  # 15 items, last one excluded
+        recent_rsis = rsi_series.iloc[-15:]
 
         bottom_rsi = Decimal(recent_rsis.min())
 
@@ -479,7 +479,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def is_stoch_good_to_open_mr_short(self) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_k"]
-        recent_stochs = stoch_series.iloc[-6:-1]  # 5 items, last one excluded
+        recent_stochs = stoch_series.iloc[-5:]
         peak_stoch: Decimal = Decimal(recent_stochs.max())
 
         if peak_stoch < self.config.stoch_peak_threshold_to_open_mr:
@@ -494,7 +494,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def is_stoch_good_to_open_mr_long(self) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_k"]
-        recent_stochs = stoch_series.iloc[-6:-1]  # 5 items, last one excluded
+        recent_stochs = stoch_series.iloc[-5:]
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
 
         if bottom_stoch > self.config.stoch_bottom_threshold_to_open_mr:
@@ -509,10 +509,10 @@ class ExcaliburStrategy(PkStrategy):
 
     def should_close_mr_short(self) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_k"]
-        recent_stochs = stoch_series.iloc[-6:-1]  # 5 items, last one excluded
+        recent_stochs = stoch_series.iloc[-5:]
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
 
-        if bottom_stoch > self.config.stoch_bottom_threshold_to_open_mr + 8:
+        if bottom_stoch > 40:
             return False
 
         current_stoch = self.get_current_stoch("k")
@@ -524,10 +524,10 @@ class ExcaliburStrategy(PkStrategy):
 
     def should_close_mr_long(self) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_k"]
-        recent_stochs = stoch_series.iloc[-6:-1]  # 5 items, last one excluded
+        recent_stochs = stoch_series.iloc[-5:]
         peak_stoch: Decimal = Decimal(recent_stochs.max())
 
-        if peak_stoch < self.config.stoch_peak_threshold_to_open_mr - 8:
+        if peak_stoch < 60:
             return False
 
         current_stoch = self.get_current_stoch("k")
