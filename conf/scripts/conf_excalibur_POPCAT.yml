@@ -27,7 +27,7 @@ stoch_d_smoothing: 6
 entry_price_delta_bps: 0
 max_price_delta_pct_with_short_sma_to_open: 1.5
 min_price_delta_pct_for_sudden_reversal_to_short_sma: 1.0
-rsi_peak_threshold_to_open_mr: 64.0
-rsi_bottom_threshold_to_open_mr: 36.0
+rsi_peak_threshold_to_open_mr: 64
+rsi_bottom_threshold_to_open_mr: 36
 stoch_peak_threshold_to_open_mr: 90
 stoch_bottom_threshold_to_open_mr: 10
