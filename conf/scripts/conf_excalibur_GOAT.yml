@@ -23,9 +23,11 @@ sma_short: 75
 sma_long: 300
 stoch_k_length: 40
 stoch_k_smoothing: 8
-stoch_d_smoothing: 8
+stoch_d_smoothing: 6
 entry_price_delta_bps: 0
 max_price_delta_pct_with_short_sma_to_open: 2.0
 min_price_delta_pct_for_sudden_reversal_to_short_sma: 1.33
-rsi_spike_peak_threshold: 67.0
-rsi_crash_bottom_threshold: 34.0
+rsi_peak_threshold_to_open_mr: 67.0
+rsi_bottom_threshold_to_open_mr: 34.0
+stoch_peak_threshold_to_open_mr: 90
+stoch_bottom_threshold_to_open_mr: 10
