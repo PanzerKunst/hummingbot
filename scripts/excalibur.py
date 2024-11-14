@@ -114,7 +114,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.create_actions_proposal_sma_cross()
         self.create_actions_proposal_mr()
-        self.create_actions_proposal_stoch_mr()
+        # self.create_actions_proposal_stoch_mr()
 
         return []  # Always return []
 
@@ -128,7 +128,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.stop_actions_proposal_sma_cross()
         self.stop_actions_proposal_mr()
-        self.stop_actions_proposal_stoch_mr()
+        # self.stop_actions_proposal_stoch_mr()
 
         return []  # Always return []
 
