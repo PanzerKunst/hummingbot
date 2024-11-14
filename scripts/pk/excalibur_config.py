@@ -4,7 +4,6 @@ from typing import Dict, List, Set
 
 from pydantic import Field
 
-from hummingbot.client.config.config_data_types import ClientFieldData
 from hummingbot.core.data_type.common import PositionMode
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.strategy.strategy_v2_base import StrategyV2ConfigBase
@@ -24,37 +23,37 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     ]
 
     controllers_config: List[str] = []
-    config_update_interval: int = Field(10, client_data=ClientFieldData(is_updatable=True))
+    config_update_interval: int = 10
     script_file_name: str = Field(default_factory=lambda: os.path.basename(__file__))
     # Standard attributes END
 
     # Used by PkStrategy
     connector_name: str = "hyperliquid_perpetual"
     trading_pair: str = "POPCAT-USD"
-    total_amount_quote: int = Field(30, client_data=ClientFieldData(is_updatable=True))
+    total_amount_quote: int = 30
     leverage: int = 5
-    unfilled_order_expiration_min: int = Field(1, client_data=ClientFieldData(is_updatable=True))
-    limit_take_profit_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
+    unfilled_order_expiration_min: int = 1
+    limit_take_profit_price_delta_bps: int = 0
     market_order_twap_count: int = 1
     market_order_twap_interval: int = 5
 
     position_mode: PositionMode = PositionMode.ONEWAY
 
     # Triple Barrier
-    sma_cross_stop_loss_pct: Decimal = Field(2.25, client_data=ClientFieldData(is_updatable=True))
-    mean_reversion_stop_loss_pct: Decimal = Field(0.75, client_data=ClientFieldData(is_updatable=True))
+    sma_cross_stop_loss_pct: Decimal = 2.25
 
     # Technical analysis
-    rsi_length: int = Field(20, client_data=ClientFieldData(is_updatable=True))
-    rsi_mr_length: int = Field(40, client_data=ClientFieldData(is_updatable=True))
-    sma_short: int = Field(75, client_data=ClientFieldData(is_updatable=True))
-    sma_long: int = Field(300, client_data=ClientFieldData(is_updatable=True))
+    rsi_length: int = 20
+    rsi_mr_length: int = 40
+    sma_short: int = 75
+    sma_long: int = 300
+    stoch_k_length: int = 40
+    stoch_k_smoothing: int = 8
+    stoch_d_smoothing: int = 8
 
     # Order settings
-    entry_price_delta_bps: int = Field(0, client_data=ClientFieldData(is_updatable=True))
-    max_price_delta_pct_with_short_sma_to_open: Decimal = Field(1.5, client_data=ClientFieldData(is_updatable=True))
-    min_price_delta_pct_for_sudden_reversal_to_short_sma: Decimal = Field(1.0, client_data=ClientFieldData(is_updatable=True))
-    rsi_crash_bottom_threshold: Decimal = Field(36.0, client_data=ClientFieldData(is_updatable=True))
-    rsi_crash_recovery_threshold: Decimal = Field(37.5, client_data=ClientFieldData(is_updatable=True))
-    rsi_spike_peak_threshold: Decimal = Field(64, client_data=ClientFieldData(is_updatable=True))
-    rsi_spike_recovery_threshold: Decimal = Field(62.5, client_data=ClientFieldData(is_updatable=True))
+    entry_price_delta_bps: int = 0
+    max_price_delta_pct_with_short_sma_to_open: Decimal = 1.5
+    min_price_delta_pct_for_sudden_reversal_to_short_sma: Decimal = 1.0
+    rsi_spike_peak_threshold: Decimal = 64.0
+    rsi_crash_bottom_threshold: Decimal = 36.0
