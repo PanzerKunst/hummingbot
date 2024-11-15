@@ -87,7 +87,7 @@ class ExcaliburStrategy(PkStrategy):
         candles_df["SMA_long"] = candles_df.ta.sma(length=self.config.sma_long)
 
         # Calling the lower-level function, because the one in core.py has a bug in the argument names
-        stoch_df = stoch(
+        stoch_short_df = stoch(
             high=candles_df["high"],
             low=candles_df["low"],
             close=candles_df["close"],
@@ -96,8 +96,20 @@ class ExcaliburStrategy(PkStrategy):
             smooth_k=self.config.stoch_short_k_smoothing
         )
 
-        candles_df["STOCH_short_k"] = stoch_df[f"STOCHk_{self.config.stoch_short_k_length}_{self.config.stoch_short_d_smoothing}_{self.config.stoch_short_k_smoothing}"]
-        candles_df["STOCH_short_d"] = stoch_df[f"STOCHd_{self.config.stoch_short_k_length}_{self.config.stoch_short_d_smoothing}_{self.config.stoch_short_k_smoothing}"]
+        candles_df["STOCH_short_k"] = stoch_short_df[f"STOCHk_{self.config.stoch_short_k_length}_{self.config.stoch_short_d_smoothing}_{self.config.stoch_short_k_smoothing}"]
+        candles_df["STOCH_short_d"] = stoch_short_df[f"STOCHd_{self.config.stoch_short_k_length}_{self.config.stoch_short_d_smoothing}_{self.config.stoch_short_k_smoothing}"]
+
+        stoch_long_df = stoch(
+            high=candles_df["high"],
+            low=candles_df["low"],
+            close=candles_df["close"],
+            k=self.config.stoch_long_k_length,
+            d=self.config.stoch_long_d_smoothing,
+            smooth_k=self.config.stoch_long_k_smoothing
+        )
+
+        candles_df["STOCH_long_k"] = stoch_long_df[f"STOCHk_{self.config.stoch_long_k_length}_{self.config.stoch_long_d_smoothing}_{self.config.stoch_long_k_smoothing}"]
+        candles_df["STOCH_long_d"] = stoch_long_df[f"STOCHd_{self.config.stoch_long_k_length}_{self.config.stoch_long_d_smoothing}_{self.config.stoch_long_k_smoothing}"]
 
         candles_df.dropna(inplace=True)
 
