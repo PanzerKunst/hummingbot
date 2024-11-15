@@ -55,11 +55,11 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     # Order settings
     amount_quote_ma_cross: int = 30
-    amount_quote_mr: int = 30
+    amount_quote_tr: int = 30
     entry_price_delta_bps: int = 0
     max_price_delta_pct_with_short_ma_to_open: Decimal = 2.5
     min_price_delta_pct_for_sudden_reversal_to_short_ma: Decimal = 2.0
-    rsi_peak_threshold_to_open_mr: int = 67
-    rsi_bottom_threshold_to_open_mr: int = 34
-    stoch_peak_threshold_to_open_mr: int = 90
-    stoch_bottom_threshold_to_open_mr: int = 10
+    rsi_peak_threshold_to_open_tr: int = 67
+    rsi_bottom_threshold_to_open_tr: int = 34
+    stoch_peak_threshold_to_open_tr: int = 90
+    stoch_bottom_threshold_to_open_tr: int = 10

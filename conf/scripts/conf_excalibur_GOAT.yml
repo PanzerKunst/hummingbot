@@ -27,11 +27,11 @@ stoch_long_k_length: 80
 stoch_long_k_smoothing: 16
 stoch_long_d_smoothing: 6
 amount_quote_ma_cross: 30
-amount_quote_mr: 30
+amount_quote_tr: 30
 entry_price_delta_bps: 0
 max_price_delta_pct_with_short_ma_to_open: 2.5
 min_price_delta_pct_for_sudden_reversal_to_short_ma: 2.0
-rsi_peak_threshold_to_open_mr: 67
-rsi_bottom_threshold_to_open_mr: 34
-stoch_peak_threshold_to_open_mr: 90
-stoch_bottom_threshold_to_open_mr: 10
+rsi_peak_threshold_to_open_tr: 67
+rsi_bottom_threshold_to_open_tr: 34
+stoch_peak_threshold_to_open_tr: 90
+stoch_bottom_threshold_to_open_tr: 10
