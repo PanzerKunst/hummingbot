@@ -437,7 +437,7 @@ class ExcaliburStrategy(PkStrategy):
     #
 
     def did_rsi_spike(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI_mr"].reset_index(drop=True)
+        rsi_series: pd.Series = self.processed_data["RSI_long"].reset_index(drop=True)
         recent_rsis = rsi_series.iloc[-15:]
 
         peak_rsi = Decimal(recent_rsis.max())
@@ -463,7 +463,7 @@ class ExcaliburStrategy(PkStrategy):
         return current_rsi < min_acceptable_rsi + Decimal(0.5)
 
     def did_rsi_crash(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI_mr"].reset_index(drop=True)
+        rsi_series: pd.Series = self.processed_data["RSI_long"].reset_index(drop=True)
         recent_rsis = rsi_series.iloc[-15:]
 
         bottom_rsi = Decimal(recent_rsis.min())
