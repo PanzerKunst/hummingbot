@@ -532,7 +532,7 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         current_stoch = self.get_current_stoch("short", "k")
-        min_acceptable_stoch: Decimal = bottom_stoch + 2
+        min_acceptable_stoch: Decimal = bottom_stoch + 1
 
         self.logger().info(f"should_close_mr_sell() | bottom_stoch:{bottom_stoch} | current_stoch:{current_stoch}")
 
@@ -547,7 +547,7 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         current_stoch = self.get_current_stoch("short", "k")
-        max_acceptable_stoch: Decimal = peak_stoch - 2
+        max_acceptable_stoch: Decimal = peak_stoch - 1
 
         self.logger().info(f"should_close_mr_buy() | peak_stoch:{peak_stoch} | current_stoch:{current_stoch}")
 
