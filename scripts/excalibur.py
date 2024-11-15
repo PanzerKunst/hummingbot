@@ -248,13 +248,13 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         if side == TradeType.SELL:
-            if self.did_rsi_spike() and self.is_stoch_short_good_to_open_tr_sell():
+            if self.did_rsi_spike() and self.is_stoch_short_good_to_open_tr_sell(self.config.stoch_peak_threshold_to_open_tr):
                 self.logger().info("can_create_tr_order() > Opening Sell TR")
                 return True
 
             return False
 
-        if self.did_rsi_crash() and self.is_stoch_short_good_to_open_tr_buy():
+        if self.did_rsi_crash() and self.is_stoch_short_good_to_open_tr_buy(self.config.stoch_bottom_threshold_to_open_tr):
             self.logger().info("can_create_tr_order() > Opening Buy TR")
             return True
 
@@ -493,12 +493,12 @@ class ExcaliburStrategy(PkStrategy):
 
         return current_rsi > max_acceptable_rsi - Decimal(0.5)
 
-    def is_stoch_short_good_to_open_tr_sell(self) -> bool:
+    def is_stoch_short_good_to_open_tr_sell(self, stoch_peak_threshold: int) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_short_k"]
         recent_stochs = stoch_series.iloc[-5:]
         peak_stoch: Decimal = Decimal(recent_stochs.max())
 
-        if peak_stoch < self.config.stoch_peak_threshold_to_open_tr:
+        if peak_stoch < stoch_peak_threshold:
             return False
 
         current_stoch = self.get_current_stoch("short", "k")
@@ -508,12 +508,12 @@ class ExcaliburStrategy(PkStrategy):
 
         return current_stoch < max_acceptable_stoch
 
-    def is_stoch_short_good_to_open_tr_buy(self) -> bool:
+    def is_stoch_short_good_to_open_tr_buy(self, stoch_bottom_threshold: int) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_short_k"]
         recent_stochs = stoch_series.iloc[-5:]
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
 
-        if bottom_stoch > self.config.stoch_bottom_threshold_to_open_tr:
+        if bottom_stoch > stoch_bottom_threshold:
             return False
 
         current_stoch = self.get_current_stoch("short", "k")
@@ -558,7 +558,7 @@ class ExcaliburStrategy(PkStrategy):
     #
 
     def should_open_stoch_tr_sell(self) -> bool:
-        if not self.is_stoch_short_good_to_open_tr_sell():
+        if not self.is_stoch_short_good_to_open_tr_sell(self.config.stoch_peak_threshold_to_open_stoch_tr):
             return False
 
         current_stoch_d = self.get_current_stoch("short", "d")
@@ -571,7 +571,7 @@ class ExcaliburStrategy(PkStrategy):
         return self.is_stoch_long_over_sell_threshold()
 
     def should_open_stoch_tr_buy(self) -> bool:
-        if not self.is_stoch_short_good_to_open_tr_buy():
+        if not self.is_stoch_short_good_to_open_tr_buy(self.config.stoch_bottom_threshold_to_open_stoch_tr):
             return False
 
         current_stoch_d = self.get_current_stoch("short", "d")
