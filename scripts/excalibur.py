@@ -591,7 +591,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_stoch_long_over_sell_threshold() | peak_stoch:{peak_stoch}")
 
-        return peak_stoch > self.config.stoch_peak_threshold_to_open_mr
+        return peak_stoch > self.config.stoch_peak_threshold_to_open_mr - 5
 
     def is_stoch_long_under_buy_threshold(self) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_long_k"]
@@ -600,4 +600,4 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_stoch_long_under_buy_threshold() | bottom_stoch:{bottom_stoch}")
 
-        return bottom_stoch < self.config.stoch_bottom_threshold_to_open_mr
+        return bottom_stoch < self.config.stoch_bottom_threshold_to_open_mr + 5
