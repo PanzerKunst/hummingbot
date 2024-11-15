@@ -18,7 +18,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
             connector="binance_perpetual",
             interval="1m",
             max_records=330,
-            trading_pair = "POPCAT-USDT"
+            trading_pair = "GOAT-USDT"
         )
     ]
 
@@ -29,7 +29,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     # Used by PkStrategy
     connector_name: str = "hyperliquid_perpetual"
-    trading_pair: str = "POPCAT-USD"
+    trading_pair: str = "GOAT-USD"
     leverage: int = 5
     unfilled_order_expiration_min: int = 1
     limit_take_profit_price_delta_bps: int = 0
@@ -39,7 +39,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     position_mode: PositionMode = PositionMode.ONEWAY
 
     # Triple Barrier
-    ma_cross_stop_loss_pct: Decimal = 2.25
+    ma_cross_stop_loss_pct: Decimal = 3.0
 
     # Technical analysis
     rsi_short: int = 20
@@ -57,9 +57,9 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     amount_quote_ma_cross: int = 30
     amount_quote_mr: int = 30
     entry_price_delta_bps: int = 0
-    max_price_delta_pct_with_short_ma_to_open: Decimal = 1.5
-    min_price_delta_pct_for_sudden_reversal_to_short_ma: Decimal = 1.5
-    rsi_peak_threshold_to_open_mr: int = 64
-    rsi_bottom_threshold_to_open_mr: int = 36
+    max_price_delta_pct_with_short_ma_to_open: Decimal = 2.5
+    min_price_delta_pct_for_sudden_reversal_to_short_ma: Decimal = 2.0
+    rsi_peak_threshold_to_open_mr: int = 67
+    rsi_bottom_threshold_to_open_mr: int = 34
     stoch_peak_threshold_to_open_mr: int = 90
     stoch_bottom_threshold_to_open_mr: int = 10

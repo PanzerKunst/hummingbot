@@ -22,7 +22,6 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 #                start --script excalibur.py --conf conf_excalibur_MOODENG.yml
 #                start --script excalibur.py --conf conf_excalibur_MYRO.yml
 #                start --script excalibur.py --conf conf_excalibur_PNUT.yml
-#                start --script excalibur.py --conf conf_excalibur_POPCAT.yml
 # Quickstart script: -p=a -f excalibur.py -c conf_excalibur_POPCAT.yml
 
 ORDER_REF_MA_CROSS = "MaCross"
