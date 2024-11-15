@@ -30,7 +30,6 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     # Used by PkStrategy
     connector_name: str = "hyperliquid_perpetual"
     trading_pair: str = "POPCAT-USD"
-    total_amount_quote: int = 30
     leverage: int = 5
     unfilled_order_expiration_min: int = 1
     limit_take_profit_price_delta_bps: int = 0
@@ -55,6 +54,8 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     stoch_long_d_smoothing: int = 6
 
     # Order settings
+    amount_quote_ma_cross: int = 30
+    amount_quote_mr: int = 30
     entry_price_delta_bps: int = 0
     max_price_delta_pct_with_short_ma_to_open: Decimal = 1.5
     min_price_delta_pct_for_sudden_reversal_to_short_ma: Decimal = 1.2

@@ -11,7 +11,7 @@ from hummingbot.core.clock import Clock
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 from hummingbot.strategy_v2.models.executors import CloseType
-from scripts.pk.excalibur_config import ExcaliburConfig
+from scripts.excalibur_config import ExcaliburConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
 from scripts.pk.tracked_order_details import TrackedOrderDetails
@@ -177,15 +177,21 @@ class ExcaliburStrategy(PkStrategy):
         if self.can_create_ma_cross_order(TradeType.SELL, active_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
             triple_barrier = self.get_triple_barrier(ORDER_REF_MA_CROSS)
-            asyncio.get_running_loop().create_task(self.create_twap_market_orders(TradeType.SELL, entry_price, triple_barrier, ORDER_REF_MA_CROSS))
+
+            asyncio.get_running_loop().create_task(
+                self.create_twap_market_orders(TradeType.SELL, entry_price, triple_barrier, self.config.amount_quote_ma_cross, ORDER_REF_MA_CROSS)
+            )
 
         if self.can_create_ma_cross_order(TradeType.BUY, active_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
             triple_barrier = self.get_triple_barrier(ORDER_REF_MA_CROSS)
-            asyncio.get_running_loop().create_task(self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier, ORDER_REF_MA_CROSS))
+
+            asyncio.get_running_loop().create_task(
+                self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote_ma_cross, ORDER_REF_MA_CROSS)
+            )
 
     def can_create_ma_cross_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, ORDER_REF_MA_CROSS, 0):
+        if not self.can_create_order(side, self.config.amount_quote_ma_cross, 0, ORDER_REF_MA_CROSS):
             return False
 
         if len(active_tracked_orders) > 0:
@@ -228,15 +234,15 @@ class ExcaliburStrategy(PkStrategy):
         if self.can_create_mr_order(TradeType.SELL, active_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
             triple_barrier = self.get_triple_barrier(ORDER_REF_MR)
-            self.create_order(TradeType.SELL, entry_price, triple_barrier, ORDER_REF_MR)
+            self.create_order(TradeType.SELL, entry_price, triple_barrier, self.config.amount_quote_mr, ORDER_REF_MR)
 
         if self.can_create_mr_order(TradeType.BUY, active_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
             triple_barrier = self.get_triple_barrier(ORDER_REF_MR)
-            self.create_order(TradeType.BUY, entry_price, triple_barrier, ORDER_REF_MR)
+            self.create_order(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote_mr, ORDER_REF_MR)
 
     def can_create_mr_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, ORDER_REF_MR, 0):
+        if not self.can_create_order(side, self.config.amount_quote_mr, 0, ORDER_REF_MR):
             return False
 
         if len(active_tracked_orders) > 0:
@@ -279,15 +285,15 @@ class ExcaliburStrategy(PkStrategy):
         if self.can_create_stoch_mr_order(TradeType.SELL, active_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
             triple_barrier = self.get_triple_barrier(ORDER_REF_STOCH_MR)
-            self.create_order(TradeType.SELL, entry_price, triple_barrier, ORDER_REF_STOCH_MR)
+            self.create_order(TradeType.SELL, entry_price, triple_barrier, self.config.amount_quote_mr, ORDER_REF_STOCH_MR)
 
         if self.can_create_stoch_mr_order(TradeType.BUY, active_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
             triple_barrier = self.get_triple_barrier(ORDER_REF_STOCH_MR)
-            self.create_order(TradeType.BUY, entry_price, triple_barrier, ORDER_REF_STOCH_MR)
+            self.create_order(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote_mr, ORDER_REF_STOCH_MR)
 
     def can_create_stoch_mr_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, ORDER_REF_STOCH_MR, 0):
+        if not self.can_create_order(side, self.config.amount_quote_mr, 0, ORDER_REF_STOCH_MR):
             return False
 
         if len(active_tracked_orders) > 0:
