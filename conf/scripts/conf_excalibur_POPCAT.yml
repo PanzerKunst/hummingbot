@@ -30,7 +30,7 @@ amount_quote_ma_cross: 30
 amount_quote_mr: 30
 entry_price_delta_bps: 0
 max_price_delta_pct_with_short_ma_to_open: 1.5
-min_price_delta_pct_for_sudden_reversal_to_short_ma: 1.2
+min_price_delta_pct_for_sudden_reversal_to_short_ma: 1.5
 rsi_peak_threshold_to_open_mr: 64
 rsi_bottom_threshold_to_open_mr: 36
 stoch_peak_threshold_to_open_mr: 90
