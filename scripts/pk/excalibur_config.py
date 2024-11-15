@@ -40,21 +40,24 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     position_mode: PositionMode = PositionMode.ONEWAY
 
     # Triple Barrier
-    sma_cross_stop_loss_pct: Decimal = 2.25
+    ma_cross_stop_loss_pct: Decimal = 2.25
 
     # Technical analysis
-    rsi_length: int = 20
-    rsi_mr_length: int = 40
+    rsi_short: int = 20
+    rsi_long: int = 40
     sma_short: int = 75
     sma_long: int = 300
-    stoch_k_length: int = 40
-    stoch_k_smoothing: int = 8
-    stoch_d_smoothing: int = 6
+    stoch_short_k_length: int = 40
+    stoch_short_k_smoothing: int = 8
+    stoch_short_d_smoothing: int = 6
+    stoch_long_k_length: int = 80
+    stoch_long_k_smoothing: int = 16
+    stoch_long_d_smoothing: int = 6
 
     # Order settings
     entry_price_delta_bps: int = 0
-    max_price_delta_pct_with_short_sma_to_open: Decimal = 1.5
-    min_price_delta_pct_for_sudden_reversal_to_short_sma: Decimal = 1.0
+    max_price_delta_pct_with_short_ma_to_open: Decimal = 1.5
+    min_price_delta_pct_for_sudden_reversal_to_short_ma: Decimal = 1.0
     rsi_peak_threshold_to_open_mr: int = 64
     rsi_bottom_threshold_to_open_mr: int = 36
     stoch_peak_threshold_to_open_mr: int = 90

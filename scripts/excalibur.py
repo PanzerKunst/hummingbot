@@ -16,7 +16,7 @@ from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
-# Trend following via comparing 2 SMAs, and mean reversion based on RSI & SMA
+# Trend following via comparing 2 MAs, and mean reversion based on RSI & MA
 # Generate config file: create --script-config excalibur
 # Start the bot: start --script excalibur.py --conf conf_excalibur_GOAT.yml
 #                start --script excalibur.py --conf conf_excalibur_MOODENG.yml
@@ -25,7 +25,7 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 #                start --script excalibur.py --conf conf_excalibur_POPCAT.yml
 # Quickstart script: -p=a -f excalibur.py -c conf_excalibur_POPCAT.yml
 
-ORDER_REF_SMA_CROSS = "SmaCross"
+ORDER_REF_MA_CROSS = "MaCross"
 ORDER_REF_MR = "MeanReversion"
 ORDER_REF_STOCH_MR = "StochMr"
 
@@ -53,10 +53,10 @@ class ExcaliburStrategy(PkStrategy):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
     def get_triple_barrier(self, order_ref: str) -> TripleBarrier:
-        if order_ref == ORDER_REF_SMA_CROSS:
+        if order_ref == ORDER_REF_MA_CROSS:
             return TripleBarrier(
                 open_order_type=OrderType.MARKET,
-                stop_loss=self.config.sma_cross_stop_loss_pct / 100
+                stop_loss=self.config.ma_cross_stop_loss_pct / 100
             )
 
         return TripleBarrier(
@@ -80,8 +80,8 @@ class ExcaliburStrategy(PkStrategy):
 
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
 
-        candles_df["RSI"] = candles_df.ta.rsi(length=self.config.rsi_length)
-        candles_df["RSI_mr"] = candles_df.ta.rsi(length=self.config.rsi_mr_length)
+        candles_df["RSI_short"] = candles_df.ta.rsi(length=self.config.rsi_short)
+        candles_df["RSI_long"] = candles_df.ta.rsi(length=self.config.rsi_long)
 
         candles_df["SMA_short"] = candles_df.ta.sma(length=self.config.sma_short)
         candles_df["SMA_long"] = candles_df.ta.sma(length=self.config.sma_long)
@@ -91,13 +91,13 @@ class ExcaliburStrategy(PkStrategy):
             high=candles_df["high"],
             low=candles_df["low"],
             close=candles_df["close"],
-            k=self.config.stoch_k_length,
-            d=self.config.stoch_d_smoothing,
-            smooth_k=self.config.stoch_k_smoothing
+            k=self.config.stoch_short_k_length,
+            d=self.config.stoch_short_d_smoothing,
+            smooth_k=self.config.stoch_short_k_smoothing
         )
 
-        candles_df["STOCH_k"] = stoch_df[f"STOCHk_{self.config.stoch_k_length}_{self.config.stoch_d_smoothing}_{self.config.stoch_k_smoothing}"]
-        candles_df["STOCH_d"] = stoch_df[f"STOCHd_{self.config.stoch_k_length}_{self.config.stoch_d_smoothing}_{self.config.stoch_k_smoothing}"]
+        candles_df["STOCH_short_k"] = stoch_df[f"STOCHk_{self.config.stoch_short_k_length}_{self.config.stoch_short_d_smoothing}_{self.config.stoch_short_k_smoothing}"]
+        candles_df["STOCH_short_d"] = stoch_df[f"STOCHd_{self.config.stoch_short_k_length}_{self.config.stoch_short_d_smoothing}_{self.config.stoch_short_k_smoothing}"]
 
         candles_df.dropna(inplace=True)
 
@@ -112,9 +112,9 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
-        self.create_actions_proposal_sma_cross()
+        self.create_actions_proposal_ma_cross()
         self.create_actions_proposal_mr()
-        # self.create_actions_proposal_stoch_mr()
+        self.create_actions_proposal_stoch_mr()
 
         return []  # Always return []
 
@@ -126,9 +126,9 @@ class ExcaliburStrategy(PkStrategy):
 
         self.check_orders()
 
-        self.stop_actions_proposal_sma_cross()
+        self.stop_actions_proposal_ma_cross()
         self.stop_actions_proposal_mr()
-        # self.stop_actions_proposal_stoch_mr()
+        self.stop_actions_proposal_stoch_mr()
 
         return []  # Always return []
 
@@ -142,12 +142,12 @@ class ExcaliburStrategy(PkStrategy):
                     "timestamp_iso",
                     "close",
                     "volume",
-                    "RSI",
-                    "RSI_mr",
+                    "RSI_short",
+                    "RSI_long",
                     "SMA_short",
                     "SMA_long",
-                    "STOCH_k",
-                    "STOCH_d"
+                    "STOCH_short_k",
+                    "STOCH_long_k"
                 ]
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display], table_format="psql"))
@@ -158,51 +158,51 @@ class ExcaliburStrategy(PkStrategy):
     # Custom functions potentially interesting for other controllers
     #
 
-    def create_actions_proposal_sma_cross(self):
-        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_SMA_CROSS)
+    def create_actions_proposal_ma_cross(self):
+        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_MA_CROSS)
         active_orders = active_sell_orders + active_buy_orders
 
-        if self.can_create_sma_cross_order(TradeType.SELL, active_orders):
+        if self.can_create_ma_cross_order(TradeType.SELL, active_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
-            triple_barrier = self.get_triple_barrier(ORDER_REF_SMA_CROSS)
-            asyncio.get_running_loop().create_task(self.create_twap_market_orders(TradeType.SELL, entry_price, triple_barrier, ORDER_REF_SMA_CROSS))
+            triple_barrier = self.get_triple_barrier(ORDER_REF_MA_CROSS)
+            asyncio.get_running_loop().create_task(self.create_twap_market_orders(TradeType.SELL, entry_price, triple_barrier, ORDER_REF_MA_CROSS))
 
-        if self.can_create_sma_cross_order(TradeType.BUY, active_orders):
+        if self.can_create_ma_cross_order(TradeType.BUY, active_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
-            triple_barrier = self.get_triple_barrier(ORDER_REF_SMA_CROSS)
-            asyncio.get_running_loop().create_task(self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier, ORDER_REF_SMA_CROSS))
+            triple_barrier = self.get_triple_barrier(ORDER_REF_MA_CROSS)
+            asyncio.get_running_loop().create_task(self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier, ORDER_REF_MA_CROSS))
 
-    def can_create_sma_cross_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, ORDER_REF_SMA_CROSS, 0):
+    def can_create_ma_cross_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
+        if not self.can_create_order(side, ORDER_REF_MA_CROSS, 0):
             return False
 
         if len(active_tracked_orders) > 0:
             return False
 
         if side == TradeType.SELL:
-            if self.did_short_sma_cross_under_long():
-                self.logger().info("can_create_sma_cross_order() > Short SMA crossed under long")
-                return self.is_price_close_enough_to_short_sma() and not self.is_rsi_too_low_to_open_short() and not self.did_price_suddenly_rise_to_short_sma()
+            if self.did_short_ma_cross_under_long():
+                self.logger().info("can_create_ma_cross_order() > Short MA crossed under long")
+                return self.is_price_close_enough_to_short_ma() and not self.is_rsi_too_low_to_open_sell() and not self.did_price_suddenly_rise_to_short_ma()
 
             return False
 
-        if self.did_short_sma_cross_over_long():
-            self.logger().info("can_create_sma_cross_order() > Short SMA crossed over long")
-            return self.is_price_close_enough_to_short_sma() and not self.is_rsi_too_high_to_open_long() and not self.did_price_suddenly_drop_to_short_sma()
+        if self.did_short_ma_cross_over_long():
+            self.logger().info("can_create_ma_cross_order() > Short MA crossed over long")
+            return self.is_price_close_enough_to_short_ma() and not self.is_rsi_too_high_to_open_buy() and not self.did_price_suddenly_drop_to_short_ma()
 
         return False
 
-    def stop_actions_proposal_sma_cross(self):
-        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_SMA_CROSS)
+    def stop_actions_proposal_ma_cross(self):
+        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_MA_CROSS)
 
         if len(filled_sell_orders) > 0:
-            if self.did_short_sma_cross_over_long():
-                self.logger().info("stop_actions_proposal_sma_cross(SELL) > Short SMA crossed over long")
+            if self.did_short_ma_cross_over_long():
+                self.logger().info("stop_actions_proposal_ma_cross(SELL) > Short MA crossed over long")
                 self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
 
         if len(filled_buy_orders) > 0:
-            if self.did_short_sma_cross_under_long():
-                self.logger().info("stop_actions_proposal_sma_cross(BUY) > Short SMA crossed under long")
+            if self.did_short_ma_cross_under_long():
+                self.logger().info("stop_actions_proposal_ma_cross(BUY) > Short MA crossed under long")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
 
     #
@@ -231,14 +231,14 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         if side == TradeType.SELL:
-            if self.did_rsi_spike() and self.is_stoch_good_to_open_mr_short():
-                self.logger().info("can_create_mr_order() > Opening Short MR")
+            if self.did_rsi_spike() and self.is_stoch_short_good_to_open_mr_sell():
+                self.logger().info("can_create_mr_order() > Opening Sell MR")
                 return True
 
             return False
 
-        if self.did_rsi_crash() and self.is_stoch_good_to_open_mr_long():
-            self.logger().info("can_create_mr_order() > Opening Long MR")
+        if self.did_rsi_crash() and self.is_stoch_short_good_to_open_mr_buy():
+            self.logger().info("can_create_mr_order() > Opening Buy MR")
             return True
 
         return False
@@ -247,13 +247,13 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_MR)
 
         if len(filled_sell_orders) > 0:
-            if self.should_close_mr_short():
-                self.logger().info("stop_actions_proposal_mr() > should_close_mr_short")
+            if self.should_close_mr_sell():
+                self.logger().info("stop_actions_proposal_mr() > should_close_mr_sell")
                 self.market_close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
 
         if len(filled_buy_orders) > 0:
-            if self.should_close_mr_long():
-                self.logger().info("stop_actions_proposal_mr() > should_close_mr_long")
+            if self.should_close_mr_buy():
+                self.logger().info("stop_actions_proposal_mr() > should_close_mr_buy")
                 self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
 
     #
@@ -282,14 +282,14 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         if side == TradeType.SELL:
-            if self.should_open_stoch_mr_short():
-                self.logger().info("should_open_stoch_mr_short() > Opening Short MR")
+            if self.should_open_stoch_mr_sell():
+                self.logger().info("should_open_stoch_mr_sell() > Opening Sell MR")
                 return True
 
             return False
 
-        if self.should_open_stoch_mr_long():
-            self.logger().info("should_open_stoch_mr_long() > Opening Long MR")
+        if self.should_open_stoch_mr_buy():
+            self.logger().info("should_open_stoch_mr_buy() > Opening Buy MR")
             return True
 
         return False
@@ -298,13 +298,13 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_STOCH_MR)
 
         if len(filled_sell_orders) > 0:
-            if self.should_close_mr_short():
-                self.logger().info("stop_actions_proposal_stoch_mr() > should_close_mr_short")
+            if self.should_close_mr_sell():
+                self.logger().info("stop_actions_proposal_stoch_mr() > should_close_mr_sell")
                 self.market_close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
 
         if len(filled_buy_orders) > 0:
-            if self.should_close_mr_long():
-                self.logger().info("stop_actions_proposal_stoch_mr() > should_close_mr_long")
+            if self.should_close_mr_buy():
+                self.logger().info("stop_actions_proposal_stoch_mr() > should_close_mr_buy")
                 self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
 
     #
@@ -315,55 +315,54 @@ class ExcaliburStrategy(PkStrategy):
         close_series: pd.Series = self.processed_data["close"]
         return Decimal(close_series.iloc[-2])
 
-    def get_current_rsi(self, default_or_mr: str) -> Decimal:
-        column_name = "RSI" if default_or_mr == "default" else "RSI_mr"
-        rsi_series: pd.Series = self.processed_data[column_name]
+    def get_current_rsi(self, short_or_long: str) -> Decimal:
+        rsi_series: pd.Series = self.processed_data[f"RSI_{short_or_long}"]
         return Decimal(rsi_series.iloc[-1])
 
-    def get_latest_sma(self, short_or_long: str) -> Decimal:
-        return self._get_sma_at_index(short_or_long, -2)
+    def get_latest_ma(self, short_or_long: str) -> Decimal:
+        return self._get_ma_at_index(short_or_long, -2)
 
-    def get_previous_sma(self, short_or_long: str) -> Decimal:
-        return self._get_sma_at_index(short_or_long, -3)
+    def get_previous_ma(self, short_or_long: str) -> Decimal:
+        return self._get_ma_at_index(short_or_long, -3)
 
-    def _get_sma_at_index(self, short_or_long: str, index: int) -> Decimal:
+    def _get_ma_at_index(self, short_or_long: str, index: int) -> Decimal:
         sma_series: pd.Series = self.processed_data[f"SMA_{short_or_long}"]
         return Decimal(sma_series.iloc[index])
 
-    def get_current_stoch(self, k_or_d: str) -> Decimal:
-        stoch_series: pd.Series = self.processed_data[f"STOCH_{k_or_d}"]
+    def get_current_stoch(self, short_or_long: str, k_or_d: str) -> Decimal:
+        stoch_series: pd.Series = self.processed_data[f"STOCH_{short_or_long}_{k_or_d}"]
         return Decimal(stoch_series.iloc[-1])
 
     #
     # MA Cross functions
     #
 
-    def did_short_sma_cross_under_long(self) -> bool:
-        return not self.is_latest_short_sma_over_long() and self.is_previous_short_sma_over_long()
+    def did_short_ma_cross_under_long(self) -> bool:
+        return not self.is_latest_short_ma_over_long() and self.is_previous_short_ma_over_long()
 
-    def did_short_sma_cross_over_long(self) -> bool:
-        return self.is_latest_short_sma_over_long() and not self.is_previous_short_sma_over_long()
+    def did_short_ma_cross_over_long(self) -> bool:
+        return self.is_latest_short_ma_over_long() and not self.is_previous_short_ma_over_long()
 
-    def is_latest_short_sma_over_long(self) -> bool:
-        latest_short_minus_long: Decimal = self.get_latest_sma("short") - self.get_latest_sma("long")
+    def is_latest_short_ma_over_long(self) -> bool:
+        latest_short_minus_long: Decimal = self.get_latest_ma("short") - self.get_latest_ma("long")
         return latest_short_minus_long > 0
 
-    def is_previous_short_sma_over_long(self) -> bool:
-        previous_short_minus_long: Decimal = self.get_previous_sma("short") - self.get_previous_sma("long")
+    def is_previous_short_ma_over_long(self) -> bool:
+        previous_short_minus_long: Decimal = self.get_previous_ma("short") - self.get_previous_ma("long")
         return previous_short_minus_long > 0
 
-    def is_price_close_enough_to_short_sma(self):
+    def is_price_close_enough_to_short_ma(self):
         latest_close = self.get_latest_close()
-        delta_pct: Decimal = (latest_close - self.get_latest_sma("short")) / latest_close * 100
+        delta_pct: Decimal = (latest_close - self.get_latest_ma("short")) / latest_close * 100
 
-        self.logger().info(f"is_price_close_enough_to_short_sma() | latest_close:{latest_close} | latest_short_sma:{self.get_latest_sma('short')} | delta_pct:{delta_pct}")
+        self.logger().info(f"is_price_close_enough_to_short_ma() | latest_close:{latest_close} | latest_short_ma:{self.get_latest_ma('short')} | delta_pct:{delta_pct}")
 
-        return abs(delta_pct) < self.config.max_price_delta_pct_with_short_sma_to_open
+        return abs(delta_pct) < self.config.max_price_delta_pct_with_short_ma_to_open
 
-    def is_rsi_too_low_to_open_short(self) -> bool:
-        current_rsi = self.get_current_rsi("default")
+    def is_rsi_too_low_to_open_sell(self) -> bool:
+        current_rsi = self.get_current_rsi("short")
 
-        self.logger().info(f"is_rsi_too_low_to_open_short() | current_rsi:{current_rsi}")
+        self.logger().info(f"is_rsi_too_low_to_open_sell() | current_rsi:{current_rsi}")
 
         if current_rsi < 37.5:
             return True
@@ -373,14 +372,14 @@ class ExcaliburStrategy(PkStrategy):
 
         min_rsi = Decimal(recent_rsis.min())
 
-        self.logger().info(f"is_rsi_too_low_to_open_short() | min_rsi:{min_rsi}")
+        self.logger().info(f"is_rsi_too_low_to_open_sell() | min_rsi:{min_rsi}")
 
         return min_rsi < 30
 
-    def is_rsi_too_high_to_open_long(self) -> bool:
-        current_rsi = self.get_current_rsi("default")
+    def is_rsi_too_high_to_open_buy(self) -> bool:
+        current_rsi = self.get_current_rsi("short")
 
-        self.logger().info(f"is_rsi_too_high_to_open_long() | current_rsi:{current_rsi}")
+        self.logger().info(f"is_rsi_too_high_to_open_buy() | current_rsi:{current_rsi}")
 
         if current_rsi > 62.5:
             return True
@@ -390,11 +389,11 @@ class ExcaliburStrategy(PkStrategy):
 
         max_rsi = Decimal(recent_rsis.max())
 
-        self.logger().info(f"is_rsi_too_high_to_open_long() | max_rsi:{max_rsi}")
+        self.logger().info(f"is_rsi_too_high_to_open_buy() | max_rsi:{max_rsi}")
 
         return max_rsi > 70
 
-    def did_price_suddenly_rise_to_short_sma(self) -> bool:
+    def did_price_suddenly_rise_to_short_ma(self) -> bool:
         latest_close = self.get_latest_close()
 
         close_series: pd.Series = self.processed_data["close"]
@@ -403,12 +402,12 @@ class ExcaliburStrategy(PkStrategy):
 
         price_delta_pct: Decimal = (latest_close - min_price) / latest_close * 100
 
-        self.logger().info(f"did_price_suddenly_rise_to_short_sma() | latest_close:{latest_close} | min_price:{min_price} | price_delta_pct:{price_delta_pct}")
+        self.logger().info(f"did_price_suddenly_rise_to_short_ma() | latest_close:{latest_close} | min_price:{min_price} | price_delta_pct:{price_delta_pct}")
 
         # The percentage difference between min_price and current_price is over x%
-        return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_sma
+        return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_ma
 
-    def did_price_suddenly_drop_to_short_sma(self) -> bool:
+    def did_price_suddenly_drop_to_short_ma(self) -> bool:
         latest_close = self.get_latest_close()
 
         close_series: pd.Series = self.processed_data["close"]
@@ -417,9 +416,9 @@ class ExcaliburStrategy(PkStrategy):
 
         price_delta_pct: Decimal = (max_price - latest_close) / latest_close * 100
 
-        self.logger().info(f"did_price_suddenly_drop_to_short_sma() | latest_close:{latest_close} | max_price:{max_price} | price_delta_pct:{price_delta_pct}")
+        self.logger().info(f"did_price_suddenly_drop_to_short_ma() | latest_close:{latest_close} | max_price:{max_price} | price_delta_pct:{price_delta_pct}")
 
-        return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_sma
+        return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_ma
 
     #
     # MR functions
@@ -434,7 +433,7 @@ class ExcaliburStrategy(PkStrategy):
         if peak_rsi < self.config.rsi_peak_threshold_to_open_mr:
             return False
 
-        current_rsi = self.get_current_rsi("mr")
+        current_rsi = self.get_current_rsi("long")
         min_acceptable_rsi: Decimal = peak_rsi - 2
 
         if current_rsi < min_acceptable_rsi:
@@ -460,7 +459,7 @@ class ExcaliburStrategy(PkStrategy):
         if bottom_rsi > self.config.rsi_bottom_threshold_to_open_mr:
             return False
 
-        current_rsi = self.get_current_rsi("mr")
+        current_rsi = self.get_current_rsi("long")
         max_acceptable_rsi: Decimal = bottom_rsi + 2
 
         if current_rsi > max_acceptable_rsi:
@@ -477,63 +476,63 @@ class ExcaliburStrategy(PkStrategy):
 
         return current_rsi > max_acceptable_rsi - Decimal(0.5)
 
-    def is_stoch_good_to_open_mr_short(self) -> bool:
-        stoch_series: pd.Series = self.processed_data["STOCH_k"]
+    def is_stoch_short_good_to_open_mr_sell(self) -> bool:
+        stoch_series: pd.Series = self.processed_data["STOCH_short_k"]
         recent_stochs = stoch_series.iloc[-5:]
         peak_stoch: Decimal = Decimal(recent_stochs.max())
 
         if peak_stoch < self.config.stoch_peak_threshold_to_open_mr:
             return False
 
-        current_stoch = self.get_current_stoch("k")
+        current_stoch = self.get_current_stoch("short", "k")
         max_acceptable_stoch: Decimal = peak_stoch - 2
 
-        self.logger().info(f"is_stoch_good_to_open_mr_short() | peak_stoch:{peak_stoch} | current_stoch:{current_stoch}")
+        self.logger().info(f"is_stoch_short_good_to_open_mr_sell() | peak_stoch:{peak_stoch} | current_stoch:{current_stoch}")
 
         return current_stoch < max_acceptable_stoch
 
-    def is_stoch_good_to_open_mr_long(self) -> bool:
-        stoch_series: pd.Series = self.processed_data["STOCH_k"]
+    def is_stoch_short_good_to_open_mr_buy(self) -> bool:
+        stoch_series: pd.Series = self.processed_data["STOCH_short_k"]
         recent_stochs = stoch_series.iloc[-5:]
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
 
         if bottom_stoch > self.config.stoch_bottom_threshold_to_open_mr:
             return False
 
-        current_stoch = self.get_current_stoch("k")
+        current_stoch = self.get_current_stoch("short", "k")
         min_acceptable_stoch: Decimal = bottom_stoch + 2
 
-        self.logger().info(f"is_stoch_good_to_open_mr_long() | bottom_stoch:{bottom_stoch} | current_stoch:{current_stoch}")
+        self.logger().info(f"is_stoch_short_good_to_open_mr_buy() | bottom_stoch:{bottom_stoch} | current_stoch:{current_stoch}")
 
         return current_stoch > min_acceptable_stoch
 
-    def should_close_mr_short(self) -> bool:
-        stoch_series: pd.Series = self.processed_data["STOCH_k"]
+    def should_close_mr_sell(self) -> bool:
+        stoch_series: pd.Series = self.processed_data["STOCH_short_k"]
         recent_stochs = stoch_series.iloc[-5:]
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
 
         if bottom_stoch > 40:
             return False
 
-        current_stoch = self.get_current_stoch("k")
+        current_stoch = self.get_current_stoch("short", "k")
         min_acceptable_stoch: Decimal = bottom_stoch + 2
 
-        self.logger().info(f"should_close_mr_short() | bottom_stoch:{bottom_stoch} | current_stoch:{current_stoch}")
+        self.logger().info(f"should_close_mr_sell() | bottom_stoch:{bottom_stoch} | current_stoch:{current_stoch}")
 
         return current_stoch > min_acceptable_stoch
 
-    def should_close_mr_long(self) -> bool:
-        stoch_series: pd.Series = self.processed_data["STOCH_k"]
+    def should_close_mr_buy(self) -> bool:
+        stoch_series: pd.Series = self.processed_data["STOCH_short_k"]
         recent_stochs = stoch_series.iloc[-5:]
         peak_stoch: Decimal = Decimal(recent_stochs.max())
 
         if peak_stoch < 60:
             return False
 
-        current_stoch = self.get_current_stoch("k")
+        current_stoch = self.get_current_stoch("short", "k")
         max_acceptable_stoch: Decimal = peak_stoch - 2
 
-        self.logger().info(f"should_close_mr_long() | peak_stoch:{peak_stoch} | current_stoch:{current_stoch}")
+        self.logger().info(f"should_close_mr_buy() | peak_stoch:{peak_stoch} | current_stoch:{current_stoch}")
 
         return current_stoch < max_acceptable_stoch
 
@@ -541,22 +540,46 @@ class ExcaliburStrategy(PkStrategy):
     # Stochastic MR functions
     #
 
-    def should_open_stoch_mr_short(self) -> bool:
-        if not self.is_stoch_good_to_open_mr_short():
+    def should_open_stoch_mr_sell(self) -> bool:
+        if not self.is_stoch_short_good_to_open_mr_sell():
             return False
 
-        current_stoch_d = self.get_current_stoch("d")
+        current_stoch_d = self.get_current_stoch("short", "d")
 
-        self.logger().info(f"should_open_stoch_mr_short() | current_stoch_d:{current_stoch_d}")
-
-        return current_stoch_d > self.get_current_stoch("k")
-
-    def should_open_stoch_mr_long(self) -> bool:
-        if not self.is_stoch_good_to_open_mr_long():
+        if current_stoch_d < self.get_current_stoch("short", "k"):
             return False
 
-        current_stoch_d = self.get_current_stoch("d")
+        self.logger().info(f"should_open_stoch_mr_sell() | current_stoch_d:{current_stoch_d}")
 
-        self.logger().info(f"should_open_stoch_mr_long() | current_stoch_d:{current_stoch_d}")
+        return self.is_stoch_long_over_sell_threshold()
 
-        return current_stoch_d < self.get_current_stoch("k")
+    def should_open_stoch_mr_buy(self) -> bool:
+        if not self.is_stoch_short_good_to_open_mr_buy():
+            return False
+
+        current_stoch_d = self.get_current_stoch("short", "d")
+
+        if current_stoch_d > self.get_current_stoch("short", "k"):
+            return False
+
+        self.logger().info(f"should_open_stoch_mr_buy() | current_stoch_d:{current_stoch_d}")
+
+        return self.is_stoch_long_under_buy_threshold()
+
+    def is_stoch_long_over_sell_threshold(self) -> bool:
+        stoch_series: pd.Series = self.processed_data["STOCH_long_k"]
+        recent_stochs = stoch_series.iloc[-5:]
+        peak_stoch: Decimal = Decimal(recent_stochs.max())
+
+        self.logger().info(f"is_stoch_long_over_sell_threshold() | peak_stoch:{peak_stoch}")
+
+        return peak_stoch > self.config.stoch_peak_threshold_to_open_mr
+
+    def is_stoch_long_under_buy_threshold(self) -> bool:
+        stoch_series: pd.Series = self.processed_data["STOCH_long_k"]
+        recent_stochs = stoch_series.iloc[-5:]
+        bottom_stoch: Decimal = Decimal(recent_stochs.min())
+
+        self.logger().info(f"is_stoch_long_under_buy_threshold() | bottom_stoch:{bottom_stoch}")
+
+        return bottom_stoch < self.config.stoch_bottom_threshold_to_open_mr
