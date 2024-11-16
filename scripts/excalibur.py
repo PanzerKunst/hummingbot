@@ -199,13 +199,25 @@ class ExcaliburStrategy(PkStrategy):
         if side == TradeType.SELL:
             if self.did_short_ma_cross_under_long():
                 self.logger().info("can_create_ma_cross_order() > Short MA crossed under long")
-                return self.is_price_close_enough_to_short_ma() and not self.is_rsi_too_low_to_open_sell() and not self.did_price_suddenly_rise_to_short_ma()
+
+                return (
+                    self.is_price_close_enough_to_short_ma() and
+                    not self.is_stoch_too_low_to_open_sell() and
+                    not self.is_rsi_too_low_to_open_sell() and
+                    not self.did_price_suddenly_rise_to_short_ma()
+                )
 
             return False
 
         if self.did_short_ma_cross_over_long():
             self.logger().info("can_create_ma_cross_order() > Short MA crossed over long")
-            return self.is_price_close_enough_to_short_ma() and not self.is_rsi_too_high_to_open_buy() and not self.did_price_suddenly_drop_to_short_ma()
+
+            return (
+                self.is_price_close_enough_to_short_ma() and
+                not self.is_stoch_too_high_to_open_buy() and
+                not self.is_rsi_too_high_to_open_buy() and
+                not self.did_price_suddenly_drop_to_short_ma()
+            )
 
         return False
 
@@ -375,6 +387,20 @@ class ExcaliburStrategy(PkStrategy):
         self.logger().info(f"is_price_close_enough_to_short_ma() | latest_close:{latest_close} | latest_short_ma:{self.get_latest_ma('short')} | delta_pct:{delta_pct}")
 
         return abs(delta_pct) < self.config.max_price_delta_pct_with_short_ma_to_open
+
+    def is_stoch_too_low_to_open_sell(self) -> bool:
+        current_stoch = self.get_current_stoch("short", "k")
+
+        self.logger().info(f"is_stoch_too_low_to_open_sell() | current_stoch:{current_stoch}")
+
+        return current_stoch < 20
+
+    def is_stoch_too_high_to_open_buy(self) -> bool:
+        current_stoch = self.get_current_stoch("short", "k")
+
+        self.logger().info(f"is_stoch_too_high_to_open_buy() | current_stoch:{current_stoch}")
+
+        return current_stoch > 80
 
     def is_rsi_too_low_to_open_sell(self) -> bool:
         current_rsi = self.get_current_rsi("short")
