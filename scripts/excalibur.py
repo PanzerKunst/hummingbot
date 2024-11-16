@@ -384,7 +384,7 @@ class ExcaliburStrategy(PkStrategy):
         if current_rsi < 37.5:
             return True
 
-        rsi_series: pd.Series = self.processed_data["RSI"]
+        rsi_series: pd.Series = self.processed_data["RSI_short"]
         recent_rsis = rsi_series.iloc[-10:]
 
         min_rsi = Decimal(recent_rsis.min())
@@ -401,7 +401,7 @@ class ExcaliburStrategy(PkStrategy):
         if current_rsi > 62.5:
             return True
 
-        rsi_series: pd.Series = self.processed_data["RSI"]
+        rsi_series: pd.Series = self.processed_data["RSI_short"]
         recent_rsis = rsi_series.iloc[-10:]
 
         max_rsi = Decimal(recent_rsis.max())
