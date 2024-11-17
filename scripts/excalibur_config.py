@@ -59,8 +59,8 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     entry_price_delta_bps: int = 0
     max_price_delta_pct_with_short_ma_to_open: Decimal = 2.5
     min_price_delta_pct_for_sudden_reversal_to_short_ma: Decimal = 2.0
-    rsi_peak_threshold_to_open_tr: int = 67
-    rsi_bottom_threshold_to_open_tr: int = 34
+    rsi_peak_threshold_to_open_tr: int = 66
+    rsi_bottom_threshold_to_open_tr: int = 36
     stoch_peak_threshold_to_open_tr: int = 82
     stoch_bottom_threshold_to_open_tr: int = 18
     stoch_peak_threshold_to_open_stoch_tr: int = 90
