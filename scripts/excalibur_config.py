@@ -18,7 +18,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
             connector="binance_perpetual",
             interval="1m",
             max_records=330,
-            trading_pair = "POPCAT-USDT"
+            trading_pair = "GOAT-USDT"
         )
     ]
 
@@ -29,8 +29,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     # Used by PkStrategy
     connector_name: str = "hyperliquid_perpetual"
-    trading_pair: str = "POPCAT-USD"
-    total_amount_quote: int = 30
+    trading_pair: str = "GOAT-USD"
     leverage: int = 5
     unfilled_order_expiration_min: int = 1
     limit_take_profit_price_delta_bps: int = 0
@@ -40,20 +39,29 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     position_mode: PositionMode = PositionMode.ONEWAY
 
     # Triple Barrier
-    sma_cross_stop_loss_pct: Decimal = 2.25
+    ma_cross_stop_loss_pct: Decimal = 3.0
 
     # Technical analysis
-    rsi_length: int = 20
-    rsi_mr_length: int = 40
+    rsi_short: int = 20
+    rsi_long: int = 40
     sma_short: int = 75
     sma_long: int = 300
-    stoch_k_length: int = 40
-    stoch_k_smoothing: int = 8
-    stoch_d_smoothing: int = 8
+    stoch_short_k_length: int = 40
+    stoch_short_k_smoothing: int = 8
+    stoch_short_d_smoothing: int = 6
+    stoch_long_k_length: int = 80
+    stoch_long_k_smoothing: int = 16
+    stoch_long_d_smoothing: int = 6
 
     # Order settings
+    amount_quote_ma_cross: int = 30
+    amount_quote_tr: int = 30
     entry_price_delta_bps: int = 0
-    max_price_delta_pct_with_short_sma_to_open: Decimal = 1.5
-    min_price_delta_pct_for_sudden_reversal_to_short_sma: Decimal = 1.0
-    rsi_spike_peak_threshold: Decimal = 64.0
-    rsi_crash_bottom_threshold: Decimal = 36.0
+    max_price_delta_pct_with_short_ma_to_open: Decimal = 2.5
+    min_price_delta_pct_for_sudden_reversal_to_short_ma: Decimal = 2.0
+    rsi_peak_threshold_to_open_tr: int = 66
+    rsi_bottom_threshold_to_open_tr: int = 36
+    stoch_peak_threshold_to_open_tr: int = 82
+    stoch_bottom_threshold_to_open_tr: int = 18
+    stoch_peak_threshold_to_open_stoch_tr: int = 90
+    stoch_bottom_threshold_to_open_stoch_tr: int = 10

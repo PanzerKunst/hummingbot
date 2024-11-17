@@ -3,12 +3,12 @@ candles_config:
 - connector: binance_perpetual
   interval: 1m
   max_records: 330
-  trading_pair: GOAT-USDT
+  trading_pair: PNUT-USDT
 controllers_config: []
 config_update_interval: 10
 script_file_name: excalibur_config.py
 connector_name: hyperliquid_perpetual
-trading_pair: GOAT-USD
+trading_pair: PNUT-USD
 leverage: 5
 unfilled_order_expiration_min: 1
 limit_take_profit_price_delta_bps: 0
@@ -31,7 +31,7 @@ amount_quote_tr: 30
 entry_price_delta_bps: 0
 max_price_delta_pct_with_short_ma_to_open: 2.5
 min_price_delta_pct_for_sudden_reversal_to_short_ma: 2.0
-rsi_peak_threshold_to_open_tr: 66
+rsi_peak_threshold_to_open_tr: 63
 rsi_bottom_threshold_to_open_tr: 36
 stoch_peak_threshold_to_open_tr: 82
 stoch_bottom_threshold_to_open_tr: 18

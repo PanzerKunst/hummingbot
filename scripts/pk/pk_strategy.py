@@ -9,7 +9,7 @@ from hummingbot.core.event.events import BuyOrderCreatedEvent, OrderFilledEvent,
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base
 from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig
 from hummingbot.strategy_v2.models.executors import CloseType
-from scripts.pk.excalibur_config import ExcaliburConfig
+from scripts.excalibur_config import ExcaliburConfig
 from scripts.pk.pk_triple_barrier import TripleBarrier
 from scripts.pk.pk_utils import (
     has_current_price_reached_stop_loss,
@@ -32,14 +32,11 @@ class PkStrategy(StrategyV2Base):
 
         self.tracked_orders: List[TrackedOrderDetails] = []
 
-    def get_position_quote_amount(self, side: TradeType) -> Decimal:
-        total_amount_quote = self.config.total_amount_quote
+    def get_position_quote_amount(self, side: TradeType, amount_quote: int) -> Decimal:
         leverage = self.config.leverage
 
-        amount_quote = Decimal(total_amount_quote)
-
         # If amount_quote = 100 USDT with leverage 20x, the quote position should be 500
-        position_quote_amount = amount_quote * leverage / 4
+        position_quote_amount: Decimal = amount_quote * leverage * Decimal(0.25)
 
         if side == TradeType.SELL:
             position_quote_amount = position_quote_amount * Decimal(0.67)  # Less, because closing a Short position on SL costs significantly more
@@ -64,13 +61,13 @@ class PkStrategy(StrategyV2Base):
 
         return self.market_data_provider.get_price_by_type(connector_name, trading_pair, price_type)
 
-    def get_executor_config(self, side: TradeType, entry_price: Decimal, amount_multiplier: Decimal, is_twap: bool = False) -> PositionExecutorConfig:
+    def get_executor_config(self, side: TradeType, entry_price: Decimal, amount_quote: int, is_twap: bool = False) -> PositionExecutorConfig:
         connector_name = self.config.connector_name
         trading_pair = self.config.trading_pair
         leverage = self.config.leverage
 
         amount_divider = self.config.market_order_twap_count if is_twap else 1
-        amount: Decimal = self.get_position_quote_amount(side) / entry_price * amount_multiplier / amount_divider
+        amount: Decimal = self.get_position_quote_amount(side, amount_quote) / entry_price / amount_divider
 
         return PositionExecutorConfig(
             timestamp=self.get_market_data_provider_time(),
@@ -127,12 +124,12 @@ class PkStrategy(StrategyV2Base):
         filled_buy_orders = [order for order in active_buy_orders if order.last_filled_at]
         return filled_sell_orders, filled_buy_orders
 
-    def create_order(self, side: TradeType, entry_price: Decimal, triple_barrier: TripleBarrier, ref: Optional[str] = None, amount_multiplier: Decimal = 1):
-        executor_config = self.get_executor_config(side, entry_price, amount_multiplier)
+    def create_order(self, side: TradeType, entry_price: Decimal, triple_barrier: TripleBarrier, amount_quote: int, ref: Optional[str] = None):
+        executor_config = self.get_executor_config(side, entry_price, amount_quote)
         self.create_individual_order(executor_config, triple_barrier, ref)
 
-    async def create_twap_market_orders(self, side: TradeType, entry_price: Decimal, triple_barrier: TripleBarrier, ref: Optional[str] = None, amount_multiplier: Decimal = 1):
-        executor_config = self.get_executor_config(side, entry_price, amount_multiplier, True)
+    async def create_twap_market_orders(self, side: TradeType, entry_price: Decimal, triple_barrier: TripleBarrier, amount_quote: int, ref: Optional[str] = None):
+        executor_config = self.get_executor_config(side, entry_price, amount_quote, True)
 
         for _ in range(self.config.market_order_twap_count):
             is_an_order_being_created: bool = self.is_a_sell_order_being_created if executor_config.side == TradeType.SELL else self.is_a_buy_order_being_created
@@ -290,8 +287,8 @@ class PkStrategy(StrategyV2Base):
                 self.logger().info(f"did_fill_order: {tracked_order}")
                 break
 
-    def can_create_order(self, side: TradeType, ref: Optional[str] = None, cooldown_time_min: int = 0) -> bool:
-        if self.get_position_quote_amount(side) == 0:
+    def can_create_order(self, side: TradeType, amount_quote: int, cooldown_time_min: int = 0, ref: Optional[str] = None) -> bool:
+        if self.get_position_quote_amount(side, amount_quote) == 0:
             return False
 
         if side == TradeType.SELL and self.is_a_sell_order_being_created:
