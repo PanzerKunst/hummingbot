@@ -276,12 +276,12 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_TR)
 
         if len(filled_sell_orders) > 0:
-            if self.should_close_tr_sell():
+            if self.did_short_rsi_crash_happen() or self.has_stoch_started_rising():
                 self.logger().info("stop_actions_proposal_tr() > should_close_tr_sell")
                 self.market_close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
 
         if len(filled_buy_orders) > 0:
-            if self.should_close_tr_buy():
+            if self.did_short_rsi_spike_happen() or self.has_stoch_started_dropping():
                 self.logger().info("stop_actions_proposal_tr() > should_close_tr_buy")
                 self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
 
@@ -327,12 +327,12 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_STOCH_TR)
 
         if len(filled_sell_orders) > 0:
-            if self.should_close_tr_sell():
+            if self.did_short_rsi_crash_happen() or self.has_stoch_started_rising():
                 self.logger().info("stop_actions_proposal_stoch_tr() > should_close_tr_sell")
                 self.market_close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
 
         if len(filled_buy_orders) > 0:
-            if self.should_close_tr_buy():
+            if self.did_short_rsi_spike_happen() or self.has_stoch_started_dropping():
                 self.logger().info("stop_actions_proposal_stoch_tr() > should_close_tr_buy")
                 self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
 
@@ -549,7 +549,59 @@ class ExcaliburStrategy(PkStrategy):
 
         return current_stoch > min_acceptable_stoch
 
-    def should_close_tr_sell(self) -> bool:
+    def did_short_rsi_spike_happen(self) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI_short"].reset_index(drop=True)
+        recent_rsis = rsi_series.iloc[-15:]
+
+        peak_rsi = Decimal(recent_rsis.max())
+
+        if peak_rsi < 70:
+            return False
+
+        current_rsi = self.get_current_rsi("short")
+        min_acceptable_rsi: Decimal = peak_rsi - 2
+
+        if current_rsi < min_acceptable_rsi:
+            return False
+
+        peak_rsi_index = recent_rsis.idxmax()
+        bottom_rsi = Decimal(recent_rsis.iloc[0:peak_rsi_index].min())
+        start_delta: Decimal = peak_rsi - bottom_rsi
+
+        if start_delta < 10:
+            return False
+
+        self.logger().info(f"did_short_rsi_spike_happen() | bottom_rsi:{bottom_rsi} | peak_rsi:{peak_rsi} | current_rsi:{current_rsi} | start_delta:{start_delta}")
+
+        return current_rsi < min_acceptable_rsi + Decimal(0.5)
+
+    def did_short_rsi_crash_happen(self) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI_short"].reset_index(drop=True)
+        recent_rsis = rsi_series.iloc[-15:]
+
+        bottom_rsi = Decimal(recent_rsis.min())
+
+        if bottom_rsi > 30:
+            return False
+
+        current_rsi = self.get_current_rsi("short")
+        max_acceptable_rsi: Decimal = bottom_rsi + 2
+
+        if current_rsi > max_acceptable_rsi:
+            return False
+
+        bottom_rsi_index = recent_rsis.idxmin()
+        peak_rsi = Decimal(recent_rsis.iloc[0:bottom_rsi_index].max())
+        start_delta: Decimal = peak_rsi - bottom_rsi
+
+        if start_delta < 10:
+            return False
+
+        self.logger().info(f"did_short_rsi_crash_happen() | peak_rsi:{peak_rsi} | bottom_rsi:{bottom_rsi} | current_rsi:{current_rsi} | start_delta:{start_delta}")
+
+        return current_rsi > max_acceptable_rsi - Decimal(0.5)
+
+    def has_stoch_started_rising(self) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_short_k"]
         recent_stochs = stoch_series.iloc[-5:]
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
@@ -560,11 +612,11 @@ class ExcaliburStrategy(PkStrategy):
         current_stoch = self.get_current_stoch("short", "k")
         min_acceptable_stoch: Decimal = bottom_stoch + 1
 
-        self.logger().info(f"should_close_tr_sell() | bottom_stoch:{bottom_stoch} | current_stoch:{current_stoch}")
+        self.logger().info(f"has_stoch_started_rising() | bottom_stoch:{bottom_stoch} | current_stoch:{current_stoch}")
 
         return current_stoch > min_acceptable_stoch
 
-    def should_close_tr_buy(self) -> bool:
+    def has_stoch_started_dropping(self) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_short_k"]
         recent_stochs = stoch_series.iloc[-5:]
         peak_stoch: Decimal = Decimal(recent_stochs.max())
@@ -575,7 +627,7 @@ class ExcaliburStrategy(PkStrategy):
         current_stoch = self.get_current_stoch("short", "k")
         max_acceptable_stoch: Decimal = peak_stoch - 1
 
-        self.logger().info(f"should_close_tr_buy() | peak_stoch:{peak_stoch} | current_stoch:{current_stoch}")
+        self.logger().info(f"has_stoch_started_dropping() | peak_stoch:{peak_stoch} | current_stoch:{current_stoch}")
 
         return current_stoch < max_acceptable_stoch
 
