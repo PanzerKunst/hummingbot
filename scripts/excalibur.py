@@ -555,7 +555,7 @@ class ExcaliburStrategy(PkStrategy):
 
         peak_rsi = Decimal(recent_rsis.max())
 
-        if peak_rsi < 70:
+        if peak_rsi < 65:
             return False
 
         current_rsi = self.get_current_rsi("short")
@@ -581,7 +581,7 @@ class ExcaliburStrategy(PkStrategy):
 
         bottom_rsi = Decimal(recent_rsis.min())
 
-        if bottom_rsi > 30:
+        if bottom_rsi > 35:
             return False
 
         current_rsi = self.get_current_rsi("short")
