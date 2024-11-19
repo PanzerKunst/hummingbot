@@ -450,6 +450,8 @@ class ExcaliburStrategy(PkStrategy):
         current_rsi = self.get_current_rsi("long")
         min_acceptable_rsi: Decimal = peak_rsi - 2
 
+        self.logger().info(f"is_rsi_spike_good_to_open_rev() | peak_rsi:{peak_rsi} | current_rsi:{current_rsi} | min_acceptable_rsi:{min_acceptable_rsi}")
+
         if current_rsi < min_acceptable_rsi:
             return False
 
@@ -457,7 +459,7 @@ class ExcaliburStrategy(PkStrategy):
         bottom_rsi = Decimal(recent_rsis.iloc[0:peak_rsi_index].min())
         start_delta: Decimal = peak_rsi - bottom_rsi
 
-        self.logger().info(f"is_rsi_spike_good_to_open_rev() | bottom_rsi:{bottom_rsi} | peak_rsi:{peak_rsi} | current_rsi:{current_rsi} | start_delta:{start_delta}")
+        self.logger().info(f"is_rsi_spike_good_to_open_rev() | bottom_rsi:{bottom_rsi} | start_delta:{start_delta}")
 
         if start_delta < 12:
             return False
@@ -476,6 +478,8 @@ class ExcaliburStrategy(PkStrategy):
         current_rsi = self.get_current_rsi("long")
         max_acceptable_rsi: Decimal = bottom_rsi + 2
 
+        self.logger().info(f"is_rsi_crash_good_to_open_rev() | bottom_rsi:{bottom_rsi} | current_rsi:{current_rsi} | max_acceptable_rsi:{max_acceptable_rsi}")
+
         if current_rsi > max_acceptable_rsi:
             return False
 
@@ -483,7 +487,7 @@ class ExcaliburStrategy(PkStrategy):
         peak_rsi = Decimal(recent_rsis.iloc[0:bottom_rsi_index].max())
         start_delta: Decimal = peak_rsi - bottom_rsi
 
-        self.logger().info(f"is_rsi_crash_good_to_open_rev() | peak_rsi:{peak_rsi} | bottom_rsi:{bottom_rsi} | current_rsi:{current_rsi} | start_delta:{start_delta}")
+        self.logger().info(f"is_rsi_crash_good_to_open_rev() | peak_rsi:{peak_rsi} | start_delta:{start_delta}")
 
         if start_delta < 12:
             return False
