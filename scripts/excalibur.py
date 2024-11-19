@@ -487,12 +487,10 @@ class ExcaliburStrategy(PkStrategy):
         return current_rsi > max_acceptable_rsi - Decimal(0.5)
 
     def is_stoch_good_to_close_sell(self) -> bool:
-        latest_stoch = self.get_latest_stoch()
-        return latest_stoch < 43
+        return self.get_latest_stoch() < 43
 
     def is_stoch_good_to_close_buy(self) -> bool:
-        latest_stoch = self.get_latest_stoch()
-        return latest_stoch > 57
+        return self.get_latest_stoch() > 57
 
     def is_rsi_crash_good_to_close_rev(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI_long"].reset_index(drop=True)
@@ -500,7 +498,7 @@ class ExcaliburStrategy(PkStrategy):
 
         bottom_rsi = Decimal(recent_rsis.min())
 
-        if bottom_rsi > 43:
+        if bottom_rsi > 50:
             return False
 
         current_rsi = self.get_current_rsi("long")
@@ -513,7 +511,7 @@ class ExcaliburStrategy(PkStrategy):
         peak_rsi = Decimal(recent_rsis.iloc[0:bottom_rsi_index].max())
         start_delta: Decimal = peak_rsi - bottom_rsi
 
-        if start_delta < 8:
+        if start_delta < 12:
             return False
 
         self.logger().info(f"is_rsi_crash_good_to_close_rev() | peak_rsi:{peak_rsi} | bottom_rsi:{bottom_rsi} | current_rsi:{current_rsi} | start_delta:{start_delta}")
@@ -526,7 +524,7 @@ class ExcaliburStrategy(PkStrategy):
 
         peak_rsi = Decimal(recent_rsis.max())
 
-        if peak_rsi < 57:
+        if peak_rsi < 50:
             return False
 
         current_rsi = self.get_current_rsi("long")
@@ -539,7 +537,7 @@ class ExcaliburStrategy(PkStrategy):
         bottom_rsi = Decimal(recent_rsis.iloc[0:peak_rsi_index].min())
         start_delta: Decimal = peak_rsi - bottom_rsi
 
-        if start_delta < 8:
+        if start_delta < 12:
             return False
 
         self.logger().info(f"is_rsi_spike_good_to_close_rev() | bottom_rsi:{bottom_rsi} | peak_rsi:{peak_rsi} | current_rsi:{current_rsi} | start_delta:{start_delta}")
