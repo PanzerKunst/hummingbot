@@ -76,7 +76,8 @@ class PkStrategy(StrategyV2Base):
             side=side,
             entry_price=entry_price,
             amount=amount,
-            leverage=leverage
+            leverage=leverage,
+            type = "position_executor"
         )
 
     def find_tracked_order_of_id(self, order_id: str) -> Optional[TrackedOrderDetails]:
