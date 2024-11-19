@@ -258,12 +258,12 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_REVERSAL)
 
         if len(filled_sell_orders) > 0:
-            if self.is_stoch_good_to_close_sell() and self.is_rsi_crash_good_to_close_rev():
+            if (self.is_stoch_good_to_close_sell() and self.is_rsi_crash_good_to_close_rev()) or self.should_close_rev_sell_due_to_stoch_reversal():
                 self.logger().info("stop_actions_proposal_reversal() > Closing Sell reversal")
                 self.market_close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
 
         if len(filled_buy_orders) > 0:
-            if self.is_stoch_good_to_close_buy() and self.is_rsi_spike_good_to_close_rev():
+            if (self.is_stoch_good_to_close_buy() and self.is_rsi_spike_good_to_close_rev()) or self.should_close_rev_buy_due_to_stoch_reversal():
                 self.logger().info("stop_actions_proposal_reversal() > Closing Buy reversal")
                 self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
 
@@ -406,7 +406,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def is_stoch_spike_good_to_open_rev_sell(self) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_k"]
-        recent_stochs = stoch_series.iloc[-5:]
+        recent_stochs = stoch_series.iloc[-8:]
         peak_stoch: Decimal = Decimal(recent_stochs.max())
 
         if peak_stoch < self.config.stoch_peak_to_open_rev:
@@ -423,7 +423,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def is_stoch_crash_good_to_open_rev_buy(self) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_k"]
-        recent_stochs = stoch_series.iloc[-5:]
+        recent_stochs = stoch_series.iloc[-8:]
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
 
         if bottom_stoch > self.config.stoch_bottom_to_open_rev:
@@ -547,3 +547,33 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         return current_rsi < min_acceptable_rsi + Decimal(0.5)
+
+    def should_close_rev_sell_due_to_stoch_reversal(self) -> bool:
+        stoch_series: pd.Series = self.processed_data["STOCH_k"]
+        recent_stochs = stoch_series.iloc[-8:]
+        bottom_stoch: Decimal = Decimal(recent_stochs.min())
+
+        if bottom_stoch > 19:
+            return False
+
+        current_stoch = self.get_current_stoch()
+        min_acceptable_stoch: Decimal = bottom_stoch + 1
+
+        self.logger().info(f"should_close_rev_sell_due_to_stoch_reversal() | bottom_stoch:{bottom_stoch} | current_stoch:{current_stoch}")
+
+        return current_stoch > min_acceptable_stoch
+
+    def should_close_rev_buy_due_to_stoch_reversal(self) -> bool:
+        stoch_series: pd.Series = self.processed_data["STOCH_k"]
+        recent_stochs = stoch_series.iloc[-8:]
+        peak_stoch: Decimal = Decimal(recent_stochs.max())
+
+        if peak_stoch < 81:
+            return False
+
+        current_stoch = self.get_current_stoch()
+        max_acceptable_stoch: Decimal = peak_stoch - 1
+
+        self.logger().info(f"should_close_rev_buy_due_to_stoch_reversal() | peak_stoch:{peak_stoch} | current_stoch:{current_stoch}")
+
+        return current_stoch < max_acceptable_stoch
