@@ -600,6 +600,12 @@ class ExcaliburStrategy(PkStrategy):
     # Slow reversal functions
     #
 
+    def is_rsi_high_enough_to_open_slow_rev_sell(self) -> bool:
+        return self.get_current_rsi(40) > 64
+
+    def is_rsi_low_enough_to_open_slow_rev_buy(self) -> bool:
+        return self.get_current_rsi(40) < 36
+
     def is_stoch_spike_good_to_open_slow_rev_sell(self, stoch_length: int) -> bool:
         stoch_series: pd.Series = self.processed_data[f"STOCH_{stoch_length}_k"]
         recent_stochs = stoch_series.iloc[-5:]
@@ -633,9 +639,3 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().info(f"is_stoch_crash_good_to_open_slow_rev_buy({stoch_length}) | bottom_stoch:{bottom_stoch} | current_stoch:{current_stoch}")
 
         return current_stoch > min_acceptable_stoch
-
-    def is_rsi_high_enough_to_open_slow_rev_sell(self) -> bool:
-        return self.get_current_rsi(40) > 64
-
-    def is_rsi_low_enough_to_open_slow_rev_buy(self) -> bool:
-        return self.get_current_rsi(40) < 36
