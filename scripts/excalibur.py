@@ -474,40 +474,6 @@ class ExcaliburStrategy(PkStrategy):
     # Fast reversal functions
     #
 
-    def is_stoch_spike_good_to_open_fast_rev_sell(self) -> bool:
-        stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
-        recent_stochs = stoch_series.iloc[-10:]
-        peak_stoch: Decimal = Decimal(recent_stochs.max())
-
-        if peak_stoch < 90:
-            return False
-
-        current_stoch = self.get_current_stoch(40)
-        max_acceptable_stoch: Decimal = peak_stoch - 2
-
-        # TODO: remove
-        if current_stoch < max_acceptable_stoch:
-            self.logger().info(f"is_stoch_spike_good_to_open_fast_rev_sell() | peak_stoch:{peak_stoch} | current_stoch:{current_stoch}")
-
-        return current_stoch < max_acceptable_stoch
-
-    def is_stoch_crash_good_to_open_fast_rev_buy(self) -> bool:
-        stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
-        recent_stochs = stoch_series.iloc[-10:]
-        bottom_stoch: Decimal = Decimal(recent_stochs.min())
-
-        if bottom_stoch > 10:
-            return False
-
-        current_stoch = self.get_current_stoch(40)
-        min_acceptable_stoch: Decimal = bottom_stoch + 2
-
-        # TODO: remove
-        if current_stoch > min_acceptable_stoch:
-            self.logger().info(f"is_stoch_crash_good_to_open_fast_rev_buy() | bottom_stoch:{bottom_stoch} | current_stoch:{current_stoch}")
-
-        return current_stoch > min_acceptable_stoch
-
     def is_rsi_spike_good_to_open_fast_rev(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI_40"].reset_index(drop=True)
         recent_rsis = rsi_series.iloc[-12:]
@@ -558,6 +524,40 @@ class ExcaliburStrategy(PkStrategy):
 
         return start_delta > 12
 
+    def is_stoch_spike_good_to_open_fast_rev_sell(self) -> bool:
+        stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
+        recent_stochs = stoch_series.iloc[-10:]
+        peak_stoch: Decimal = Decimal(recent_stochs.max())
+
+        if peak_stoch < 90:
+            return False
+
+        current_stoch = self.get_current_stoch(40)
+        max_acceptable_stoch: Decimal = peak_stoch - 2
+
+        # TODO: remove
+        if current_stoch < max_acceptable_stoch:
+            self.logger().info(f"is_stoch_spike_good_to_open_fast_rev_sell() | peak_stoch:{peak_stoch} | current_stoch:{current_stoch}")
+
+        return current_stoch < max_acceptable_stoch
+
+    def is_stoch_crash_good_to_open_fast_rev_buy(self) -> bool:
+        stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
+        recent_stochs = stoch_series.iloc[-10:]
+        bottom_stoch: Decimal = Decimal(recent_stochs.min())
+
+        if bottom_stoch > 10:
+            return False
+
+        current_stoch = self.get_current_stoch(40)
+        min_acceptable_stoch: Decimal = bottom_stoch + 2
+
+        # TODO: remove
+        if current_stoch > min_acceptable_stoch:
+            self.logger().info(f"is_stoch_crash_good_to_open_fast_rev_buy() | bottom_stoch:{bottom_stoch} | current_stoch:{current_stoch}")
+
+        return current_stoch > min_acceptable_stoch
+
     def should_close_rev_sell_due_to_stoch_reversal(self) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
         recent_stochs = stoch_series.iloc[-8:]
@@ -594,14 +594,14 @@ class ExcaliburStrategy(PkStrategy):
 
     def is_stoch_spike_good_to_open_slow_rev_sell(self, stoch_length: int) -> bool:
         stoch_series: pd.Series = self.processed_data[f"STOCH_{stoch_length}_k"]
-        recent_stochs = stoch_series.iloc[-8:]
+        recent_stochs = stoch_series.iloc[-5:]
         peak_stoch: Decimal = Decimal(recent_stochs.max())
 
-        if peak_stoch < 88:
+        if peak_stoch < 89:
             return False
 
         current_stoch = self.get_current_stoch(stoch_length)
-        max_acceptable_stoch: Decimal = peak_stoch - 2
+        max_acceptable_stoch: Decimal = peak_stoch - 1
 
         # TODO: remove
         if current_stoch < max_acceptable_stoch:
@@ -611,14 +611,14 @@ class ExcaliburStrategy(PkStrategy):
 
     def is_stoch_crash_good_to_open_slow_rev_buy(self, stoch_length: int) -> bool:
         stoch_series: pd.Series = self.processed_data[f"STOCH_{stoch_length}_k"]
-        recent_stochs = stoch_series.iloc[-8:]
+        recent_stochs = stoch_series.iloc[-5:]
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
 
-        if bottom_stoch > 12:
+        if bottom_stoch > 11:
             return False
 
         current_stoch = self.get_current_stoch(stoch_length)
-        min_acceptable_stoch: Decimal = bottom_stoch + 2
+        min_acceptable_stoch: Decimal = bottom_stoch + 1
 
         # TODO: remove
         if current_stoch > min_acceptable_stoch:
