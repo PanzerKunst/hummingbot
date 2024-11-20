@@ -41,22 +41,11 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     # Triple Barrier
     ma_cross_stop_loss_pct: Decimal = 3.0
 
-    # Technical analysis
-    rsi_short: int = 20
-    rsi_long: int = 40
-    sma_short: int = 75
-    sma_long: int = 300
-    stoch_k_length: int = 40
-    stoch_k_smoothing: int = 8
-    stoch_d_smoothing: int = 6
-
     # Order settings
     amount_quote_ma_cross: int = 30
     amount_quote_tr: int = 30
     entry_price_delta_bps: int = 0
     max_price_delta_pct_with_short_ma_to_open: Decimal = 2.5
     min_price_delta_pct_for_sudden_reversal_to_short_ma: Decimal = 2.0
-    rsi_peak_to_open_rev: int = 60
-    rsi_bottom_to_open_rev: int = 39
-    stoch_peak_to_open_rev: int = 90
-    stoch_bottom_to_open_rev: int = 10
+    rsi_peak_to_open_fast_rev: int = 67
+    rsi_bottom_to_open_fast_rev: int = 32
