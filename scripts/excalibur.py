@@ -635,7 +635,7 @@ class ExcaliburStrategy(PkStrategy):
         return current_stoch > min_acceptable_stoch
 
     def is_rsi_high_enough_to_open_slow_rev_sell(self) -> bool:
-        return self.get_current_rsi(40) > 62
+        return self.get_current_rsi(40) > 64
 
     def is_rsi_low_enough_to_open_slow_rev_buy(self) -> bool:
-        return self.get_current_rsi(40) < 38
+        return self.get_current_rsi(40) < 36
