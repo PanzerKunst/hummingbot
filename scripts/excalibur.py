@@ -312,13 +312,21 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         if side == TradeType.SELL:
-            if self.is_stoch_spike_good_to_open_slow_rev_sell(40) and self.is_stoch_spike_good_to_open_slow_rev_sell(80):
+            if (
+                self.is_rsi_high_enough_to_open_slow_rev_sell() and
+                self.is_stoch_spike_good_to_open_slow_rev_sell(40) and
+                self.is_stoch_spike_good_to_open_slow_rev_sell(80)
+            ):
                 self.logger().info("can_create_slow_rev_order() > Opening Sell reversal")
                 return True
 
             return False
 
-        if self.is_stoch_crash_good_to_open_slow_rev_buy(40) and self.is_stoch_crash_good_to_open_slow_rev_buy(80):
+        if (
+            self.is_rsi_low_enough_to_open_slow_rev_buy() and
+            self.is_stoch_crash_good_to_open_slow_rev_buy(40) and
+            self.is_stoch_crash_good_to_open_slow_rev_buy(80)
+        ):
             self.logger().info("can_create_slow_rev_order() > Opening Buy reversal")
             return True
 
@@ -625,3 +633,9 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().info(f"is_stoch_crash_good_to_open_slow_rev_buy({stoch_length}) | bottom_stoch:{bottom_stoch} | current_stoch:{current_stoch}")
 
         return current_stoch > min_acceptable_stoch
+
+    def is_rsi_high_enough_to_open_slow_rev_sell(self) -> bool:
+        return self.get_current_rsi(40) > 62
+
+    def is_rsi_low_enough_to_open_slow_rev_buy(self) -> bool:
+        return self.get_current_rsi(40) < 38
