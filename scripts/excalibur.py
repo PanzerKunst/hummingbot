@@ -492,11 +492,11 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         current_rsi = self.get_current_rsi(40)
-        max_acceptable_rsi: Decimal = peak_rsi - 2
+        rsi_threshold: Decimal = peak_rsi - 2
 
-        self.logger().info(f"is_rsi_spike_good_to_open_fast_rev() | peak_rsi:{peak_rsi} | current_rsi:{current_rsi} | max_acceptable_rsi:{max_acceptable_rsi}")
+        self.logger().info(f"is_rsi_spike_good_to_open_fast_rev() | peak_rsi:{peak_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
 
-        if current_rsi > max_acceptable_rsi:
+        if current_rsi > rsi_threshold:
             return False
 
         peak_rsi_index = recent_rsis.idxmax()
@@ -506,7 +506,10 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_rsi_spike_good_to_open_fast_rev() | bottom_rsi:{bottom_rsi} | start_delta:{start_delta} | threshold:{start_delta_threshold}")
 
-        return start_delta > start_delta_threshold
+        if start_delta < start_delta_threshold:
+            return False
+
+        return current_rsi > rsi_threshold - Decimal(0.5)
 
     def is_rsi_crash_good_to_open_fast_rev(self, active_order_count: int) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI_40"]
@@ -518,11 +521,11 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         current_rsi = self.get_current_rsi(40)
-        min_acceptable_rsi: Decimal = bottom_rsi + 2
+        rsi_threshold: Decimal = bottom_rsi + 2
 
-        self.logger().info(f"is_rsi_crash_good_to_open_fast_rev() | bottom_rsi:{bottom_rsi} | current_rsi:{current_rsi} | min_acceptable_rsi:{min_acceptable_rsi}")
+        self.logger().info(f"is_rsi_crash_good_to_open_fast_rev() | bottom_rsi:{bottom_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
 
-        if current_rsi < min_acceptable_rsi:
+        if current_rsi < rsi_threshold:
             return False
 
         bottom_rsi_index = recent_rsis.idxmin()
@@ -532,7 +535,10 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_rsi_crash_good_to_open_fast_rev() | peak_rsi:{peak_rsi} | start_delta:{start_delta} | threshold:{start_delta_threshold}")
 
-        return start_delta > start_delta_threshold
+        if start_delta < start_delta_threshold:
+            return False
+
+        return current_rsi < rsi_threshold + Decimal(0.5)
 
     def is_stoch_high_enough_to_open_fast_rev_sell(self) -> bool:
         return self.get_current_stoch(40) > 90
