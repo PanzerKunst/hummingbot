@@ -258,14 +258,16 @@ class ExcaliburStrategy(PkStrategy):
         if was_an_order_recently_opened(active_tracked_orders, 8 * 60, self.get_market_data_provider_time()):
             return False
 
+        active_order_count = len(active_tracked_orders)
+
         if side == TradeType.SELL:
-            if self.is_stoch_high_enough_to_open_fast_rev_sell() and self.is_rsi_spike_good_to_open_fast_rev():
+            if self.is_stoch_high_enough_to_open_fast_rev_sell() and self.is_rsi_spike_good_to_open_fast_rev(active_order_count):
                 self.logger().info("can_create_fast_rev_order() > Opening Sell reversal")
                 return True
 
             return False
 
-        if self.is_stoch_low_enough_to_open_fast_rev_buy() and self.is_rsi_crash_good_to_open_fast_rev():
+        if self.is_stoch_low_enough_to_open_fast_rev_buy() and self.is_rsi_crash_good_to_open_fast_rev(active_order_count):
             self.logger().info("can_create_fast_rev_order() > Opening Buy reversal")
             return True
 
@@ -480,7 +482,7 @@ class ExcaliburStrategy(PkStrategy):
     # Fast reversal functions
     #
 
-    def is_rsi_spike_good_to_open_fast_rev(self) -> bool:
+    def is_rsi_spike_good_to_open_fast_rev(self, active_order_count: int) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI_40"]
         recent_rsis = rsi_series.iloc[-12:].reset_index(drop=True)
 
@@ -500,12 +502,13 @@ class ExcaliburStrategy(PkStrategy):
         peak_rsi_index = recent_rsis.idxmax()
         bottom_rsi = Decimal(recent_rsis.iloc[0:peak_rsi_index].min())
         start_delta: Decimal = peak_rsi - bottom_rsi
+        start_delta_threshold = 12 - active_order_count * 2
 
-        self.logger().info(f"is_rsi_spike_good_to_open_fast_rev() | bottom_rsi:{bottom_rsi} | start_delta:{start_delta}")
+        self.logger().info(f"is_rsi_spike_good_to_open_fast_rev() | bottom_rsi:{bottom_rsi} | start_delta:{start_delta} | threshold:{start_delta_threshold}")
 
-        return start_delta > 12
+        return start_delta > start_delta_threshold
 
-    def is_rsi_crash_good_to_open_fast_rev(self) -> bool:
+    def is_rsi_crash_good_to_open_fast_rev(self, active_order_count: int) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI_40"]
         recent_rsis = rsi_series.iloc[-12:].reset_index(drop=True)
 
@@ -525,10 +528,11 @@ class ExcaliburStrategy(PkStrategy):
         bottom_rsi_index = recent_rsis.idxmin()
         peak_rsi = Decimal(recent_rsis.iloc[0:bottom_rsi_index].max())
         start_delta: Decimal = peak_rsi - bottom_rsi
+        start_delta_threshold = 12 - active_order_count * 2
 
-        self.logger().info(f"is_rsi_crash_good_to_open_fast_rev() | peak_rsi:{peak_rsi} | start_delta:{start_delta}")
+        self.logger().info(f"is_rsi_crash_good_to_open_fast_rev() | peak_rsi:{peak_rsi} | start_delta:{start_delta} | threshold:{start_delta_threshold}")
 
-        return start_delta > 12
+        return start_delta > start_delta_threshold
 
     def is_stoch_high_enough_to_open_fast_rev_sell(self) -> bool:
         return self.get_current_stoch(40) > 90
