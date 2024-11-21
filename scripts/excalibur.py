@@ -254,20 +254,17 @@ class ExcaliburStrategy(PkStrategy):
         if not self.can_create_order(side, self.config.amount_quote_tr, 0, ORDER_REF_FAST_REVERSAL):
             return False
 
-        if len(active_tracked_orders) > 1:
-            return False
-
         if was_an_order_recently_opened(active_tracked_orders, 8 * 60, self.get_market_data_provider_time()):
             return False
 
         if side == TradeType.SELL:
-            if self.is_stoch_spike_good_to_open_fast_rev_sell() and self.is_rsi_spike_good_to_open_fast_rev():
+            if self.is_stoch_high_enough_to_open_fast_rev_sell() and self.is_rsi_spike_good_to_open_fast_rev():
                 self.logger().info("can_create_fast_rev_order() > Opening Sell reversal")
                 return True
 
             return False
 
-        if self.is_stoch_crash_good_to_open_fast_rev_buy() and self.is_rsi_crash_good_to_open_fast_rev():
+        if self.is_stoch_low_enough_to_open_fast_rev_buy() and self.is_rsi_crash_good_to_open_fast_rev():
             self.logger().info("can_create_fast_rev_order() > Opening Buy reversal")
             return True
 
@@ -408,14 +405,14 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_stoch_too_low_to_open_ma_x_sell() | current_stoch:{current_stoch}")
 
-        return current_stoch < 20
+        return current_stoch < 10
 
     def is_stoch_too_high_to_open_ma_x_buy(self) -> bool:
         current_stoch = self.get_current_stoch(40)
 
         self.logger().info(f"is_stoch_too_high_to_open_ma_x_buy() | current_stoch:{current_stoch}")
 
-        return current_stoch > 80
+        return current_stoch > 90
 
     def is_rsi_too_low_to_open_ma_x_sell(self) -> bool:
         current_rsi = self.get_current_rsi(20)
@@ -483,8 +480,8 @@ class ExcaliburStrategy(PkStrategy):
     #
 
     def is_rsi_spike_good_to_open_fast_rev(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI_40"].reset_index(drop=True)
-        recent_rsis = rsi_series.iloc[-12:]
+        rsi_series: pd.Series = self.processed_data["RSI_40"]
+        recent_rsis = rsi_series.iloc[-12:].reset_index(drop=True)
 
         peak_rsi = Decimal(recent_rsis.max())
 
@@ -508,8 +505,8 @@ class ExcaliburStrategy(PkStrategy):
         return start_delta > 12
 
     def is_rsi_crash_good_to_open_fast_rev(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI_40"].reset_index(drop=True)
-        recent_rsis = rsi_series.iloc[-12:]
+        rsi_series: pd.Series = self.processed_data["RSI_40"]
+        recent_rsis = rsi_series.iloc[-12:].reset_index(drop=True)
 
         bottom_rsi = Decimal(recent_rsis.min())
 
@@ -532,39 +529,11 @@ class ExcaliburStrategy(PkStrategy):
 
         return start_delta > 12
 
-    def is_stoch_spike_good_to_open_fast_rev_sell(self) -> bool:
-        stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
-        recent_stochs = stoch_series.iloc[-10:]
-        peak_stoch: Decimal = Decimal(recent_stochs.max())
+    def is_stoch_high_enough_to_open_fast_rev_sell(self) -> bool:
+        return self.get_current_stoch(40) > 90
 
-        if peak_stoch < 90:
-            return False
-
-        current_stoch = self.get_current_stoch(40)
-        max_acceptable_stoch: Decimal = peak_stoch - 2
-
-        # TODO: remove
-        if current_stoch < max_acceptable_stoch:
-            self.logger().info(f"is_stoch_spike_good_to_open_fast_rev_sell() | peak_stoch:{peak_stoch} | current_stoch:{current_stoch}")
-
-        return current_stoch < max_acceptable_stoch
-
-    def is_stoch_crash_good_to_open_fast_rev_buy(self) -> bool:
-        stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
-        recent_stochs = stoch_series.iloc[-10:]
-        bottom_stoch: Decimal = Decimal(recent_stochs.min())
-
-        if bottom_stoch > 10:
-            return False
-
-        current_stoch = self.get_current_stoch(40)
-        min_acceptable_stoch: Decimal = bottom_stoch + 2
-
-        # TODO: remove
-        if current_stoch > min_acceptable_stoch:
-            self.logger().info(f"is_stoch_crash_good_to_open_fast_rev_buy() | bottom_stoch:{bottom_stoch} | current_stoch:{current_stoch}")
-
-        return current_stoch > min_acceptable_stoch
+    def is_stoch_low_enough_to_open_fast_rev_buy(self) -> bool:
+        return self.get_current_stoch(40) < 10
 
     def should_close_rev_sell_due_to_stoch_reversal(self) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
@@ -601,10 +570,10 @@ class ExcaliburStrategy(PkStrategy):
     #
 
     def is_rsi_high_enough_to_open_slow_rev_sell(self) -> bool:
-        return self.get_current_rsi(40) > 64
+        return self.get_current_rsi(40) > 66
 
     def is_rsi_low_enough_to_open_slow_rev_buy(self) -> bool:
-        return self.get_current_rsi(40) < 36
+        return self.get_current_rsi(40) < 34
 
     def is_stoch_spike_good_to_open_slow_rev_sell(self, stoch_length: int) -> bool:
         stoch_series: pd.Series = self.processed_data[f"STOCH_{stoch_length}_k"]
