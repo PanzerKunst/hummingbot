@@ -581,10 +581,10 @@ class ExcaliburStrategy(PkStrategy):
     #
 
     def is_rsi_high_enough_to_open_slow_rev_sell(self) -> bool:
-        return self.get_current_rsi(40) > 66
+        return self.get_current_rsi(40) > 62
 
     def is_rsi_low_enough_to_open_slow_rev_buy(self) -> bool:
-        return self.get_current_rsi(40) < 34
+        return self.get_current_rsi(40) < 38
 
     def is_stoch_spike_good_to_open_slow_rev_sell(self, stoch_length: int) -> bool:
         stoch_series: pd.Series = self.processed_data[f"STOCH_{stoch_length}_k"]
