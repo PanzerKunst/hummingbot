@@ -406,14 +406,14 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_stoch_too_low_to_open_ma_x_sell() | current_stoch:{current_stoch}")
 
-        return current_stoch < 10
+        return current_stoch < 12
 
     def is_stoch_too_high_to_open_ma_x_buy(self) -> bool:
         current_stoch = self.get_current_stoch(40)
 
         self.logger().info(f"is_stoch_too_high_to_open_ma_x_buy() | current_stoch:{current_stoch}")
 
-        return current_stoch > 90
+        return current_stoch > 88
 
     def is_rsi_too_low_to_open_ma_x_sell(self) -> bool:
         current_rsi = self.get_current_rsi(20)
