@@ -3,12 +3,12 @@ candles_config:
 - connector: binance_perpetual
   interval: 1m
   max_records: 330
-  trading_pair: 1000FLOKI-USDT
+  trading_pair: NEIRO-USDT
 controllers_config: []
 config_update_interval: 10
 script_file_name: excalibur_config.py
 connector_name: hyperliquid_perpetual
-trading_pair: kFLOKI-USD
+trading_pair: kNEIRO-USD
 leverage: 5
 unfilled_order_expiration_min: 1
 limit_take_profit_price_delta_bps: 0
@@ -16,24 +16,10 @@ market_order_twap_count: 1
 market_order_twap_interval: 5
 position_mode: ONEWAY
 ma_cross_stop_loss_pct: 3.0
-rsi_short: 20
-rsi_long: 40
-sma_short: 75
-sma_long: 300
-stoch_short_k_length: 40
-stoch_short_k_smoothing: 8
-stoch_short_d_smoothing: 6
-stoch_long_k_length: 80
-stoch_long_k_smoothing: 16
-stoch_long_d_smoothing: 6
 amount_quote_ma_cross: 30
 amount_quote_tr: 30
 entry_price_delta_bps: 0
 max_price_delta_pct_with_short_ma_to_open: 2.5
 min_price_delta_pct_for_sudden_reversal_to_short_ma: 2.0
-rsi_peak_threshold_to_open_tr: 64
-rsi_bottom_threshold_to_open_tr: 35
-stoch_peak_threshold_to_open_tr: 82
-stoch_bottom_threshold_to_open_tr: 18
-stoch_peak_threshold_to_open_stoch_tr: 90
-stoch_bottom_threshold_to_open_stoch_tr: 10
+rsi_peak_to_open_fast_rev: 73
+rsi_bottom_to_open_fast_rev: 27

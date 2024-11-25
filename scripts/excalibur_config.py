@@ -11,18 +11,18 @@ from hummingbot.strategy.strategy_v2_base import StrategyV2ConfigBase
 
 class ExcaliburConfig(StrategyV2ConfigBase):
     # Standard attributes START - avoid renaming
-    markets: Dict[str, Set[str]] = {}
+    markets: Dict[str, Set[str]] = Field(default_factory=dict)
 
-    candles_config: List[CandlesConfig] = [
+    candles_config: List[CandlesConfig] = Field(default_factory=lambda: [
         CandlesConfig(
             connector="binance_perpetual",
             interval="1m",
             max_records=330,
             trading_pair = "GOAT-USDT"
         )
-    ]
+    ])
 
-    controllers_config: List[str] = []
+    controllers_config: List[str] = Field(default_factory=list)
     config_update_interval: int = 10
     script_file_name: str = Field(default_factory=lambda: os.path.basename(__file__))
     # Standard attributes END
@@ -41,27 +41,11 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     # Triple Barrier
     ma_cross_stop_loss_pct: Decimal = 3.0
 
-    # Technical analysis
-    rsi_short: int = 20
-    rsi_long: int = 40
-    sma_short: int = 75
-    sma_long: int = 300
-    stoch_short_k_length: int = 40
-    stoch_short_k_smoothing: int = 8
-    stoch_short_d_smoothing: int = 6
-    stoch_long_k_length: int = 80
-    stoch_long_k_smoothing: int = 16
-    stoch_long_d_smoothing: int = 6
-
     # Order settings
     amount_quote_ma_cross: int = 30
     amount_quote_tr: int = 30
     entry_price_delta_bps: int = 0
     max_price_delta_pct_with_short_ma_to_open: Decimal = 2.5
     min_price_delta_pct_for_sudden_reversal_to_short_ma: Decimal = 2.0
-    rsi_peak_threshold_to_open_tr: int = 66
-    rsi_bottom_threshold_to_open_tr: int = 36
-    stoch_peak_threshold_to_open_tr: int = 82
-    stoch_bottom_threshold_to_open_tr: int = 18
-    stoch_peak_threshold_to_open_stoch_tr: int = 90
-    stoch_bottom_threshold_to_open_stoch_tr: int = 10
+    rsi_peak_to_open_fast_rev: int = 73
+    rsi_bottom_to_open_fast_rev: int = 26
