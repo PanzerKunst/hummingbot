@@ -471,7 +471,8 @@ class ExcaliburStrategy(PkStrategy):
         stoch_8_min_ago: Decimal = self._get_stoch_at_index(40, -9)
         delta: Decimal = current_stoch - stoch_8_min_ago
 
-        self.logger().info(f"is_stoch_increasing_fast_enough_to_open_fast_rev_sell() | current_stoch:{current_stoch} | stoch_8_min_ago:{stoch_8_min_ago} | delta:{delta}")
+        if delta > 40:
+            self.logger().info(f"is_stoch_increasing_fast_enough_to_open_fast_rev_sell() | current_stoch:{current_stoch} | stoch_8_min_ago:{stoch_8_min_ago} | delta:{delta}")
 
         return delta > 40
 
@@ -484,7 +485,8 @@ class ExcaliburStrategy(PkStrategy):
         stoch_8_min_ago: Decimal = self._get_stoch_at_index(40, -9)
         delta: Decimal = stoch_8_min_ago - current_stoch
 
-        self.logger().info(f"is_stoch_decreasing_fast_enough_to_open_fast_rev_buy() | current_stoch:{current_stoch} | stoch_8_min_ago:{stoch_8_min_ago} | delta:{delta}")
+        if delta > 40:
+            self.logger().info(f"is_stoch_decreasing_fast_enough_to_open_fast_rev_buy() | current_stoch:{current_stoch} | stoch_8_min_ago:{stoch_8_min_ago} | delta:{delta}")
 
         return delta > 40
 
