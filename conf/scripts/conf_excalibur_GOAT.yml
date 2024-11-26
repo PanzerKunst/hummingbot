@@ -21,5 +21,3 @@ amount_quote_tr: 30
 entry_price_delta_bps: 0
 max_price_delta_pct_with_short_ma_to_open: 2.5
 min_price_delta_pct_for_sudden_reversal_to_short_ma: 2.0
-rsi_peak_to_open_fast_rev: 73
-rsi_bottom_to_open_fast_rev: 26
