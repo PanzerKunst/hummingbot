@@ -16,7 +16,7 @@ from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
-# Trend following via comparing 2 MAs, and trend reversal based on RSI & Stochastic
+# Trend following via comparing 2 MAs, and reversions based on RSI & Stochastic
 # Generate config file: create --script-config excalibur
 # Start the bot: start --script excalibur.py --conf conf_excalibur_GOAT.yml
 #                start --script excalibur.py --conf conf_excalibur_CHILLGUY.yml
@@ -25,8 +25,7 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 # Quickstart script: -p=a -f excalibur.py -c conf_excalibur_GOAT.yml
 
 ORDER_REF_MA_CROSS = "MaCross"
-ORDER_REF_FAST_REVERSAL = "FastReversal"
-ORDER_REF_SLOW_REVERSAL = "SlowReversal"
+ORDER_REF_FAST_REVERSION = "FastReversion"
 
 
 class ExcaliburStrategy(PkStrategy):
@@ -59,7 +58,8 @@ class ExcaliburStrategy(PkStrategy):
             )
 
         return TripleBarrier(
-            open_order_type=OrderType.MARKET
+            open_order_type=OrderType.MARKET,
+            stop_loss=self.config.fast_rev_stop_loss_pct / 100
         )
 
     def update_processed_data(self):
@@ -219,25 +219,25 @@ class ExcaliburStrategy(PkStrategy):
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
 
     #
-    # Fast Reversal start/stop action proposals
+    # Fast Reversion start/stop action proposals
     #
 
     def create_actions_proposal_fast_rev(self):
-        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_FAST_REVERSAL)
+        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_FAST_REVERSION)
         active_orders = active_sell_orders + active_buy_orders
 
         if self.can_create_fast_rev_order(TradeType.SELL, active_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
-            triple_barrier = self.get_triple_barrier(ORDER_REF_FAST_REVERSAL)
-            self.create_order(TradeType.SELL, entry_price, triple_barrier, self.config.amount_quote_tr, ORDER_REF_FAST_REVERSAL)
+            triple_barrier = self.get_triple_barrier(ORDER_REF_FAST_REVERSION)
+            self.create_order(TradeType.SELL, entry_price, triple_barrier, self.config.amount_quote_tr, ORDER_REF_FAST_REVERSION)
 
         if self.can_create_fast_rev_order(TradeType.BUY, active_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
-            triple_barrier = self.get_triple_barrier(ORDER_REF_FAST_REVERSAL)
-            self.create_order(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote_tr, ORDER_REF_FAST_REVERSAL)
+            triple_barrier = self.get_triple_barrier(ORDER_REF_FAST_REVERSION)
+            self.create_order(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote_tr, ORDER_REF_FAST_REVERSION)
 
     def can_create_fast_rev_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, self.config.amount_quote_tr, 0, ORDER_REF_FAST_REVERSAL):
+        if not self.can_create_order(side, self.config.amount_quote_tr, 0, ORDER_REF_FAST_REVERSION):
             return False
 
         if len(active_tracked_orders) > 0:
@@ -245,28 +245,28 @@ class ExcaliburStrategy(PkStrategy):
 
         if side == TradeType.SELL:
             if self.is_stoch_increasing_fast_enough_to_open_fast_rev_sell() and self.is_rsi_spike_good_to_open_fast_rev():
-                self.logger().info("can_create_fast_rev_order() > Opening Sell reversal")
+                self.logger().info("can_create_fast_rev_order() > Opening Sell reversion")
                 return True
 
             return False
 
         if self.is_stoch_decreasing_fast_enough_to_open_fast_rev_buy() and self.is_rsi_crash_good_to_open_fast_rev():
-            self.logger().info("can_create_fast_rev_order() > Opening Buy reversal")
+            self.logger().info("can_create_fast_rev_order() > Opening Buy reversion")
             return True
 
         return False
 
     def stop_actions_proposal_fast_rev(self):
-        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_FAST_REVERSAL)
+        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_FAST_REVERSION)
 
         if len(filled_sell_orders) > 0:
             if self.should_close_rev_sell_due_to_stoch_reversal():
-                self.logger().info("stop_actions_proposal_fast_rev() > Closing Sell reversal")
+                self.logger().info("stop_actions_proposal_fast_rev() > Closing Sell reversion")
                 self.market_close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
 
         if len(filled_buy_orders) > 0:
             if self.should_close_rev_buy_due_to_stoch_reversal():
-                self.logger().info("stop_actions_proposal_fast_rev() > Closing Buy reversal")
+                self.logger().info("stop_actions_proposal_fast_rev() > Closing Buy reversion")
                 self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
 
     #
@@ -403,7 +403,7 @@ class ExcaliburStrategy(PkStrategy):
         return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_ma
 
     #
-    # Fast reversal functions
+    # Fast reversion functions
     #
 
     def is_rsi_spike_good_to_open_fast_rev(self) -> bool:

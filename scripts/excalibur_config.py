@@ -40,6 +40,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     # Triple Barrier
     ma_cross_stop_loss_pct: Decimal = 3.0
+    fast_rev_stop_loss_pct: Decimal = 1.0
 
     # Order settings
     amount_quote_ma_cross: int = 30
