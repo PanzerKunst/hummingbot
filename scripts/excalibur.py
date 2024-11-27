@@ -557,7 +557,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def is_stoch_crash_good_to_open_slow_rev(self) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
-        recent_stochs = stoch_series.iloc[-12:].reset_index(drop=True)
+        recent_stochs = stoch_series.iloc[-20:].reset_index(drop=True)
 
         bottom_stoch = Decimal(recent_stochs.min())
 
@@ -573,6 +573,9 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         bottom_stoch_index = recent_stochs.idxmin()
+
+        self.logger().info(f"is_stoch_crash_good_to_open_slow_rev() | bottom_stoch_index:{bottom_stoch_index}")
+
         peak_stoch = Decimal(recent_stochs.iloc[0:bottom_stoch_index].max())
         start_delta: Decimal = peak_stoch - bottom_stoch
 
