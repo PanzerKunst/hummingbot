@@ -26,6 +26,7 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 ORDER_REF_MA_CROSS = "MaCross"
 ORDER_REF_FAST_REVERSION = "FastReversion"
+ORDER_REF_SLOW_REVERSION = "SlowReversion"
 
 
 class ExcaliburStrategy(PkStrategy):
@@ -112,6 +113,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.create_actions_proposal_ma_cross()
         self.create_actions_proposal_fast_rev()
+        self.create_actions_proposal_slow_rev()
 
         return []  # Always return []
 
@@ -125,6 +127,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.stop_actions_proposal_ma_cross()
         self.stop_actions_proposal_fast_rev()
+        self.stop_actions_proposal_slow_rev()
 
         return []  # Always return []
 
@@ -262,12 +265,46 @@ class ExcaliburStrategy(PkStrategy):
         if len(filled_sell_orders) > 0:
             if self.should_close_rev_sell_due_to_stoch_reversal():
                 self.logger().info("stop_actions_proposal_fast_rev() > Closing Sell reversion")
-                self.market_close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
+                self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
 
         if len(filled_buy_orders) > 0:
             if self.should_close_rev_buy_due_to_stoch_reversal():
                 self.logger().info("stop_actions_proposal_fast_rev() > Closing Buy reversion")
-                self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
+                self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
+
+    #
+    # Slow Reversion start/stop action proposals
+    #
+
+    def create_actions_proposal_slow_rev(self):
+        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_SLOW_REVERSION)
+        active_orders = active_sell_orders + active_buy_orders
+
+        if self.can_create_slow_rev_order(TradeType.BUY, active_orders):
+            entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
+            triple_barrier = self.get_triple_barrier(ORDER_REF_SLOW_REVERSION)
+            self.create_order(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote_tr, ORDER_REF_SLOW_REVERSION)
+
+    def can_create_slow_rev_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
+        if not self.can_create_order(side, self.config.amount_quote_tr, 0, ORDER_REF_SLOW_REVERSION):
+            return False
+
+        if len(active_tracked_orders) > 0:
+            return False
+
+        if self.is_stoch_crash_good_to_open_slow_rev():
+            self.logger().info("can_create_slow_rev_order() > Opening Buy reversion")
+            return True
+
+        return False
+
+    def stop_actions_proposal_slow_rev(self):
+        _, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_SLOW_REVERSION)
+
+        if len(filled_buy_orders) > 0:
+            if self.should_close_rev_buy_due_to_stoch_reversal():
+                self.logger().info("stop_actions_proposal_slow_rev() > Closing Buy reversion")
+                self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
 
     #
     # Getters on `self.processed_data[]`
@@ -519,3 +556,35 @@ class ExcaliburStrategy(PkStrategy):
         self.logger().info(f"should_close_rev_buy_due_to_stoch_reversal() | peak_stoch:{peak_stoch} | current_stoch:{current_stoch}")
 
         return current_stoch < max_acceptable_stoch
+
+    #
+    # Slow reversion functions
+    #
+
+    def is_stoch_crash_good_to_open_slow_rev(self) -> bool:
+        stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
+        recent_stochs = stoch_series.iloc[-12:].reset_index(drop=True)
+
+        bottom_stoch = Decimal(recent_stochs.min())
+
+        if bottom_stoch > 8:
+            return False
+
+        current_stoch = self.get_current_stoch(40)
+        stoch_threshold: Decimal = bottom_stoch + 2
+
+        self.logger().info(f"is_stoch_crash_good_to_open_slow_rev() | bottom_stoch:{bottom_stoch} | current_stoch:{current_stoch} | stoch_threshold:{stoch_threshold}")
+
+        if current_stoch < stoch_threshold:
+            return False
+
+        bottom_stoch_index = recent_stochs.idxmin()
+        peak_stoch = Decimal(recent_stochs.iloc[0:bottom_stoch_index].max())
+        start_delta: Decimal = peak_stoch - bottom_stoch
+
+        self.logger().info(f"is_stoch_crash_good_to_open_slow_rev() | peak_stoch:{peak_stoch} | start_delta:{start_delta}")
+
+        if start_delta < 40:
+            return False
+
+        return current_stoch < stoch_threshold + Decimal(0.5)
