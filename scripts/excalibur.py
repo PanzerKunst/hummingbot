@@ -561,7 +561,7 @@ class ExcaliburStrategy(PkStrategy):
 
         bottom_stoch = Decimal(recent_stochs.min())
 
-        if bottom_stoch > 8:
+        if bottom_stoch > 20:
             return False
 
         current_stoch = self.get_current_stoch(40)
