@@ -466,7 +466,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_rsi_spike_good_to_open_fast_rev() | bottom_rsi:{bottom_rsi} | start_delta:{start_delta}")
 
-        return start_delta > 14
+        return start_delta > 12
 
     def is_rsi_crash_good_to_open_fast_rev(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI_40"]
@@ -491,7 +491,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_rsi_crash_good_to_open_fast_rev() | peak_rsi:{peak_rsi} | start_delta:{start_delta}")
 
-        return start_delta > 14
+        return start_delta > 12
 
     def is_stoch_increasing_fast_enough_to_open_fast_rev_sell(self) -> bool:
         current_stoch = self.get_current_stoch(40)
