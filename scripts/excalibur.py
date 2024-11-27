@@ -462,7 +462,8 @@ class ExcaliburStrategy(PkStrategy):
 
         peak_rsi_index = recent_rsis.idxmax()
 
-        self.logger().info(f"is_rsi_spike_good_to_open_fast_rev() | peak_rsi_index:{peak_rsi_index}")
+        if peak_rsi_index == 0:
+            return False
 
         bottom_rsi = Decimal(recent_rsis.iloc[0:peak_rsi_index].min())
         start_delta: Decimal = peak_rsi - bottom_rsi
@@ -490,7 +491,8 @@ class ExcaliburStrategy(PkStrategy):
 
         bottom_rsi_index = recent_rsis.idxmin()
 
-        self.logger().info(f"is_rsi_crash_good_to_open_fast_rev() | bottom_rsi_index:{bottom_rsi_index}")
+        if bottom_rsi_index == 0:
+            return False
 
         peak_rsi = Decimal(recent_rsis.iloc[0:bottom_rsi_index].max())
         start_delta: Decimal = peak_rsi - bottom_rsi
@@ -580,7 +582,8 @@ class ExcaliburStrategy(PkStrategy):
 
         bottom_stoch_index = recent_stochs.idxmin()
 
-        self.logger().info(f"is_stoch_crash_good_to_open_slow_rev() | bottom_stoch_index:{bottom_stoch_index}")
+        if bottom_stoch_index == 0:
+            return False
 
         peak_stoch = Decimal(recent_stochs.iloc[0:bottom_stoch_index].max())
         start_delta: Decimal = peak_stoch - bottom_stoch
