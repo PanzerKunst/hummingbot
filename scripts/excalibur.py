@@ -457,7 +457,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_rsi_spike_good_to_open_fast_rev() | peak_rsi:{peak_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
 
-        if current_rsi > rsi_threshold:
+        if not (rsi_threshold - Decimal(0.5) < current_rsi < rsi_threshold):
             return False
 
         peak_rsi_index = recent_rsis.idxmax()
@@ -466,10 +466,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_rsi_spike_good_to_open_fast_rev() | bottom_rsi:{bottom_rsi} | start_delta:{start_delta}")
 
-        if start_delta < 14:
-            return False
-
-        return current_rsi > rsi_threshold - Decimal(0.5)
+        return start_delta > 14
 
     def is_rsi_crash_good_to_open_fast_rev(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI_40"]
@@ -485,7 +482,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_rsi_crash_good_to_open_fast_rev() | bottom_rsi:{bottom_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
 
-        if current_rsi < rsi_threshold:
+        if not (rsi_threshold < current_rsi < rsi_threshold + Decimal(0.5)):
             return False
 
         bottom_rsi_index = recent_rsis.idxmin()
@@ -494,10 +491,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_rsi_crash_good_to_open_fast_rev() | peak_rsi:{peak_rsi} | start_delta:{start_delta}")
 
-        if start_delta < 14:
-            return False
-
-        return current_rsi < rsi_threshold + Decimal(0.5)
+        return start_delta > 14
 
     def is_stoch_increasing_fast_enough_to_open_fast_rev_sell(self) -> bool:
         current_stoch = self.get_current_stoch(40)
@@ -575,7 +569,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_stoch_crash_good_to_open_slow_rev() | bottom_stoch:{bottom_stoch} | current_stoch:{current_stoch} | stoch_threshold:{stoch_threshold}")
 
-        if current_stoch < stoch_threshold:
+        if not (stoch_threshold < current_stoch < stoch_threshold + Decimal(0.5)):
             return False
 
         bottom_stoch_index = recent_stochs.idxmin()
@@ -584,7 +578,4 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_stoch_crash_good_to_open_slow_rev() | peak_stoch:{peak_stoch} | start_delta:{start_delta}")
 
-        if start_delta < 40:
-            return False
-
-        return current_stoch < stoch_threshold + Decimal(0.5)
+        return start_delta > 40
