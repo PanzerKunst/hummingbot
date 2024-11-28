@@ -20,8 +20,11 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 # Generate config file: create --script-config excalibur
 # Start the bot: start --script excalibur.py --conf conf_excalibur_GOAT.yml
 #                start --script excalibur.py --conf conf_excalibur_CHILLGUY.yml
+#                start --script excalibur.py --conf conf_excalibur_FLOKI.yml
 #                start --script excalibur.py --conf conf_excalibur_MOODENG.yml
+#                start --script excalibur.py --conf conf_excalibur_NEIRO.yml
 #                start --script excalibur.py --conf conf_excalibur_PNUT.yml
+#                start --script excalibur.py --conf conf_excalibur_POPCAT.yml
 # Quickstart script: -p=a -f excalibur.py -c conf_excalibur_GOAT.yml
 
 ORDER_REF_MA_CROSS = "MaCross"
