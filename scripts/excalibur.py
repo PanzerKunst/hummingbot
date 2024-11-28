@@ -13,7 +13,7 @@ from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.excalibur_config import ExcaliburConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
-from scripts.pk.pk_utils import was_an_order_recently_opened
+from scripts.pk.pk_utils import compute_buy_orders_pnl_pct, compute_sell_orders_pnl_pct, was_an_order_recently_opened
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 # Trend following via comparing 2 MAs
@@ -184,20 +184,21 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_MA_CROSS)
 
         if len(filled_sell_orders) > 0:
-            if self.has_tiny_ma_started_rising(filled_sell_orders):
-                self.logger().info("stop_actions_proposal_ma_cross() > Closing MA-X: tiny MA started rising")
-                self.market_close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
-            elif self.did_tiny_ma_cross_over_short():
+            if self.did_tiny_ma_cross_over_short():
                 self.logger().info("stop_actions_proposal_ma_cross() > Closing MA-X: tiny MA crossed over short")
                 self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
+            elif self.is_sell_order_profitable(filled_sell_orders) and self.has_tiny_ma_started_rising(filled_sell_orders):
+                self.logger().info("stop_actions_proposal_ma_cross() > Closing MA-X: tiny MA started rising")
+                self.market_close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
 
         if len(filled_buy_orders) > 0:
-            if self.has_tiny_ma_started_dropping(filled_buy_orders):
-                self.logger().info("stop_actions_proposal_ma_cross() > Closing MA-X: tiny MA started dropping")
-                self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
-            elif self.did_tiny_ma_cross_under_short():
+            if self.did_tiny_ma_cross_under_short():
                 self.logger().info("stop_actions_proposal_ma_cross() > Closing MA-X: tiny MA crossed under short")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
+            elif self.is_buy_order_profitable(filled_buy_orders) and self.has_tiny_ma_started_dropping(filled_buy_orders):
+                self.logger().info("stop_actions_proposal_ma_cross() > Closing MA-X: tiny MA started dropping")
+                self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
+
     #
     # Getters on `self.processed_data[]`
     #
@@ -320,6 +321,16 @@ class ExcaliburStrategy(PkStrategy):
         self.logger().info(f"did_price_suddenly_drop_to_short_ma() | latest_close:{latest_close} | max_price:{max_price} | price_delta_pct:{price_delta_pct}")
 
         return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_ma
+
+    def is_sell_order_profitable(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
+        pnl_pct: Decimal = compute_sell_orders_pnl_pct(filled_sell_orders, self.get_mid_price())
+
+        return pnl_pct > 0
+
+    def is_buy_order_profitable(self, filled_buy_orders: List[TrackedOrderDetails]) -> bool:
+        pnl_pct: Decimal = compute_buy_orders_pnl_pct(filled_buy_orders, self.get_mid_price())
+
+        return pnl_pct > 0
 
     def has_tiny_ma_started_rising(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
         is_order_too_young = was_an_order_recently_opened(filled_sell_orders, 90 * 60, self.get_market_data_provider_time())
