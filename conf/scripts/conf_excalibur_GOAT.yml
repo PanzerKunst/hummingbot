@@ -16,7 +16,7 @@ market_order_twap_count: 1
 market_order_twap_interval: 5
 position_mode: ONEWAY
 ma_cross_stop_loss_pct: 3.0
-fast_rev_stop_loss_pct: 1.0
+rev_stop_loss_pct: 1.0
 amount_quote_ma_cross: 30
 amount_quote_tr: 30
 entry_price_delta_bps: 0

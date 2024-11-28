@@ -61,7 +61,7 @@ class ExcaliburStrategy(PkStrategy):
 
         return TripleBarrier(
             open_order_type=OrderType.MARKET,
-            stop_loss=self.config.fast_rev_stop_loss_pct / 100
+            stop_loss=self.config.rev_stop_loss_pct / 100
         )
 
     def update_processed_data(self):
