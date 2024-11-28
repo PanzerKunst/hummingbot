@@ -3,13 +3,13 @@ candles_config:
 - connector: binance_perpetual
   interval: 5m
   max_records: 210
-  trading_pair: PNUT-USDT
+  trading_pair: CHILLGUY-USDT
 controllers_config: []
 config_update_interval: 10
 script_file_name: excalibur_config.py
 connector_name: hyperliquid_perpetual
-trading_pair: PNUT-USD
-leverage: 5
+trading_pair: CHILLGUY-USD
+leverage: 3
 unfilled_order_expiration_min: 1
 limit_take_profit_price_delta_bps: 0
 market_order_twap_count: 1
