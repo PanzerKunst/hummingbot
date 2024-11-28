@@ -1,6 +1,6 @@
 markets: {}
 candles_config:
-- connector: bybit_perpetual
+- connector: binance_perpetual
   interval: 1m
   max_records: 330
   trading_pair: CHILLGUY-USDT
