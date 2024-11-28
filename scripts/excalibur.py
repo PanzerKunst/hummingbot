@@ -14,6 +14,7 @@ from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.excalibur_config import ExcaliburConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
+from scripts.pk.pk_utils import was_an_order_recently_opened
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 # Trend following via comparing 2 MAs, and reversions based on RSI & Stochastic
@@ -240,7 +241,7 @@ class ExcaliburStrategy(PkStrategy):
             self.create_order(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote_tr, ORDER_REF_FAST_REVERSION)
 
     def can_create_fast_rev_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, self.config.amount_quote_tr, 0, ORDER_REF_FAST_REVERSION):
+        if not self.can_create_order(side, self.config.amount_quote_tr, 8, ORDER_REF_FAST_REVERSION):
             return False
 
         if len(active_tracked_orders) > 0:
@@ -263,12 +264,12 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_FAST_REVERSION)
 
         if len(filled_sell_orders) > 0:
-            if self.should_close_rev_sell_due_to_stoch_reversal():
+            if self.should_close_rev_sell_due_to_stoch_reversal(filled_sell_orders):
                 self.logger().info("stop_actions_proposal_fast_rev() > Closing Sell reversion")
                 self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
 
         if len(filled_buy_orders) > 0:
-            if self.should_close_rev_buy_due_to_stoch_reversal():
+            if self.should_close_rev_buy_due_to_stoch_reversal(filled_buy_orders):
                 self.logger().info("stop_actions_proposal_fast_rev() > Closing Buy reversion")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
 
@@ -286,7 +287,7 @@ class ExcaliburStrategy(PkStrategy):
             self.create_order(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote_tr, ORDER_REF_SLOW_REVERSION)
 
     def can_create_slow_rev_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, self.config.amount_quote_tr, 0, ORDER_REF_SLOW_REVERSION):
+        if not self.can_create_order(side, self.config.amount_quote_tr, 8, ORDER_REF_SLOW_REVERSION):
             return False
 
         if len(active_tracked_orders) > 0:
@@ -302,7 +303,7 @@ class ExcaliburStrategy(PkStrategy):
         _, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_SLOW_REVERSION)
 
         if len(filled_buy_orders) > 0:
-            if self.should_close_rev_buy_due_to_stoch_reversal():
+            if self.should_close_rev_buy_due_to_stoch_reversal(filled_buy_orders):
                 self.logger().info("stop_actions_proposal_slow_rev() > Closing Buy reversion")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
 
@@ -529,7 +530,11 @@ class ExcaliburStrategy(PkStrategy):
 
         return delta > 40
 
-    def should_close_rev_sell_due_to_stoch_reversal(self) -> bool:
+    def should_close_rev_sell_due_to_stoch_reversal(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
+        # Don't close if we just opened
+        if was_an_order_recently_opened(filled_sell_orders, 8 * 60, self.get_market_data_provider_time()):
+            return False
+
         stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
         recent_stochs = stoch_series.iloc[-8:]
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
@@ -544,7 +549,11 @@ class ExcaliburStrategy(PkStrategy):
 
         return current_stoch > min_acceptable_stoch
 
-    def should_close_rev_buy_due_to_stoch_reversal(self) -> bool:
+    def should_close_rev_buy_due_to_stoch_reversal(self, filled_buy_orders: List[TrackedOrderDetails]) -> bool:
+        # Don't close if we just opened
+        if was_an_order_recently_opened(filled_buy_orders, 8 * 60, self.get_market_data_provider_time()):
+            return False
+
         stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
         recent_stochs = stoch_series.iloc[-8:]
         peak_stoch: Decimal = Decimal(recent_stochs.max())
