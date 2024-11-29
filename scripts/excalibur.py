@@ -465,6 +465,12 @@ class ExcaliburStrategy(PkStrategy):
         if current_price > price_threshold:
             return False
 
+        too_late_threshold: Decimal = peak_price * (1 - 2 * self.config.price_pullback_pct_for_rev / 100)
+
+        if current_price < too_late_threshold:
+            self.logger().info("is_price_spike_good_to_open_rev() | Too late to open")
+            return False
+
         self.logger().info(f"is_price_spike_good_to_open_rev() | peak_price_index:{peak_price_index} | peak_price:{peak_price} | current_price:{current_price} | price_threshold:{price_threshold}")
 
         bottom_price = Decimal(recent_lows.iloc[0:peak_price_index].min())
@@ -491,6 +497,12 @@ class ExcaliburStrategy(PkStrategy):
         current_price = self.get_current_close()
 
         if current_price < price_threshold:
+            return False
+
+        too_late_threshold: Decimal = bottom_price * (1 + 2 * self.config.price_pullback_pct_for_rev / 100)
+
+        if current_price > too_late_threshold:
+            self.logger().info("is_price_crash_good_to_open_rev() | Too late to open")
             return False
 
         self.logger().info(f"is_price_crash_good_to_open_rev() | bottom_price_index:{bottom_price_index} | bottom_price:{bottom_price} | current_price:{current_price} | price_threshold:{price_threshold}")
