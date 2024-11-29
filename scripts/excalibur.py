@@ -447,10 +447,10 @@ class ExcaliburStrategy(PkStrategy):
 
     def is_price_spike_good_to_open_rev(self) -> bool:
         high_series: pd.Series = self.processed_data["high"]
-        recent_highs = high_series.iloc[-4:].reset_index(drop=True)
+        recent_highs = high_series.iloc[-6:].reset_index(drop=True)
 
         low_series: pd.Series = self.processed_data["low"]
-        recent_lows = low_series.iloc[-4:]
+        recent_lows = low_series.iloc[-6:]
 
         peak_price = Decimal(recent_highs.max())
         peak_price_index = recent_highs.idxmax()
@@ -480,10 +480,10 @@ class ExcaliburStrategy(PkStrategy):
 
     def is_price_crash_good_to_open_rev(self) -> bool:
         low_series: pd.Series = self.processed_data["low"]
-        recent_lows = low_series.iloc[-4:].reset_index(drop=True)
+        recent_lows = low_series.iloc[-6:].reset_index(drop=True)
 
         high_series: pd.Series = self.processed_data["high"]
-        recent_highs = high_series.iloc[-4:]
+        recent_highs = high_series.iloc[-6:]
 
         bottom_price = Decimal(recent_lows.min())
         bottom_price_index = recent_lows.idxmin()
