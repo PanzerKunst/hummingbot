@@ -1,8 +1,8 @@
 markets: {}
 candles_config:
 - connector: binance_perpetual
-  interval: 5m
-  max_records: 210
+  interval: 3m
+  max_records: 330
   trading_pair: PNUT-USDT
 controllers_config: []
 config_update_interval: 10
@@ -15,7 +15,9 @@ limit_take_profit_price_delta_bps: 0
 market_order_twap_count: 1
 market_order_twap_interval: 5
 position_mode: ONEWAY
+rev_stop_loss_pct: 1.0
 amount_quote_ma_cross: 30
+amount_quote_rev: 30
 entry_price_delta_bps: 0
-max_price_delta_pct_with_short_ma_to_open: 4.5
-min_price_delta_pct_for_sudden_reversal_to_short_ma: 5.0
+max_price_delta_pct_with_short_ma_to_open: 4.0
+min_price_delta_pct_for_sudden_reversal_to_short_ma: 3.0

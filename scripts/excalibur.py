@@ -211,12 +211,12 @@ class ExcaliburStrategy(PkStrategy):
 
         if len(filled_sell_orders) > 0:
             if self.did_tiny_ma_cross_over_short():
-                self.logger().info("stop_actions_proposal_ma_cross() > Closing MA-X: tiny MA crossed over short")
+                self.logger().info("stop_actions_proposal_ma_cross() > Closing Sell MA-X: tiny MA crossed over short")
                 self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
 
         if len(filled_buy_orders) > 0:
             if self.did_tiny_ma_cross_under_short():
-                self.logger().info("stop_actions_proposal_ma_cross() > Closing MA-X: tiny MA crossed under short")
+                self.logger().info("stop_actions_proposal_ma_cross() > Closing Buy MA-X: tiny MA crossed under short")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
 
     #
@@ -409,11 +409,11 @@ class ExcaliburStrategy(PkStrategy):
 
     def is_rsi_spike_good_to_open_rev(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI_40"]
-        recent_rsis = rsi_series.iloc[-12:].reset_index(drop=True)
+        recent_rsis = rsi_series.iloc[-15:].reset_index(drop=True)
 
         peak_rsi = Decimal(recent_rsis.max())
 
-        if peak_rsi < 58:
+        if peak_rsi < 72:
             return False
 
         current_rsi = self.get_current_rsi(40)
@@ -434,15 +434,15 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_rsi_spike_good_to_open_fast_rev() | peak_rsi_index:{peak_rsi_index} | bottom_rsi:{bottom_rsi} | start_delta:{start_delta}")
 
-        return start_delta > 12
+        return start_delta > 14
 
     def is_rsi_crash_good_to_open_rev(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI_40"]
-        recent_rsis = rsi_series.iloc[-12:].reset_index(drop=True)
+        recent_rsis = rsi_series.iloc[-15:].reset_index(drop=True)
 
         bottom_rsi = Decimal(recent_rsis.min())
 
-        if bottom_rsi > 42:
+        if bottom_rsi > 32:
             return False
 
         current_rsi = self.get_current_rsi(40)
@@ -463,7 +463,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_rsi_crash_good_to_open_rev() | bottom_rsi_index:{bottom_rsi_index} | peak_rsi:{peak_rsi} | start_delta:{start_delta}")
 
-        return start_delta > 12
+        return start_delta > 14
 
     def should_close_rev_sell_due_to_stoch_reversal(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
         # Don't close if we just opened
