@@ -459,7 +459,7 @@ class ExcaliburStrategy(PkStrategy):
         if peak_price_index == 0:
             return False
 
-        price_threshold: Decimal = peak_price * (1 - self.config.min_price_end_delta_pct_for_rev / 100)
+        price_threshold: Decimal = peak_price * (1 - self.config.price_pullback_pct_for_rev / 100)
         current_price = self.get_current_close()
 
         if current_price > price_threshold:
@@ -472,7 +472,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_price_spike_good_to_open_rev() | bottom_price:{bottom_price} | start_delta_pct:{start_delta_pct}")
 
-        return start_delta_pct > self.config.min_price_start_delta_pct_for_rev
+        return start_delta_pct > self.config.price_start_delta_pct_for_rev
 
     def is_price_crash_good_to_open_rev(self) -> bool:
         low_series: pd.Series = self.processed_data["low"]
@@ -487,7 +487,7 @@ class ExcaliburStrategy(PkStrategy):
         if bottom_price_index == 0:
             return False
 
-        price_threshold: Decimal = bottom_price * (1 + self.config.min_price_end_delta_pct_for_rev / 100)
+        price_threshold: Decimal = bottom_price * (1 + self.config.price_pullback_pct_for_rev / 100)
         current_price = self.get_current_close()
 
         if current_price < price_threshold:
@@ -500,7 +500,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_price_spike_good_to_open_rev() | peak_price:{peak_price} | start_delta_pct:{start_delta_pct}")
 
-        return start_delta_pct > self.config.min_price_start_delta_pct_for_rev
+        return start_delta_pct > self.config.price_start_delta_pct_for_rev
 
     def should_close_rev_sell_due_to_stoch_reversal(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
         # Don't close if we just opened
