@@ -188,9 +188,9 @@ class ExcaliburStrategy(PkStrategy):
                 self.logger().info("can_create_ma_cross_order() > Short MA crossed under long")
 
                 return (
+                    not self.is_current_price_over_short_ma() and
                     self.is_price_close_enough_to_short_ma() and
-                    not self.did_rsi_recently_crash() and
-                    not self.did_price_suddenly_rise_to_short_ma()
+                    not self.did_rsi_recently_crash()
                 )
 
             return False
@@ -199,9 +199,9 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().info("can_create_ma_cross_order() > Short MA crossed over long")
 
             return (
+                self.is_current_price_over_short_ma() and
                 self.is_price_close_enough_to_short_ma() and
-                not self.did_rsi_recently_spike() and
-                not self.did_price_suddenly_drop_to_short_ma()
+                not self.did_rsi_recently_spike()
             )
 
         return False
@@ -405,31 +405,31 @@ class ExcaliburStrategy(PkStrategy):
 
         return start_delta > 14
 
-    def did_price_suddenly_rise_to_short_ma(self) -> bool:
-        current_close = self.get_current_close()
-
-        close_series: pd.Series = self.processed_data["close"]
-        recent_prices = close_series.iloc[-16:-1]  # 15 items, last one excluded
-        min_price: Decimal = Decimal(recent_prices.min())
-
-        price_delta_pct: Decimal = (current_close - min_price) / current_close * 100
-
-        self.logger().info(f"did_price_suddenly_rise_to_short_ma() | current_close:{current_close} | min_price:{min_price} | price_delta_pct:{price_delta_pct}")
-
-        return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_ma
-
-    def did_price_suddenly_drop_to_short_ma(self) -> bool:
-        current_close = self.get_current_close()
-
-        close_series: pd.Series = self.processed_data["close"]
-        recent_prices = close_series.iloc[-16:-1]  # 15 items, last one excluded
-        max_price: Decimal = Decimal(recent_prices.max())
-
-        price_delta_pct: Decimal = (max_price - current_close) / current_close * 100
-
-        self.logger().info(f"did_price_suddenly_drop_to_short_ma() | current_close:{current_close} | max_price:{max_price} | price_delta_pct:{price_delta_pct}")
-
-        return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_ma
+    # def did_price_suddenly_rise_to_short_ma(self) -> bool:
+    #     current_close = self.get_current_close()
+    #
+    #     close_series: pd.Series = self.processed_data["close"]
+    #     recent_prices = close_series.iloc[-16:-1]  # 15 items, last one excluded
+    #     min_price: Decimal = Decimal(recent_prices.min())
+    #
+    #     price_delta_pct: Decimal = (current_close - min_price) / current_close * 100
+    #
+    #     self.logger().info(f"did_price_suddenly_rise_to_short_ma() | current_close:{current_close} | min_price:{min_price} | price_delta_pct:{price_delta_pct}")
+    #
+    #     return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_ma
+    #
+    # def did_price_suddenly_drop_to_short_ma(self) -> bool:
+    #     current_close = self.get_current_close()
+    #
+    #     close_series: pd.Series = self.processed_data["close"]
+    #     recent_prices = close_series.iloc[-16:-1]  # 15 items, last one excluded
+    #     max_price: Decimal = Decimal(recent_prices.max())
+    #
+    #     price_delta_pct: Decimal = (max_price - current_close) / current_close * 100
+    #
+    #     self.logger().info(f"did_price_suddenly_drop_to_short_ma() | current_close:{current_close} | max_price:{max_price} | price_delta_pct:{price_delta_pct}")
+    #
+    #     return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_ma
 
     def is_sell_order_profitable(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
         pnl_pct: Decimal = compute_sell_orders_pnl_pct(filled_sell_orders, self.get_mid_price())
