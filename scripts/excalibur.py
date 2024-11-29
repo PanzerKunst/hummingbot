@@ -245,13 +245,13 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         if side == TradeType.SELL:
-            if self.is_rsi_spike_good_to_open_rev():
+            if self.is_price_spike_good_to_open_rev():
                 self.logger().info("can_create_rev_order() > Opening Sell reversion")
                 return True
 
             return False
 
-        if self.is_rsi_crash_good_to_open_rev():
+        if self.is_price_crash_good_to_open_rev():
             self.logger().info("can_create_rev_order() > Opening Buy reversion")
             return True
 
@@ -274,9 +274,15 @@ class ExcaliburStrategy(PkStrategy):
     # Getters on `self.processed_data[]`
     #
 
+    def get_current_close(self) -> Decimal:
+        return self._get_close_at_index(-1)
+
     def get_latest_close(self) -> Decimal:
+        return self._get_close_at_index(-2)
+
+    def _get_close_at_index(self, index: int) -> Decimal:
         close_series: pd.Series = self.processed_data["close"]
-        return Decimal(close_series.iloc[-2])
+        return Decimal(close_series.iloc[index])
 
     def get_current_rsi(self, length: int) -> Decimal:
         rsi_series: pd.Series = self.processed_data[f"RSI_{length}"]
@@ -407,63 +413,63 @@ class ExcaliburStrategy(PkStrategy):
     # Fast reversion functions
     #
 
-    def is_rsi_spike_good_to_open_rev(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI_40"]
-        recent_rsis = rsi_series.iloc[-15:].reset_index(drop=True)
+    def is_price_spike_good_to_open_rev(self) -> bool:
+        high_series: pd.Series = self.processed_data["high"]
+        recent_highs = high_series.iloc[-8:].reset_index(drop=True)
 
-        peak_rsi = Decimal(recent_rsis.max())
+        low_series: pd.Series = self.processed_data["low"]
+        recent_lows = low_series.iloc[-8:]
 
-        if peak_rsi < 72:
+        peak_price = Decimal(recent_highs.max())
+        peak_price_index = recent_highs.idxmax()
+
+        if peak_price_index == 0:
             return False
 
-        current_rsi = self.get_current_rsi(40)
-        rsi_threshold: Decimal = peak_rsi - 2
+        price_threshold: Decimal = peak_price * (1 - self.config.min_price_end_delta_pct_for_rev / 100)
 
-        self.logger().info(f"is_rsi_spike_good_to_open_rev() | peak_rsi:{peak_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
+        current_price = self.get_current_close()
 
-        if current_rsi > rsi_threshold:
+        self.logger().info(f"is_price_spike_good_to_open_rev() | peak_price_index:{peak_price_index} | peak_price:{peak_price} | current_price:{current_price} | price_threshold:{price_threshold}")
+
+        if current_price > price_threshold:
             return False
 
-        peak_rsi_index = recent_rsis.idxmax()
+        bottom_price = Decimal(recent_lows.iloc[0:peak_price_index].min())
+        start_delta_pct: Decimal = (peak_price - bottom_price) / current_price * 100
 
-        if peak_rsi_index == 0:
+        self.logger().info(f"is_price_spike_good_to_open_rev() | bottom_price:{bottom_price} | start_delta_pct:{start_delta_pct}")
+
+        return start_delta_pct > self.config.min_price_start_delta_pct_for_rev
+
+    def is_price_crash_good_to_open_rev(self) -> bool:
+        low_series: pd.Series = self.processed_data["low"]
+        recent_lows = low_series.iloc[-8:].reset_index(drop=True)
+
+        high_series: pd.Series = self.processed_data["high"]
+        recent_highs = high_series.iloc[-8:]
+
+        bottom_price = Decimal(recent_lows.min())
+        bottom_price_index = recent_lows.idxmin()
+
+        if bottom_price_index == 0:
             return False
 
-        bottom_rsi = Decimal(recent_rsis.iloc[0:peak_rsi_index].min())
-        start_delta: Decimal = peak_rsi - bottom_rsi
+        price_threshold: Decimal = bottom_price * (1 + self.config.min_price_end_delta_pct_for_rev / 100)
 
-        self.logger().info(f"is_rsi_spike_good_to_open_fast_rev() | peak_rsi_index:{peak_rsi_index} | bottom_rsi:{bottom_rsi} | start_delta:{start_delta}")
+        current_price = self.get_current_close()
 
-        return start_delta > 14
+        self.logger().info(f"is_price_crash_good_to_open_rev() | bottom_price_index:{bottom_price_index} | bottom_price:{bottom_price} | current_price:{current_price} | price_threshold:{price_threshold}")
 
-    def is_rsi_crash_good_to_open_rev(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI_40"]
-        recent_rsis = rsi_series.iloc[-15:].reset_index(drop=True)
-
-        bottom_rsi = Decimal(recent_rsis.min())
-
-        if bottom_rsi > 32:
+        if current_price < price_threshold:
             return False
 
-        current_rsi = self.get_current_rsi(40)
-        rsi_threshold: Decimal = bottom_rsi + 2
+        peak_price = Decimal(recent_highs.iloc[0:bottom_price_index].max())
+        start_delta_pct: Decimal = (peak_price - bottom_price) / current_price * 100
 
-        self.logger().info(f"is_rsi_crash_good_to_open_rev() | bottom_rsi:{bottom_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
+        self.logger().info(f"is_price_spike_good_to_open_rev() | peak_price:{peak_price} | start_delta_pct:{start_delta_pct}")
 
-        if current_rsi < rsi_threshold:
-            return False
-
-        bottom_rsi_index = recent_rsis.idxmin()
-
-        if bottom_rsi_index == 0:
-            return False
-
-        peak_rsi = Decimal(recent_rsis.iloc[0:bottom_rsi_index].max())
-        start_delta: Decimal = peak_rsi - bottom_rsi
-
-        self.logger().info(f"is_rsi_crash_good_to_open_rev() | bottom_rsi_index:{bottom_rsi_index} | peak_rsi:{peak_rsi} | start_delta:{start_delta}")
-
-        return start_delta > 14
+        return start_delta_pct > self.config.min_price_start_delta_pct_for_rev
 
     def should_close_rev_sell_due_to_stoch_reversal(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
         # Don't close if we just opened
