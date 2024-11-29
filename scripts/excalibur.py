@@ -84,7 +84,7 @@ class ExcaliburStrategy(PkStrategy):
 
         candles_df["RSI_40"] = candles_df.ta.rsi(length=40)
 
-        candles_df["SMA_25"] = candles_df.ta.sma(length=25)
+        candles_df["SMA_19"] = candles_df.ta.sma(length=19)
         candles_df["SMA_75"] = candles_df.ta.sma(length=75)
         candles_df["SMA_300"] = candles_df.ta.sma(length=300)
 
@@ -142,7 +142,7 @@ class ExcaliburStrategy(PkStrategy):
                     "close",
                     "volume",
                     "RSI_40",
-                    "SMA_25",
+                    "SMA_19",
                     "SMA_75",
                     "SMA_300",
                     "STOCH_40_k"
@@ -333,11 +333,11 @@ class ExcaliburStrategy(PkStrategy):
         return self.is_latest_tiny_ma_over_short() and not self.is_previous_tiny_ma_over_short()
 
     def is_latest_tiny_ma_over_short(self) -> bool:
-        latest_tiny_minus_short: Decimal = self.get_latest_ma(25) - self.get_latest_ma(75)
+        latest_tiny_minus_short: Decimal = self.get_latest_ma(19) - self.get_latest_ma(75)
         return latest_tiny_minus_short > 0
 
     def is_previous_tiny_ma_over_short(self) -> bool:
-        previous_tiny_minus_short: Decimal = self.get_previous_ma(25) - self.get_previous_ma(75)
+        previous_tiny_minus_short: Decimal = self.get_previous_ma(19) - self.get_previous_ma(75)
         return previous_tiny_minus_short > 0
 
     def is_price_close_enough_to_short_ma(self):
