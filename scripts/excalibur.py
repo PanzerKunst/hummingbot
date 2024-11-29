@@ -406,28 +406,28 @@ class ExcaliburStrategy(PkStrategy):
         return start_delta > 14
 
     def did_price_suddenly_rise_to_short_ma(self) -> bool:
-        latest_close = self.get_latest_close()
+        current_close = self.get_current_close()
 
         close_series: pd.Series = self.processed_data["close"]
         recent_prices = close_series.iloc[-16:-1]  # 15 items, last one excluded
         min_price: Decimal = Decimal(recent_prices.min())
 
-        price_delta_pct: Decimal = (latest_close - min_price) / latest_close * 100
+        price_delta_pct: Decimal = (current_close - min_price) / current_close * 100
 
-        self.logger().info(f"did_price_suddenly_rise_to_short_ma() | latest_close:{latest_close} | min_price:{min_price} | price_delta_pct:{price_delta_pct}")
+        self.logger().info(f"did_price_suddenly_rise_to_short_ma() | current_close:{current_close} | min_price:{min_price} | price_delta_pct:{price_delta_pct}")
 
         return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_ma
 
     def did_price_suddenly_drop_to_short_ma(self) -> bool:
-        latest_close = self.get_latest_close()
+        current_close = self.get_current_close()
 
         close_series: pd.Series = self.processed_data["close"]
         recent_prices = close_series.iloc[-16:-1]  # 15 items, last one excluded
         max_price: Decimal = Decimal(recent_prices.max())
 
-        price_delta_pct: Decimal = (max_price - latest_close) / latest_close * 100
+        price_delta_pct: Decimal = (max_price - current_close) / current_close * 100
 
-        self.logger().info(f"did_price_suddenly_drop_to_short_ma() | latest_close:{latest_close} | max_price:{max_price} | price_delta_pct:{price_delta_pct}")
+        self.logger().info(f"did_price_suddenly_drop_to_short_ma() | current_close:{current_close} | max_price:{max_price} | price_delta_pct:{price_delta_pct}")
 
         return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_ma
 
