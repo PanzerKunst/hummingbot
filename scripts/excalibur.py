@@ -448,10 +448,10 @@ class ExcaliburStrategy(PkStrategy):
 
     def is_price_spike_good_to_open_rev(self) -> bool:
         high_series: pd.Series = self.processed_data["high"]
-        recent_highs = high_series.iloc[-8:].reset_index(drop=True)
+        recent_highs = high_series.iloc[-4:].reset_index(drop=True)
 
         low_series: pd.Series = self.processed_data["low"]
-        recent_lows = low_series.iloc[-8:]
+        recent_lows = low_series.iloc[-4:]
 
         peak_price = Decimal(recent_highs.max())
         peak_price_index = recent_highs.idxmax()
@@ -468,24 +468,23 @@ class ExcaliburStrategy(PkStrategy):
         too_late_threshold: Decimal = peak_price * (1 - 2 * self.config.price_pullback_pct_for_rev / 100)
 
         if current_price < too_late_threshold:
-            self.logger().info("is_price_spike_good_to_open_rev() | Too late to open")
             return False
-
-        self.logger().info(f"is_price_spike_good_to_open_rev() | peak_price_index:{peak_price_index} | peak_price:{peak_price} | current_price:{current_price} | price_threshold:{price_threshold}")
 
         bottom_price = Decimal(recent_lows.iloc[0:peak_price_index].min())
         start_delta_pct: Decimal = (peak_price - bottom_price) / current_price * 100
 
-        self.logger().info(f"is_price_spike_good_to_open_rev() | bottom_price:{bottom_price} | start_delta_pct:{start_delta_pct}")
+        if start_delta_pct > self.config.price_start_delta_pct_for_rev:
+            self.logger().info(f"is_price_spike_good_to_open_rev() | peak_price_index:{peak_price_index} | peak_price:{peak_price} | current_price:{current_price} | price_threshold:{price_threshold}")
+            self.logger().info(f"is_price_spike_good_to_open_rev() | bottom_price:{bottom_price} | start_delta_pct:{start_delta_pct}")
 
         return start_delta_pct > self.config.price_start_delta_pct_for_rev
 
     def is_price_crash_good_to_open_rev(self) -> bool:
         low_series: pd.Series = self.processed_data["low"]
-        recent_lows = low_series.iloc[-8:].reset_index(drop=True)
+        recent_lows = low_series.iloc[-4:].reset_index(drop=True)
 
         high_series: pd.Series = self.processed_data["high"]
-        recent_highs = high_series.iloc[-8:]
+        recent_highs = high_series.iloc[-4:]
 
         bottom_price = Decimal(recent_lows.min())
         bottom_price_index = recent_lows.idxmin()
@@ -502,15 +501,14 @@ class ExcaliburStrategy(PkStrategy):
         too_late_threshold: Decimal = bottom_price * (1 + 2 * self.config.price_pullback_pct_for_rev / 100)
 
         if current_price > too_late_threshold:
-            self.logger().info("is_price_crash_good_to_open_rev() | Too late to open")
             return False
-
-        self.logger().info(f"is_price_crash_good_to_open_rev() | bottom_price_index:{bottom_price_index} | bottom_price:{bottom_price} | current_price:{current_price} | price_threshold:{price_threshold}")
 
         peak_price = Decimal(recent_highs.iloc[0:bottom_price_index].max())
         start_delta_pct: Decimal = (peak_price - bottom_price) / current_price * 100
 
-        self.logger().info(f"is_price_spike_good_to_open_rev() | peak_price:{peak_price} | start_delta_pct:{start_delta_pct}")
+        if start_delta_pct > self.config.price_start_delta_pct_for_rev:
+            self.logger().info(f"is_price_crash_good_to_open_rev() | bottom_price_index:{bottom_price_index} | bottom_price:{bottom_price} | current_price:{current_price} | price_threshold:{price_threshold}")
+            self.logger().info(f"is_price_spike_good_to_open_rev() | peak_price:{peak_price} | start_delta_pct:{start_delta_pct}")
 
         return start_delta_pct > self.config.price_start_delta_pct_for_rev
 
