@@ -14,7 +14,7 @@ from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.excalibur_config import ExcaliburConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
-from scripts.pk.pk_utils import was_an_order_recently_opened
+from scripts.pk.pk_utils import compute_buy_orders_pnl_pct, compute_sell_orders_pnl_pct, was_an_order_recently_opened
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 # Trend following via comparing 2 MAs, and reversions based on RSI & Stochastic
@@ -210,14 +210,20 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_MA_CROSS)
 
         if len(filled_sell_orders) > 0:
-            if self.did_tiny_ma_cross_over_short():
+            if not self.is_sell_order_profitable(filled_sell_orders) and self.did_price_cross_over_short_ma():
+                self.logger().info("stop_actions_proposal_ma_cross() > Stop Loss on Sell MA-X")
+                self.market_close_orders(filled_sell_orders, CloseType.STOP_LOSS)
+            elif self.did_tiny_ma_cross_over_short():
                 self.logger().info("stop_actions_proposal_ma_cross() > Closing Sell MA-X: tiny MA crossed over short")
-                self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
+                self.market_close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
 
         if len(filled_buy_orders) > 0:
-            if self.did_tiny_ma_cross_under_short():
+            if not self.is_buy_order_profitable(filled_buy_orders) and self.did_price_cross_under_short_ma():
+                self.logger().info("stop_actions_proposal_ma_cross() > Stop Loss on Buy MA-X")
+                self.market_close_orders(filled_buy_orders, CloseType.STOP_LOSS)
+            elif self.did_tiny_ma_cross_under_short():
                 self.logger().info("stop_actions_proposal_ma_cross() > Closing Buy MA-X: tiny MA crossed under short")
-                self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
+                self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
 
     #
     # Reversion start/stop action proposals
@@ -288,6 +294,9 @@ class ExcaliburStrategy(PkStrategy):
         rsi_series: pd.Series = self.processed_data[f"RSI_{length}"]
         return Decimal(rsi_series.iloc[-1])
 
+    def get_current_ma(self, length: int) -> Decimal:
+        return self._get_ma_at_index(length, -1)
+
     def get_latest_ma(self, length: int) -> Decimal:
         return self._get_ma_at_index(length, -2)
 
@@ -327,18 +336,32 @@ class ExcaliburStrategy(PkStrategy):
         return previous_short_minus_long > 0
 
     def did_tiny_ma_cross_under_short(self) -> bool:
-        return not self.is_latest_tiny_ma_over_short() and self.is_previous_tiny_ma_over_short()
+        return not self.is_current_tiny_ma_over_short() and self.is_latest_tiny_ma_over_short()
 
     def did_tiny_ma_cross_over_short(self) -> bool:
-        return self.is_latest_tiny_ma_over_short() and not self.is_previous_tiny_ma_over_short()
+        return self.is_current_tiny_ma_over_short() and not self.is_latest_tiny_ma_over_short()
+
+    def is_current_tiny_ma_over_short(self) -> bool:
+        current_tiny_ma_minus_short: Decimal = self.get_current_ma(19) - self.get_current_ma(75)
+        return current_tiny_ma_minus_short > 0
 
     def is_latest_tiny_ma_over_short(self) -> bool:
-        latest_tiny_minus_short: Decimal = self.get_latest_ma(19) - self.get_latest_ma(75)
-        return latest_tiny_minus_short > 0
+        latest_tiny_ma_minus_short: Decimal = self.get_latest_ma(19) - self.get_latest_ma(75)
+        return latest_tiny_ma_minus_short > 0
 
-    def is_previous_tiny_ma_over_short(self) -> bool:
-        previous_tiny_minus_short: Decimal = self.get_previous_ma(19) - self.get_previous_ma(75)
-        return previous_tiny_minus_short > 0
+    def did_price_cross_under_short_ma(self) -> bool:
+        return not self.is_current_price_over_short_ma() and self.is_latest_price_over_short_ma()
+
+    def did_price_cross_over_short_ma(self) -> bool:
+        return self.is_current_price_over_short_ma() and not self.is_latest_price_over_short_ma()
+
+    def is_current_price_over_short_ma(self) -> bool:
+        current_price_minus_short_ma: Decimal = self.get_current_close() - self.get_current_ma(75)
+        return current_price_minus_short_ma > 0
+
+    def is_latest_price_over_short_ma(self) -> bool:
+        latest_price_minus_short_ma: Decimal = self.get_latest_close() - self.get_latest_ma(75)
+        return latest_price_minus_short_ma > 0
 
     def is_price_close_enough_to_short_ma(self):
         latest_close = self.get_latest_close()
@@ -408,6 +431,16 @@ class ExcaliburStrategy(PkStrategy):
         self.logger().info(f"did_price_suddenly_drop_to_short_ma() | latest_close:{latest_close} | max_price:{max_price} | price_delta_pct:{price_delta_pct}")
 
         return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_ma
+
+    def is_sell_order_profitable(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
+        pnl_pct: Decimal = compute_sell_orders_pnl_pct(filled_sell_orders, self.get_mid_price())
+
+        return pnl_pct > 0
+
+    def is_buy_order_profitable(self, filled_buy_orders: List[TrackedOrderDetails]) -> bool:
+        pnl_pct: Decimal = compute_buy_orders_pnl_pct(filled_buy_orders, self.get_mid_price())
+
+        return pnl_pct > 0
 
     #
     # Fast reversion functions
