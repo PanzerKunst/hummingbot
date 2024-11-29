@@ -518,7 +518,7 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
-        recent_stochs = stoch_series.iloc[-8:]
+        recent_stochs = stoch_series.iloc[-5:]
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
 
         if bottom_stoch > 20:
@@ -537,7 +537,7 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
-        recent_stochs = stoch_series.iloc[-8:]
+        recent_stochs = stoch_series.iloc[-5:]
         peak_stoch: Decimal = Decimal(recent_stochs.max())
 
         if peak_stoch < 80:
