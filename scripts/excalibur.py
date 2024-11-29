@@ -416,7 +416,6 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"did_price_suddenly_rise_to_short_ma() | latest_close:{latest_close} | min_price:{min_price} | price_delta_pct:{price_delta_pct}")
 
-        # The percentage difference between min_price and current_price is over x%
         return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_ma
 
     def did_price_suddenly_drop_to_short_ma(self) -> bool:
