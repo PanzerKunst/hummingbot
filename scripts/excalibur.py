@@ -238,32 +238,22 @@ class ExcaliburStrategy(PkStrategy):
             self.create_order(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote_rev, ORDER_REF_REV)
 
     def can_create_rev_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, self.config.amount_quote_rev, ORDER_REF_REV, 0):
+        if not self.can_create_order(side, self.config.amount_quote_rev, ORDER_REF_REV, 8):
             return False
 
         if len(active_tracked_orders) > 0:
             return False
 
         if side == TradeType.SELL:
-            if self.did_short_ma_cross_under_long():
-                self.logger().info("can_create_ma_cross_order() > Short MA crossed under long")
-
-                return (
-                    self.is_price_close_enough_to_short_ma() and
-                    not self.did_rsi_recently_crash() and
-                    not self.did_price_suddenly_rise_to_short_ma()
-                )
+            if self.is_rsi_spike_good_to_open_rev():
+                self.logger().info("can_create_rev_order() > Opening Sell reversion")
+                return True
 
             return False
 
-        if self.did_short_ma_cross_over_long():
-            self.logger().info("can_create_ma_cross_order() > Short MA crossed over long")
-
-            return (
-                self.is_price_close_enough_to_short_ma() and
-                not self.did_rsi_recently_spike() and
-                not self.did_price_suddenly_drop_to_short_ma()
-            )
+        if self.is_rsi_crash_good_to_open_rev():
+            self.logger().info("can_create_rev_order() > Opening Buy reversion")
+            return True
 
         return False
 
@@ -271,13 +261,13 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_REV)
 
         if len(filled_sell_orders) > 0:
-            if self.did_tiny_ma_cross_over_short():
-                self.logger().info("stop_actions_proposal_ma_cross() > Closing MA-X: tiny MA crossed over short")
+            if self.should_close_rev_sell_due_to_stoch_reversal(filled_sell_orders):
+                self.logger().info("stop_actions_proposal_rev() > Closing Sell reversion")
                 self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
 
         if len(filled_buy_orders) > 0:
-            if self.did_tiny_ma_cross_under_short():
-                self.logger().info("stop_actions_proposal_ma_cross() > Closing MA-X: tiny MA crossed under short")
+            if self.should_close_rev_buy_due_to_stoch_reversal(filled_buy_orders):
+                self.logger().info("stop_actions_proposal_rev() > Closing Buy reversion")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
 
     #
