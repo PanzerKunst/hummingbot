@@ -190,7 +190,8 @@ class ExcaliburStrategy(PkStrategy):
                 return (
                     not self.is_current_price_over_short_ma() and
                     self.is_price_close_enough_to_short_ma() and
-                    not self.did_rsi_recently_crash()
+                    not self.did_rsi_recently_crash() and
+                    not self.did_tiny_ma_bottom()
                 )
 
             return False
@@ -201,7 +202,8 @@ class ExcaliburStrategy(PkStrategy):
             return (
                 self.is_current_price_over_short_ma() and
                 self.is_price_close_enough_to_short_ma() and
-                not self.did_rsi_recently_spike()
+                not self.did_rsi_recently_spike() and
+                not self.did_tiny_ma_peak()
             )
 
         return False
@@ -431,7 +433,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def did_tiny_ma_bottom(self):
         ma_series: pd.Series = self.processed_data["SMA_19"]
-        recent_mas = ma_series.iloc[-15:]
+        recent_mas = ma_series.iloc[-12:]
         bottom_ma: Decimal = Decimal(recent_mas.min())
 
         current_ma = self.get_current_ma(19)
@@ -444,7 +446,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def did_tiny_ma_peak(self):
         ma_series: pd.Series = self.processed_data["SMA_19"]
-        recent_mas = ma_series.iloc[-15:]
+        recent_mas = ma_series.iloc[-12:]
         peak_ma: Decimal = Decimal(recent_mas.max())
 
         current_ma = self.get_current_ma(19)
