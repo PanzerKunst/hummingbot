@@ -516,7 +516,7 @@ class ExcaliburStrategy(PkStrategy):
         if current_rsi > rsi_threshold:
             return False
 
-        too_late_threshold: Decimal = rsi_threshold - 1
+        too_late_threshold: Decimal = rsi_threshold - 2
         has_peaked = current_rsi > too_late_threshold
 
         if has_peaked:
@@ -535,7 +535,7 @@ class ExcaliburStrategy(PkStrategy):
         if current_rsi < rsi_threshold:
             return False
 
-        too_late_threshold: Decimal = rsi_threshold + 1
+        too_late_threshold: Decimal = rsi_threshold + 2
         has_bottomed = current_rsi < too_late_threshold
 
         if has_bottomed:
