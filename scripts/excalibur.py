@@ -510,13 +510,13 @@ class ExcaliburStrategy(PkStrategy):
         recent_rsis = rsi_series.iloc[-candle_count:]
 
         peak_rsi = Decimal(recent_rsis.max())
-        rsi_threshold: Decimal = peak_rsi - 2
+        rsi_threshold: Decimal = peak_rsi - 1
         current_rsi = self.get_current_rsi(40)
 
         if current_rsi > rsi_threshold:
             return False
 
-        too_late_threshold: Decimal = rsi_threshold - 2
+        too_late_threshold: Decimal = rsi_threshold - 1
         has_peaked = current_rsi > too_late_threshold
 
         if has_peaked:
@@ -529,13 +529,13 @@ class ExcaliburStrategy(PkStrategy):
         recent_rsis = rsi_series.iloc[-candle_count:]
 
         bottom_rsi = Decimal(recent_rsis.min())
-        rsi_threshold: Decimal = bottom_rsi + 2
+        rsi_threshold: Decimal = bottom_rsi + 1
         current_rsi = self.get_current_rsi(40)
 
         if current_rsi < rsi_threshold:
             return False
 
-        too_late_threshold: Decimal = rsi_threshold + 2
+        too_late_threshold: Decimal = rsi_threshold + 1
         has_bottomed = current_rsi < too_late_threshold
 
         if has_bottomed:
