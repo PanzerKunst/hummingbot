@@ -48,3 +48,4 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     max_price_delta_pct_with_short_ma_to_open: Decimal = 3.0
     min_price_delta_pct_for_sudden_reversal_to_short_ma: Decimal = 3.0
     price_start_delta_pct_for_rev: Decimal = 6.0
+    tiny_ma_reversal_bps_for_rev: Decimal = 12.5  # 10.0 15.0

@@ -22,3 +22,4 @@ entry_price_delta_bps: 0
 max_price_delta_pct_with_short_ma_to_open: 4.5
 min_price_delta_pct_for_sudden_reversal_to_short_ma: 4.5
 price_start_delta_pct_for_rev: 8.0
+tiny_ma_reversal_bps_for_rev: 15.0

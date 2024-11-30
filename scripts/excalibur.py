@@ -435,7 +435,7 @@ class ExcaliburStrategy(PkStrategy):
         bottom_ma: Decimal = Decimal(recent_mas.min())
 
         current_ma = self.get_current_ma(19)
-        ma_threshold: Decimal = bottom_ma * (1 + Decimal(0.15) / 100)
+        ma_threshold: Decimal = bottom_ma * (1 + self.config.tiny_ma_reversal_bps_for_rev / 10000)
 
         if current_ma > ma_threshold:
             self.logger().info(f"did_tiny_ma_bottom() | current_ma:{current_ma} | ma_threshold:{ma_threshold}")
@@ -448,7 +448,7 @@ class ExcaliburStrategy(PkStrategy):
         peak_ma: Decimal = Decimal(recent_mas.max())
 
         current_ma = self.get_current_ma(19)
-        ma_threshold: Decimal = peak_ma * (1 - Decimal(0.15) / 100)
+        ma_threshold: Decimal = peak_ma * (1 - self.config.tiny_ma_reversal_bps_for_rev / 10000)
 
         if current_ma < ma_threshold:
             self.logger().info(f"did_tiny_ma_peak() | current_ma:{current_ma} | ma_threshold:{ma_threshold}")
