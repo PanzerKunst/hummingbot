@@ -250,7 +250,7 @@ class ExcaliburStrategy(PkStrategy):
         if len(active_tracked_orders) > 0:
             return False
 
-        candle_count_for_rev: int = 6
+        candle_count_for_rev: int = 8
 
         if side == TradeType.SELL:
             if self.is_price_spiking(candle_count_for_rev) and self.has_rsi_peaked(candle_count_for_rev):
