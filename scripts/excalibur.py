@@ -431,7 +431,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def did_tiny_ma_bottom(self):
         ma_series: pd.Series = self.processed_data["SMA_19"]
-        recent_mas = ma_series.iloc[-8:]
+        recent_mas = ma_series.iloc[-15:]
         bottom_ma: Decimal = Decimal(recent_mas.min())
 
         current_ma = self.get_current_ma(19)
@@ -444,7 +444,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def did_tiny_ma_peak(self):
         ma_series: pd.Series = self.processed_data["SMA_19"]
-        recent_mas = ma_series.iloc[-8:]
+        recent_mas = ma_series.iloc[-15:]
         peak_ma: Decimal = Decimal(recent_mas.max())
 
         current_ma = self.get_current_ma(19)
