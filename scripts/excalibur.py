@@ -42,6 +42,8 @@ class ExcaliburStrategy(PkStrategy):
 
         self.processed_data = pd.DataFrame()
 
+        self.last_price_spike_or_crash_pct: Decimal = Decimal(0.0)
+
     def start(self, clock: Clock, timestamp: float) -> None:
         self._last_timestamp = timestamp
         self.apply_initial_setting()
@@ -60,9 +62,11 @@ class ExcaliburStrategy(PkStrategy):
                 open_order_type=OrderType.MARKET
             )
 
+        stop_loss_pct: Decimal = self.last_price_spike_or_crash_pct / 6
+
         return TripleBarrier(
             open_order_type=OrderType.MARKET,
-            stop_loss=self.config.rev_stop_loss_pct / 100
+            stop_loss=stop_loss_pct / 100
         )
 
     def update_processed_data(self):
@@ -489,6 +493,7 @@ class ExcaliburStrategy(PkStrategy):
 
         if is_spiking:
             self.logger().info(f"is_price_spiking() | peak_price_index:{peak_price_index} | peak_price:{peak_price} | bottom_price:{bottom_price} | start_delta_pct:{start_delta_pct}")
+            self.last_price_spike_or_crash_pct = start_delta_pct
 
         return is_spiking
 
@@ -511,6 +516,7 @@ class ExcaliburStrategy(PkStrategy):
 
         if is_crashing:
             self.logger().info(f"is_price_crashing() | bottom_price_index:{bottom_price_index} | bottom_price:{bottom_price} | peak_price:{peak_price} | start_delta_pct:{start_delta_pct}")
+            self.last_price_spike_or_crash_pct = start_delta_pct
 
         return is_crashing
 
