@@ -434,8 +434,12 @@ class ExcaliburStrategy(PkStrategy):
 
     def did_tiny_ma_bottom(self):
         ma_series: pd.Series = self.processed_data["SMA_19"]
-        recent_mas = ma_series.iloc[-12:]
+        recent_mas = ma_series.iloc[-15:].reset_index(drop=True)
         bottom_ma: Decimal = Decimal(recent_mas.min())
+        bottom_ma_index = recent_mas.idxmin()
+
+        if bottom_ma_index == 0:
+            return False
 
         current_ma = self.get_current_ma(19)
         ma_threshold: Decimal = bottom_ma * (1 + self.config.tiny_ma_reversal_bps_for_rev / 10000)
@@ -447,8 +451,12 @@ class ExcaliburStrategy(PkStrategy):
 
     def did_tiny_ma_peak(self):
         ma_series: pd.Series = self.processed_data["SMA_19"]
-        recent_mas = ma_series.iloc[-12:]
+        recent_mas = ma_series.iloc[-15:].reset_index(drop=True)
         peak_ma: Decimal = Decimal(recent_mas.max())
+        peak_ma_index = recent_mas.idxmax()
+
+        if peak_ma_index == 0:
+            return False
 
         current_ma = self.get_current_ma(19)
         ma_threshold: Decimal = peak_ma * (1 - self.config.tiny_ma_reversal_bps_for_rev / 10000)
