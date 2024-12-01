@@ -177,7 +177,8 @@ class ExcaliburStrategy(PkStrategy):
             )
 
     def can_create_ma_cross_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, self.config.amount_quote_ma_cross, ORDER_REF_MA_CROSS, 0):
+        # Same cooldown as candle duration
+        if not self.can_create_order(side, self.config.amount_quote_ma_cross, ORDER_REF_MA_CROSS, 3):
             return False
 
         if len(active_tracked_orders) > 0:
@@ -363,7 +364,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def did_rsi_recently_crash(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI_40"]
-        recent_rsis = rsi_series.iloc[-15:].reset_index(drop=True)
+        recent_rsis = rsi_series.iloc[-10:].reset_index(drop=True)
 
         bottom_rsi = Decimal(recent_rsis.min())
         bottom_rsi_index = recent_rsis.idxmin()
@@ -380,7 +381,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def did_rsi_recently_spike(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI_40"]
-        recent_rsis = rsi_series.iloc[-15:].reset_index(drop=True)
+        recent_rsis = rsi_series.iloc[-10:].reset_index(drop=True)
 
         peak_rsi = Decimal(recent_rsis.max())
         peak_rsi_index = recent_rsis.idxmax()
@@ -510,13 +511,13 @@ class ExcaliburStrategy(PkStrategy):
         recent_rsis = rsi_series.iloc[-candle_count:]
 
         peak_rsi = Decimal(recent_rsis.max())
-        rsi_threshold: Decimal = peak_rsi - 1
+        rsi_threshold: Decimal = peak_rsi - Decimal(1.5)
         current_rsi = self.get_current_rsi(40)
 
         if current_rsi > rsi_threshold:
             return False
 
-        too_late_threshold: Decimal = rsi_threshold - 2
+        too_late_threshold: Decimal = rsi_threshold - Decimal(1.5)
         has_peaked = current_rsi > too_late_threshold
 
         if has_peaked:
@@ -529,13 +530,13 @@ class ExcaliburStrategy(PkStrategy):
         recent_rsis = rsi_series.iloc[-candle_count:]
 
         bottom_rsi = Decimal(recent_rsis.min())
-        rsi_threshold: Decimal = bottom_rsi + 1
+        rsi_threshold: Decimal = bottom_rsi + Decimal(1.5)
         current_rsi = self.get_current_rsi(40)
 
         if current_rsi < rsi_threshold:
             return False
 
-        too_late_threshold: Decimal = rsi_threshold + 2
+        too_late_threshold: Decimal = rsi_threshold + Decimal(1.5)
         has_bottomed = current_rsi < too_late_threshold
 
         if has_bottomed:

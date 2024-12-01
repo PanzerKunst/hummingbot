@@ -19,7 +19,6 @@ rev_stop_loss_pct: 1.0
 amount_quote_ma_cross: 30
 amount_quote_rev: 30
 entry_price_delta_bps: 0
-max_price_delta_pct_with_short_ma_to_open: 3.0
-min_price_delta_pct_for_sudden_reversal_to_short_ma: 3.0
+max_price_delta_pct_with_short_ma_to_open: 2.7
 price_start_delta_pct_for_rev: 6.0
 tiny_ma_reversal_bps_for_rev: 12.5

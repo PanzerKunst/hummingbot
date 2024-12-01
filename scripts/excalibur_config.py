@@ -45,7 +45,6 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     amount_quote_ma_cross: int = 30
     amount_quote_rev: int = 30
     entry_price_delta_bps: int = 0
-    max_price_delta_pct_with_short_ma_to_open: Decimal = 3.0
-    min_price_delta_pct_for_sudden_reversal_to_short_ma: Decimal = 3.0
+    max_price_delta_pct_with_short_ma_to_open: Decimal = 2.7
     price_start_delta_pct_for_rev: Decimal = 6.0
     tiny_ma_reversal_bps_for_rev: Decimal = 12.5  # 10.0 15.0
