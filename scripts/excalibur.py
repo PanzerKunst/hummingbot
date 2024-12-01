@@ -59,7 +59,8 @@ class ExcaliburStrategy(PkStrategy):
     def get_triple_barrier(self, order_ref: str) -> TripleBarrier:
         if order_ref == ORDER_REF_MA_CROSS:
             return TripleBarrier(
-                open_order_type=OrderType.MARKET
+                open_order_type=OrderType.MARKET,
+                take_profit=self.config.ma_cross_take_profit_pct / 100
             )
 
         stop_loss_pct: Decimal = self.last_price_spike_or_crash_pct / 6

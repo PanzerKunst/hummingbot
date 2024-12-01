@@ -39,6 +39,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     position_mode: PositionMode = PositionMode.ONEWAY
 
     # Triple Barrier
+    ma_cross_take_profit_pct: Decimal = 1.5
 
     # Order settings
     amount_quote_ma_cross: int = 30

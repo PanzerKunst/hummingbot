@@ -15,6 +15,7 @@ limit_take_profit_price_delta_bps: 0
 market_order_twap_count: 1
 market_order_twap_interval: 5
 position_mode: ONEWAY
+ma_cross_take_profit_pct: 2.0
 amount_quote_ma_cross: 30
 amount_quote_rev: 30
 entry_price_delta_bps: 0
