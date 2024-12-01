@@ -526,6 +526,11 @@ class ExcaliburStrategy(PkStrategy):
         recent_rsis = rsi_series.iloc[-candle_count:]
 
         peak_rsi = Decimal(recent_rsis.max())
+
+        # Avoids opening an opposite Sell Rev, when the price goes back up after a crash
+        if peak_rsi < 63:
+            return False
+
         rsi_threshold: Decimal = peak_rsi - Decimal(1.5)
         current_rsi = self.get_current_rsi(40)
 
@@ -545,6 +550,10 @@ class ExcaliburStrategy(PkStrategy):
         recent_rsis = rsi_series.iloc[-candle_count:]
 
         bottom_rsi = Decimal(recent_rsis.min())
+
+        if bottom_rsi > 37:
+            return False
+
         rsi_threshold: Decimal = bottom_rsi + Decimal(1.5)
         current_rsi = self.get_current_rsi(40)
 
