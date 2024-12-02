@@ -1,4 +1,3 @@
-import os
 from decimal import Decimal
 from typing import Dict, List, Set
 
@@ -24,7 +23,7 @@ class ThunderfuryConfig(StrategyV2ConfigBase):
 
     controllers_config: List[str] = Field(default_factory=list)
     config_update_interval: int = 10
-    script_file_name: str = Field(default_factory=lambda: os.path.basename(__file__))
+    script_file_name: str = "thunderfury.py"
     # Standard attributes END
 
     # Used by PkStrategy
