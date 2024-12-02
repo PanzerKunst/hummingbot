@@ -6,7 +6,7 @@ candles_config:
   trading_pair: 1000FLOKI-USDT
 controllers_config: []
 config_update_interval: 10
-script_file_name: excalibur_config.py
+script_file_name: excalibur.py
 connector_name: hyperliquid_perpetual
 trading_pair: kFLOKI-USD
 leverage: 5
@@ -21,4 +21,4 @@ amount_quote_rev: 30
 entry_price_delta_bps: 0
 max_price_delta_pct_with_short_ma_to_open: 2.0
 price_start_delta_pct_for_rev: 4.5
-tiny_ma_reversal_bps_for_rev: 10.0
+tiny_ma_reversal_bps: 10.0

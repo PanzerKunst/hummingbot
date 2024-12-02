@@ -6,7 +6,7 @@ candles_config:
   trading_pair: CHILLGUY-USDT
 controllers_config: []
 config_update_interval: 10
-script_file_name: excalibur_config.py
+script_file_name: excalibur.py
 connector_name: hyperliquid_perpetual
 trading_pair: CHILLGUY-USD
 leverage: 3
@@ -21,4 +21,4 @@ amount_quote_rev: 30
 entry_price_delta_bps: 0
 max_price_delta_pct_with_short_ma_to_open: 3.6
 price_start_delta_pct_for_rev: 8.0
-tiny_ma_reversal_bps_for_rev: 15.0
+tiny_ma_reversal_bps: 15.0
