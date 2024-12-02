@@ -14,7 +14,7 @@ from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.excalibur_config import ExcaliburConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
-from scripts.pk.pk_utils import compute_buy_orders_pnl_pct, compute_sell_orders_pnl_pct, was_an_order_recently_opened
+from scripts.pk.pk_utils import compute_buy_orders_pnl_pct, compute_sell_orders_pnl_pct
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 # Trend following via comparing 2 MAs, and reversions based on RSI & Stochastic
@@ -427,8 +427,7 @@ class ExcaliburStrategy(PkStrategy):
         return most_recent_created_at + seconds > current_timestamp
 
     def has_order_been_open_long_enough(self, filled_orders: List[TrackedOrderDetails]) -> bool:
-        if self.was_an_order_recently_opened(filled_orders, 20 * 60, self.get_market_data_provider_time()):
-            return False
+        return not self.was_an_order_recently_opened(filled_orders, 20 * 60, self.get_market_data_provider_time())
 
     def is_sell_order_profitable(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
         pnl_pct: Decimal = compute_sell_orders_pnl_pct(filled_sell_orders, self.get_mid_price())
@@ -565,7 +564,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def should_close_rev_sell_due_to_stoch_reversal(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
         # Don't close if we just opened
-        if was_an_order_recently_opened(filled_sell_orders, 8 * 60, self.get_market_data_provider_time()):
+        if self.was_an_order_recently_opened(filled_sell_orders, 8 * 60, self.get_market_data_provider_time()):
             return False
 
         stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
@@ -584,7 +583,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def should_close_rev_buy_due_to_stoch_reversal(self, filled_buy_orders: List[TrackedOrderDetails]) -> bool:
         # Don't close if we just opened
-        if was_an_order_recently_opened(filled_buy_orders, 8 * 60, self.get_market_data_provider_time()):
+        if self.was_an_order_recently_opened(filled_buy_orders, 8 * 60, self.get_market_data_provider_time()):
             return False
 
         stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
