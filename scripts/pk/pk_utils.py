@@ -42,12 +42,12 @@ def compute_recent_price_delta_pct(low_series: pd.Series, high_series: pd.Series
     return (highest_price - lowest_price) / highest_price * 100
 
 
-def compute_short_orders_pnl_pct(filled_sell_orders: List[TrackedOrderDetails], current_price: Decimal) -> Decimal:
+def compute_sell_orders_pnl_pct(filled_sell_orders: List[TrackedOrderDetails], current_price: Decimal) -> Decimal:
     worst_filled_price = min(filled_sell_orders, key=lambda order: order.last_filled_price).last_filled_price
     return (worst_filled_price - current_price) / worst_filled_price * 100
 
 
-def compute_long_orders_pnl_pct(filled_buy_orders: List[TrackedOrderDetails], current_price: Decimal) -> Decimal:
+def compute_buy_orders_pnl_pct(filled_buy_orders: List[TrackedOrderDetails], current_price: Decimal) -> Decimal:
     worst_filled_price = max(filled_buy_orders, key=lambda order: order.last_filled_price).last_filled_price
     return (current_price - worst_filled_price) / worst_filled_price * 100
 

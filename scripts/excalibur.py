@@ -14,20 +14,22 @@ from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.excalibur_config import ExcaliburConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
-from scripts.pk.pk_utils import was_an_order_recently_opened
+from scripts.pk.pk_utils import compute_buy_orders_pnl_pct, compute_sell_orders_pnl_pct, was_an_order_recently_opened
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 # Trend following via comparing 2 MAs, and reversions based on RSI & Stochastic
 # Generate config file: create --script-config excalibur
 # Start the bot: start --script excalibur.py --conf conf_excalibur_GOAT.yml
 #                start --script excalibur.py --conf conf_excalibur_CHILLGUY.yml
+#                start --script excalibur.py --conf conf_excalibur_FLOKI.yml
 #                start --script excalibur.py --conf conf_excalibur_MOODENG.yml
+#                start --script excalibur.py --conf conf_excalibur_NEIRO.yml
 #                start --script excalibur.py --conf conf_excalibur_PNUT.yml
+#                start --script excalibur.py --conf conf_excalibur_POPCAT.yml
 # Quickstart script: -p=a -f excalibur.py -c conf_excalibur_GOAT.yml
 
 ORDER_REF_MA_CROSS = "MaCross"
-ORDER_REF_FAST_REVERSION = "FastReversion"
-ORDER_REF_SLOW_REVERSION = "SlowReversion"
+ORDER_REF_REV = "Rev"
 
 
 class ExcaliburStrategy(PkStrategy):
@@ -39,6 +41,8 @@ class ExcaliburStrategy(PkStrategy):
         super().__init__(connectors, config)
 
         self.processed_data = pd.DataFrame()
+
+        self.last_price_spike_or_crash_pct: Decimal = Decimal(0.0)
 
     def start(self, clock: Clock, timestamp: float) -> None:
         self._last_timestamp = timestamp
@@ -56,12 +60,14 @@ class ExcaliburStrategy(PkStrategy):
         if order_ref == ORDER_REF_MA_CROSS:
             return TripleBarrier(
                 open_order_type=OrderType.MARKET,
-                stop_loss=self.config.ma_cross_stop_loss_pct / 100
+                take_profit=self.config.ma_cross_take_profit_pct / 100
             )
+
+        stop_loss_pct: Decimal = self.last_price_spike_or_crash_pct / 6
 
         return TripleBarrier(
             open_order_type=OrderType.MARKET,
-            stop_loss=self.config.rev_stop_loss_pct / 100
+            stop_loss=stop_loss_pct / 100
         )
 
     def update_processed_data(self):
@@ -81,9 +87,9 @@ class ExcaliburStrategy(PkStrategy):
 
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
 
-        candles_df["RSI_20"] = candles_df.ta.rsi(length=20)
         candles_df["RSI_40"] = candles_df.ta.rsi(length=40)
 
+        candles_df["SMA_19"] = candles_df.ta.sma(length=19)
         candles_df["SMA_75"] = candles_df.ta.sma(length=75)
         candles_df["SMA_300"] = candles_df.ta.sma(length=300)
 
@@ -113,8 +119,7 @@ class ExcaliburStrategy(PkStrategy):
             return []
 
         self.create_actions_proposal_ma_cross()
-        self.create_actions_proposal_fast_rev()
-        self.create_actions_proposal_slow_rev()
+        self.create_actions_proposal_rev()
 
         return []  # Always return []
 
@@ -127,8 +132,7 @@ class ExcaliburStrategy(PkStrategy):
         self.check_orders()
 
         self.stop_actions_proposal_ma_cross()
-        self.stop_actions_proposal_fast_rev()
-        self.stop_actions_proposal_slow_rev()
+        self.stop_actions_proposal_rev()
 
         return []  # Always return []
 
@@ -142,8 +146,8 @@ class ExcaliburStrategy(PkStrategy):
                     "timestamp_iso",
                     "close",
                     "volume",
-                    "RSI_20",
                     "RSI_40",
+                    "SMA_19",
                     "SMA_75",
                     "SMA_300",
                     "STOCH_40_k"
@@ -178,7 +182,8 @@ class ExcaliburStrategy(PkStrategy):
             )
 
     def can_create_ma_cross_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, self.config.amount_quote_ma_cross, 0, ORDER_REF_MA_CROSS):
+        # Same cooldown as candle duration
+        if not self.can_create_order(side, self.config.amount_quote_ma_cross, ORDER_REF_MA_CROSS, 3):
             return False
 
         if len(active_tracked_orders) > 0:
@@ -189,10 +194,10 @@ class ExcaliburStrategy(PkStrategy):
                 self.logger().info("can_create_ma_cross_order() > Short MA crossed under long")
 
                 return (
+                    not self.is_current_price_over_short_ma() and
                     self.is_price_close_enough_to_short_ma() and
-                    not self.is_stoch_too_low_to_open_ma_x_sell() and
-                    not self.is_rsi_too_low_to_open_ma_x_sell() and
-                    not self.did_price_suddenly_rise_to_short_ma()
+                    not self.did_rsi_recently_crash() and
+                    not self.did_tiny_ma_bottom()
                 )
 
             return False
@@ -201,10 +206,10 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().info("can_create_ma_cross_order() > Short MA crossed over long")
 
             return (
+                self.is_current_price_over_short_ma() and
                 self.is_price_close_enough_to_short_ma() and
-                not self.is_stoch_too_high_to_open_ma_x_buy() and
-                not self.is_rsi_too_high_to_open_ma_x_buy() and
-                not self.did_price_suddenly_drop_to_short_ma()
+                not self.did_rsi_recently_spike() and
+                not self.did_tiny_ma_peak()
             )
 
         return False
@@ -213,111 +218,94 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_MA_CROSS)
 
         if len(filled_sell_orders) > 0:
-            if self.did_short_ma_cross_over_long():
-                self.logger().info("stop_actions_proposal_ma_cross(SELL) > Short MA crossed over long")
-                self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
+            if not self.is_sell_order_profitable(filled_sell_orders) and self.did_price_cross_over_short_ma():
+                self.logger().info("stop_actions_proposal_ma_cross() > Stop Loss on Sell MA-X")
+                self.market_close_orders(filled_sell_orders, CloseType.STOP_LOSS)
+            elif self.did_tiny_ma_bottom():
+                self.logger().info("stop_actions_proposal_ma_cross() > Closing Sell MA-X: tiny MA bottomed")
+                self.market_close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
 
         if len(filled_buy_orders) > 0:
-            if self.did_short_ma_cross_under_long():
-                self.logger().info("stop_actions_proposal_ma_cross(BUY) > Short MA crossed under long")
-                self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
+            if not self.is_buy_order_profitable(filled_buy_orders) and self.did_price_cross_under_short_ma():
+                self.logger().info("stop_actions_proposal_ma_cross() > Stop Loss on Buy MA-X")
+                self.market_close_orders(filled_buy_orders, CloseType.STOP_LOSS)
+            elif self.did_tiny_ma_peak():
+                self.logger().info("stop_actions_proposal_ma_cross() > Closing Buy MA-X: tiny MA peaked")
+                self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
 
     #
-    # Fast Reversion start/stop action proposals
+    # Reversion start/stop action proposals
     #
 
-    def create_actions_proposal_fast_rev(self):
-        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_FAST_REVERSION)
+    def create_actions_proposal_rev(self):
+        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_REV)
         active_orders = active_sell_orders + active_buy_orders
 
-        if self.can_create_fast_rev_order(TradeType.SELL, active_orders):
+        if self.can_create_rev_order(TradeType.SELL, active_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
-            triple_barrier = self.get_triple_barrier(ORDER_REF_FAST_REVERSION)
-            self.create_order(TradeType.SELL, entry_price, triple_barrier, self.config.amount_quote_tr, ORDER_REF_FAST_REVERSION)
+            triple_barrier = self.get_triple_barrier(ORDER_REF_REV)
+            self.create_order(TradeType.SELL, entry_price, triple_barrier, self.config.amount_quote_rev, ORDER_REF_REV)
 
-        if self.can_create_fast_rev_order(TradeType.BUY, active_orders):
+        if self.can_create_rev_order(TradeType.BUY, active_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
-            triple_barrier = self.get_triple_barrier(ORDER_REF_FAST_REVERSION)
-            self.create_order(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote_tr, ORDER_REF_FAST_REVERSION)
+            triple_barrier = self.get_triple_barrier(ORDER_REF_REV)
+            self.create_order(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote_rev, ORDER_REF_REV)
 
-    def can_create_fast_rev_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, self.config.amount_quote_tr, 8, ORDER_REF_FAST_REVERSION):
+    def can_create_rev_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
+        if not self.can_create_order(side, self.config.amount_quote_rev, ORDER_REF_REV, 8):
             return False
 
         if len(active_tracked_orders) > 0:
             return False
 
+        candle_count_for_rev: int = 4
+
         if side == TradeType.SELL:
-            if self.is_stoch_increasing_fast_enough_to_open_fast_rev_sell() and self.is_rsi_spike_good_to_open_fast_rev():
-                self.logger().info("can_create_fast_rev_order() > Opening Sell reversion")
+            if self.is_price_spiking(candle_count_for_rev) and self.has_rsi_peaked(candle_count_for_rev):
+                self.logger().info("can_create_rev_order() > Opening Sell reversion")
                 return True
 
             return False
 
-        if self.is_stoch_decreasing_fast_enough_to_open_fast_rev_buy() and self.is_rsi_crash_good_to_open_fast_rev():
-            self.logger().info("can_create_fast_rev_order() > Opening Buy reversion")
+        if self.is_price_crashing(candle_count_for_rev) and self.has_rsi_bottomed(candle_count_for_rev):
+            self.logger().info("can_create_rev_order() > Opening Buy reversion")
             return True
 
         return False
 
-    def stop_actions_proposal_fast_rev(self):
-        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_FAST_REVERSION)
+    def stop_actions_proposal_rev(self):
+        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_REV)
 
         if len(filled_sell_orders) > 0:
             if self.should_close_rev_sell_due_to_stoch_reversal(filled_sell_orders):
-                self.logger().info("stop_actions_proposal_fast_rev() > Closing Sell reversion")
+                self.logger().info("stop_actions_proposal_rev() > Closing Sell reversion")
                 self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
 
         if len(filled_buy_orders) > 0:
             if self.should_close_rev_buy_due_to_stoch_reversal(filled_buy_orders):
-                self.logger().info("stop_actions_proposal_fast_rev() > Closing Buy reversion")
-                self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
-
-    #
-    # Slow Reversion start/stop action proposals
-    #
-
-    def create_actions_proposal_slow_rev(self):
-        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_SLOW_REVERSION)
-        active_orders = active_sell_orders + active_buy_orders
-
-        if self.can_create_slow_rev_order(TradeType.BUY, active_orders):
-            entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
-            triple_barrier = self.get_triple_barrier(ORDER_REF_SLOW_REVERSION)
-            self.create_order(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote_tr, ORDER_REF_SLOW_REVERSION)
-
-    def can_create_slow_rev_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, self.config.amount_quote_tr, 8, ORDER_REF_SLOW_REVERSION):
-            return False
-
-        if len(active_tracked_orders) > 0:
-            return False
-
-        if self.is_stoch_crash_good_to_open_slow_rev():
-            self.logger().info("can_create_slow_rev_order() > Opening Buy reversion")
-            return True
-
-        return False
-
-    def stop_actions_proposal_slow_rev(self):
-        _, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_SLOW_REVERSION)
-
-        if len(filled_buy_orders) > 0:
-            if self.should_close_rev_buy_due_to_stoch_reversal(filled_buy_orders):
-                self.logger().info("stop_actions_proposal_slow_rev() > Closing Buy reversion")
+                self.logger().info("stop_actions_proposal_rev() > Closing Buy reversion")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
 
     #
     # Getters on `self.processed_data[]`
     #
 
+    def get_current_close(self) -> Decimal:
+        return self._get_close_at_index(-1)
+
     def get_latest_close(self) -> Decimal:
+        return self._get_close_at_index(-2)
+
+    def _get_close_at_index(self, index: int) -> Decimal:
         close_series: pd.Series = self.processed_data["close"]
-        return Decimal(close_series.iloc[-2])
+        return Decimal(close_series.iloc[index])
 
     def get_current_rsi(self, length: int) -> Decimal:
         rsi_series: pd.Series = self.processed_data[f"RSI_{length}"]
         return Decimal(rsi_series.iloc[-1])
+
+    def get_current_ma(self, length: int) -> Decimal:
+        return self._get_ma_at_index(length, -1)
 
     def get_latest_ma(self, length: int) -> Decimal:
         return self._get_ma_at_index(length, -2)
@@ -357,6 +345,20 @@ class ExcaliburStrategy(PkStrategy):
         previous_short_minus_long: Decimal = self.get_previous_ma(75) - self.get_previous_ma(300)
         return previous_short_minus_long > 0
 
+    def did_price_cross_under_short_ma(self) -> bool:
+        return not self.is_current_price_over_short_ma() and self.is_latest_price_over_short_ma()
+
+    def did_price_cross_over_short_ma(self) -> bool:
+        return self.is_current_price_over_short_ma() and not self.is_latest_price_over_short_ma()
+
+    def is_current_price_over_short_ma(self) -> bool:
+        current_price_minus_short_ma: Decimal = self.get_current_close() - self.get_current_ma(75)
+        return current_price_minus_short_ma > 0
+
+    def is_latest_price_over_short_ma(self) -> bool:
+        latest_price_minus_short_ma: Decimal = self.get_latest_close() - self.get_latest_ma(75)
+        return latest_price_minus_short_ma > 0
+
     def is_price_close_enough_to_short_ma(self):
         latest_close = self.get_latest_close()
         delta_pct: Decimal = (latest_close - self.get_latest_ma(75)) / latest_close * 100
@@ -365,131 +367,11 @@ class ExcaliburStrategy(PkStrategy):
 
         return abs(delta_pct) < self.config.max_price_delta_pct_with_short_ma_to_open
 
-    def is_stoch_too_low_to_open_ma_x_sell(self) -> bool:
-        current_stoch = self.get_current_stoch(40)
-
-        self.logger().info(f"is_stoch_too_low_to_open_ma_x_sell() | current_stoch:{current_stoch}")
-
-        return current_stoch < 12
-
-    def is_stoch_too_high_to_open_ma_x_buy(self) -> bool:
-        current_stoch = self.get_current_stoch(40)
-
-        self.logger().info(f"is_stoch_too_high_to_open_ma_x_buy() | current_stoch:{current_stoch}")
-
-        return current_stoch > 88
-
-    def is_rsi_too_low_to_open_ma_x_sell(self) -> bool:
-        current_rsi = self.get_current_rsi(20)
-
-        self.logger().info(f"is_rsi_too_low_to_open_ma_x_sell() | current_rsi:{current_rsi}")
-
-        if current_rsi < 37.5:
-            return True
-
-        rsi_series: pd.Series = self.processed_data["RSI_20"]
-        recent_rsis = rsi_series.iloc[-10:]
-
-        min_rsi = Decimal(recent_rsis.min())
-
-        self.logger().info(f"is_rsi_too_low_to_open_ma_x_sell() | min_rsi:{min_rsi}")
-
-        return min_rsi < 30
-
-    def is_rsi_too_high_to_open_ma_x_buy(self) -> bool:
-        current_rsi = self.get_current_rsi(20)
-
-        self.logger().info(f"is_rsi_too_high_to_open_ma_x_buy() | current_rsi:{current_rsi}")
-
-        if current_rsi > 62.5:
-            return True
-
-        rsi_series: pd.Series = self.processed_data["RSI_20"]
-        recent_rsis = rsi_series.iloc[-10:]
-
-        max_rsi = Decimal(recent_rsis.max())
-
-        self.logger().info(f"is_rsi_too_high_to_open_ma_x_buy() | max_rsi:{max_rsi}")
-
-        return max_rsi > 70
-
-    def did_price_suddenly_rise_to_short_ma(self) -> bool:
-        latest_close = self.get_latest_close()
-
-        close_series: pd.Series = self.processed_data["close"]
-        recent_prices = close_series.iloc[-21:-1]  # 20 items, last one excluded
-        min_price: Decimal = Decimal(recent_prices.min())
-
-        price_delta_pct: Decimal = (latest_close - min_price) / latest_close * 100
-
-        self.logger().info(f"did_price_suddenly_rise_to_short_ma() | latest_close:{latest_close} | min_price:{min_price} | price_delta_pct:{price_delta_pct}")
-
-        # The percentage difference between min_price and current_price is over x%
-        return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_ma
-
-    def did_price_suddenly_drop_to_short_ma(self) -> bool:
-        latest_close = self.get_latest_close()
-
-        close_series: pd.Series = self.processed_data["close"]
-        recent_prices = close_series.iloc[-21:-1]  # 20 items, last one excluded
-        max_price: Decimal = Decimal(recent_prices.max())
-
-        price_delta_pct: Decimal = (max_price - latest_close) / latest_close * 100
-
-        self.logger().info(f"did_price_suddenly_drop_to_short_ma() | latest_close:{latest_close} | max_price:{max_price} | price_delta_pct:{price_delta_pct}")
-
-        return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_ma
-
-    #
-    # Fast reversion functions
-    #
-
-    def is_rsi_spike_good_to_open_fast_rev(self) -> bool:
+    def did_rsi_recently_crash(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI_40"]
-        recent_rsis = rsi_series.iloc[-12:].reset_index(drop=True)
-
-        peak_rsi = Decimal(recent_rsis.max())
-
-        if peak_rsi < 58:
-            return False
-
-        current_rsi = self.get_current_rsi(40)
-        rsi_threshold: Decimal = peak_rsi - 2
-
-        self.logger().info(f"is_rsi_spike_good_to_open_fast_rev() | peak_rsi:{peak_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
-
-        if current_rsi > rsi_threshold:
-            return False
-
-        peak_rsi_index = recent_rsis.idxmax()
-
-        if peak_rsi_index == 0:
-            return False
-
-        bottom_rsi = Decimal(recent_rsis.iloc[0:peak_rsi_index].min())
-        start_delta: Decimal = peak_rsi - bottom_rsi
-
-        self.logger().info(f"is_rsi_spike_good_to_open_fast_rev() | peak_rsi_index:{peak_rsi_index} | bottom_rsi:{bottom_rsi} | start_delta:{start_delta}")
-
-        return start_delta > 12
-
-    def is_rsi_crash_good_to_open_fast_rev(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI_40"]
-        recent_rsis = rsi_series.iloc[-12:].reset_index(drop=True)
+        recent_rsis = rsi_series.iloc[-10:].reset_index(drop=True)
 
         bottom_rsi = Decimal(recent_rsis.min())
-
-        if bottom_rsi > 42:
-            return False
-
-        current_rsi = self.get_current_rsi(40)
-        rsi_threshold: Decimal = bottom_rsi + 2
-
-        self.logger().info(f"is_rsi_crash_good_to_open_fast_rev() | bottom_rsi:{bottom_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
-
-        if current_rsi < rsi_threshold:
-            return False
-
         bottom_rsi_index = recent_rsis.idxmin()
 
         if bottom_rsi_index == 0:
@@ -498,37 +380,193 @@ class ExcaliburStrategy(PkStrategy):
         peak_rsi = Decimal(recent_rsis.iloc[0:bottom_rsi_index].max())
         start_delta: Decimal = peak_rsi - bottom_rsi
 
-        self.logger().info(f"is_rsi_crash_good_to_open_fast_rev() | bottom_rsi_index:{bottom_rsi_index} | peak_rsi:{peak_rsi} | start_delta:{start_delta}")
+        self.logger().info(f"did_rsi_recently_crash() | bottom_rsi_index:{bottom_rsi_index} | peak_rsi:{peak_rsi} | start_delta:{start_delta}")
 
-        return start_delta > 12
+        return start_delta > 14
 
-    def is_stoch_increasing_fast_enough_to_open_fast_rev_sell(self) -> bool:
-        current_stoch = self.get_current_stoch(40)
+    def did_rsi_recently_spike(self) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI_40"]
+        recent_rsis = rsi_series.iloc[-10:].reset_index(drop=True)
 
-        if current_stoch < 80:
+        peak_rsi = Decimal(recent_rsis.max())
+        peak_rsi_index = recent_rsis.idxmax()
+
+        if peak_rsi_index == 0:
             return False
 
-        stoch_8_min_ago: Decimal = self._get_stoch_at_index(40, -9)
-        delta: Decimal = current_stoch - stoch_8_min_ago
+        bottom_rsi = Decimal(recent_rsis.iloc[0:peak_rsi_index].min())
+        start_delta: Decimal = peak_rsi - bottom_rsi
 
-        if delta > 40:
-            self.logger().info(f"is_stoch_increasing_fast_enough_to_open_fast_rev_sell() | current_stoch:{current_stoch} | stoch_8_min_ago:{stoch_8_min_ago} | delta:{delta}")
+        self.logger().info(f"did_rsi_recently_spike() | peak_rsi_index:{peak_rsi_index} | bottom_rsi:{bottom_rsi} | start_delta:{start_delta}")
 
-        return delta > 40
+        return start_delta > 14
 
-    def is_stoch_decreasing_fast_enough_to_open_fast_rev_buy(self) -> bool:
-        current_stoch = self.get_current_stoch(40)
+    # def did_price_suddenly_rise_to_short_ma(self) -> bool:
+    #     current_close = self.get_current_close()
+    #
+    #     close_series: pd.Series = self.processed_data["close"]
+    #     recent_prices = close_series.iloc[-16:-1]  # 15 items, last one excluded
+    #     min_price: Decimal = Decimal(recent_prices.min())
+    #
+    #     price_delta_pct: Decimal = (current_close - min_price) / current_close * 100
+    #
+    #     self.logger().info(f"did_price_suddenly_rise_to_short_ma() | current_close:{current_close} | min_price:{min_price} | price_delta_pct:{price_delta_pct}")
+    #
+    #     return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_ma
+    #
+    # def did_price_suddenly_drop_to_short_ma(self) -> bool:
+    #     current_close = self.get_current_close()
+    #
+    #     close_series: pd.Series = self.processed_data["close"]
+    #     recent_prices = close_series.iloc[-16:-1]  # 15 items, last one excluded
+    #     max_price: Decimal = Decimal(recent_prices.max())
+    #
+    #     price_delta_pct: Decimal = (max_price - current_close) / current_close * 100
+    #
+    #     self.logger().info(f"did_price_suddenly_drop_to_short_ma() | current_close:{current_close} | max_price:{max_price} | price_delta_pct:{price_delta_pct}")
+    #
+    #     return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_ma
 
-        if current_stoch > 20:
+    def is_sell_order_profitable(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
+        pnl_pct: Decimal = compute_sell_orders_pnl_pct(filled_sell_orders, self.get_mid_price())
+
+        return pnl_pct > 0
+
+    def is_buy_order_profitable(self, filled_buy_orders: List[TrackedOrderDetails]) -> bool:
+        pnl_pct: Decimal = compute_buy_orders_pnl_pct(filled_buy_orders, self.get_mid_price())
+
+        return pnl_pct > 0
+
+    def did_tiny_ma_bottom(self):
+        ma_series: pd.Series = self.processed_data["SMA_19"]
+        recent_mas = ma_series.iloc[-15:].reset_index(drop=True)
+        bottom_ma: Decimal = Decimal(recent_mas.min())
+        bottom_ma_index = recent_mas.idxmin()
+
+        if bottom_ma_index == 0:
             return False
 
-        stoch_8_min_ago: Decimal = self._get_stoch_at_index(40, -9)
-        delta: Decimal = stoch_8_min_ago - current_stoch
+        current_ma = self.get_current_ma(19)
+        ma_threshold: Decimal = bottom_ma * (1 + self.config.tiny_ma_reversal_bps_for_rev / 10000)
 
-        if delta > 40:
-            self.logger().info(f"is_stoch_decreasing_fast_enough_to_open_fast_rev_buy() | current_stoch:{current_stoch} | stoch_8_min_ago:{stoch_8_min_ago} | delta:{delta}")
+        if current_ma > ma_threshold:
+            self.logger().info(f"did_tiny_ma_bottom() | current_ma:{current_ma} | ma_threshold:{ma_threshold}")
 
-        return delta > 40
+        return current_ma > ma_threshold
+
+    def did_tiny_ma_peak(self):
+        ma_series: pd.Series = self.processed_data["SMA_19"]
+        recent_mas = ma_series.iloc[-15:].reset_index(drop=True)
+        peak_ma: Decimal = Decimal(recent_mas.max())
+        peak_ma_index = recent_mas.idxmax()
+
+        if peak_ma_index == 0:
+            return False
+
+        current_ma = self.get_current_ma(19)
+        ma_threshold: Decimal = peak_ma * (1 - self.config.tiny_ma_reversal_bps_for_rev / 10000)
+
+        if current_ma < ma_threshold:
+            self.logger().info(f"did_tiny_ma_peak() | current_ma:{current_ma} | ma_threshold:{ma_threshold}")
+
+        return current_ma < ma_threshold
+
+    #
+    # Reversion functions
+    #
+
+    def is_price_spiking(self, candle_count: int) -> bool:
+        high_series: pd.Series = self.processed_data["high"]
+        recent_highs = high_series.iloc[-candle_count:].reset_index(drop=True)
+
+        low_series: pd.Series = self.processed_data["low"]
+        recent_lows = low_series.iloc[-candle_count:]
+
+        peak_price = Decimal(recent_highs.max())
+        peak_price_index = recent_highs.idxmax()
+
+        if peak_price_index == 0:
+            return False
+
+        bottom_price = Decimal(recent_lows.iloc[0:peak_price_index].min())
+        start_delta_pct: Decimal = (peak_price - bottom_price) / bottom_price * 100
+        is_spiking = start_delta_pct > self.config.price_start_delta_pct_for_rev
+
+        if is_spiking:
+            self.logger().info(f"is_price_spiking() | peak_price_index:{peak_price_index} | peak_price:{peak_price} | bottom_price:{bottom_price} | start_delta_pct:{start_delta_pct}")
+            self.last_price_spike_or_crash_pct = start_delta_pct
+
+        return is_spiking
+
+    def is_price_crashing(self, candle_count: int) -> bool:
+        low_series: pd.Series = self.processed_data["low"]
+        recent_lows = low_series.iloc[-candle_count:].reset_index(drop=True)
+
+        high_series: pd.Series = self.processed_data["high"]
+        recent_highs = high_series.iloc[-candle_count:]
+
+        bottom_price = Decimal(recent_lows.min())
+        bottom_price_index = recent_lows.idxmin()
+
+        if bottom_price_index == 0:
+            return False
+
+        peak_price = Decimal(recent_highs.iloc[0:bottom_price_index].max())
+        start_delta_pct: Decimal = (peak_price - bottom_price) / bottom_price * 100
+        is_crashing = start_delta_pct > self.config.price_start_delta_pct_for_rev
+
+        if is_crashing:
+            self.logger().info(f"is_price_crashing() | bottom_price_index:{bottom_price_index} | bottom_price:{bottom_price} | peak_price:{peak_price} | start_delta_pct:{start_delta_pct}")
+            self.last_price_spike_or_crash_pct = start_delta_pct
+
+        return is_crashing
+
+    def has_rsi_peaked(self, candle_count: int) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI_40"]
+        recent_rsis = rsi_series.iloc[-candle_count:]
+
+        peak_rsi = Decimal(recent_rsis.max())
+
+        # Avoids opening an opposite Sell Rev, when the price goes back up after a crash
+        if peak_rsi < 63:
+            return False
+
+        rsi_threshold: Decimal = peak_rsi - Decimal(1.5)
+        current_rsi = self.get_current_rsi(40)
+
+        if current_rsi > rsi_threshold:
+            return False
+
+        too_late_threshold: Decimal = rsi_threshold - Decimal(1.5)
+        has_peaked = current_rsi > too_late_threshold
+
+        if has_peaked:
+            self.logger().info(f"has_rsi_peaked() | peak_rsi:{peak_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
+
+        return has_peaked
+
+    def has_rsi_bottomed(self, candle_count: int) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI_40"]
+        recent_rsis = rsi_series.iloc[-candle_count:]
+
+        bottom_rsi = Decimal(recent_rsis.min())
+
+        if bottom_rsi > 37:
+            return False
+
+        rsi_threshold: Decimal = bottom_rsi + Decimal(1.5)
+        current_rsi = self.get_current_rsi(40)
+
+        if current_rsi < rsi_threshold:
+            return False
+
+        too_late_threshold: Decimal = rsi_threshold + Decimal(1.5)
+        has_bottomed = current_rsi < too_late_threshold
+
+        if has_bottomed:
+            self.logger().info(f"has_rsi_bottomed() | bottom_rsi:{bottom_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
+
+        return has_bottomed
 
     def should_close_rev_sell_due_to_stoch_reversal(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
         # Don't close if we just opened
@@ -543,11 +581,11 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         current_stoch = self.get_current_stoch(40)
-        min_acceptable_stoch: Decimal = bottom_stoch + 1
+        stoch_threshold: Decimal = bottom_stoch + 1
 
         self.logger().info(f"should_close_rev_sell_due_to_stoch_reversal() | bottom_stoch:{bottom_stoch} | current_stoch:{current_stoch}")
 
-        return current_stoch > min_acceptable_stoch
+        return current_stoch > stoch_threshold
 
     def should_close_rev_buy_due_to_stoch_reversal(self, filled_buy_orders: List[TrackedOrderDetails]) -> bool:
         # Don't close if we just opened
@@ -562,41 +600,8 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         current_stoch = self.get_current_stoch(40)
-        max_acceptable_stoch: Decimal = peak_stoch - 1
+        stoch_threshold: Decimal = peak_stoch - 1
 
         self.logger().info(f"should_close_rev_buy_due_to_stoch_reversal() | peak_stoch:{peak_stoch} | current_stoch:{current_stoch}")
 
-        return current_stoch < max_acceptable_stoch
-
-    #
-    # Slow reversion functions
-    #
-
-    def is_stoch_crash_good_to_open_slow_rev(self) -> bool:
-        stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
-        recent_stochs = stoch_series.iloc[-20:].reset_index(drop=True)
-
-        bottom_stoch = Decimal(recent_stochs.min())
-
-        if bottom_stoch > 15:
-            return False
-
-        current_stoch = self.get_current_stoch(40)
-        stoch_threshold: Decimal = bottom_stoch + 2
-
-        self.logger().info(f"is_stoch_crash_good_to_open_slow_rev() | bottom_stoch:{bottom_stoch} | current_stoch:{current_stoch} | stoch_threshold:{stoch_threshold}")
-
-        if current_stoch < stoch_threshold:
-            return False
-
-        bottom_stoch_index = recent_stochs.idxmin()
-
-        if bottom_stoch_index == 0:
-            return False
-
-        peak_stoch = Decimal(recent_stochs.iloc[0:bottom_stoch_index].max())
-        start_delta: Decimal = peak_stoch - bottom_stoch
-
-        self.logger().info(f"is_stoch_crash_good_to_open_slow_rev() | bottom_stoch_index:{bottom_stoch_index} | peak_stoch:{peak_stoch} | start_delta:{start_delta}")
-
-        return start_delta > 40
+        return current_stoch < stoch_threshold

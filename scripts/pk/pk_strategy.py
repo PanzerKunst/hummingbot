@@ -84,15 +84,13 @@ class PkStrategy(StrategyV2Base):
         orders_of_that_id = [order for order in self.tracked_orders if order.order_id == order_id]
         return None if len(orders_of_that_id) == 0 else orders_of_that_id[0]
 
-    def find_last_terminated_filled_order(self, side: TradeType, ref: Optional[str] = None) -> Optional[TrackedOrderDetails]:
+    def find_last_terminated_filled_order(self, side: TradeType, ref: str) -> Optional[TrackedOrderDetails]:
         terminated_filled_orders = [order for order in self.tracked_orders if (
             order.side == side and
+            order.ref == ref and
             order.last_filled_at and
             order.terminated_at
         )]
-
-        if ref:
-            terminated_filled_orders = [order for order in terminated_filled_orders if order.ref == ref]
 
         if len(terminated_filled_orders) == 0:
             return None
@@ -125,11 +123,11 @@ class PkStrategy(StrategyV2Base):
         filled_buy_orders = [order for order in active_buy_orders if order.last_filled_at]
         return filled_sell_orders, filled_buy_orders
 
-    def create_order(self, side: TradeType, entry_price: Decimal, triple_barrier: TripleBarrier, amount_quote: int, ref: Optional[str] = None):
+    def create_order(self, side: TradeType, entry_price: Decimal, triple_barrier: TripleBarrier, amount_quote: int, ref: str):
         executor_config = self.get_executor_config(side, entry_price, amount_quote)
         self.create_individual_order(executor_config, triple_barrier, ref)
 
-    async def create_twap_market_orders(self, side: TradeType, entry_price: Decimal, triple_barrier: TripleBarrier, amount_quote: int, ref: Optional[str] = None):
+    async def create_twap_market_orders(self, side: TradeType, entry_price: Decimal, triple_barrier: TripleBarrier, amount_quote: int, ref: str):
         executor_config = self.get_executor_config(side, entry_price, amount_quote, True)
 
         for _ in range(self.config.market_order_twap_count):
@@ -141,7 +139,7 @@ class PkStrategy(StrategyV2Base):
                 self.create_individual_order(executor_config, triple_barrier, ref)
                 await asyncio.sleep(self.config.market_order_twap_interval)
 
-    def create_individual_order(self, executor_config: PositionExecutorConfig, triple_barrier: TripleBarrier, ref: Optional[str] = None):
+    def create_individual_order(self, executor_config: PositionExecutorConfig, triple_barrier: TripleBarrier, ref: str):
         connector_name = executor_config.connector_name
         trading_pair = executor_config.trading_pair
         amount = executor_config.amount
@@ -288,7 +286,7 @@ class PkStrategy(StrategyV2Base):
                 self.logger().info(f"did_fill_order: {tracked_order}")
                 break
 
-    def can_create_order(self, side: TradeType, amount_quote: int, cooldown_time_min: int = 0, ref: Optional[str] = None) -> bool:
+    def can_create_order(self, side: TradeType, amount_quote: int, ref: str, cooldown_time_min: int = 0) -> bool:
         if self.get_position_quote_amount(side, amount_quote) == 0:
             return False
 

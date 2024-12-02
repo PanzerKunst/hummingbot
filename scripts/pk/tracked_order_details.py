@@ -17,6 +17,7 @@ class TrackedOrderDetails:
     amount: Decimal
     entry_price: Decimal
     triple_barrier: TripleBarrier
+    ref: str
     filled_amount: Decimal = Decimal(0)
     exchange_order_id: Optional[str] = None
     created_at: Optional[float] = None
@@ -25,4 +26,3 @@ class TrackedOrderDetails:
     terminated_at: Optional[float] = None
     close_type: Optional[CloseType] = None
     trailing_stop_best_price: Optional[Decimal] = None
-    ref: Optional[str] = None
