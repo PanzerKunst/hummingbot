@@ -8,7 +8,7 @@ from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.strategy.strategy_v2_base import StrategyV2ConfigBase
 
 
-class ThunderfuryConfig(StrategyV2ConfigBase):
+class ExcaliburConfig(StrategyV2ConfigBase):
     # Standard attributes START - avoid renaming
     markets: Dict[str, Set[str]] = Field(default_factory=dict)
 

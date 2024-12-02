@@ -10,11 +10,11 @@ from hummingbot.core.clock import Clock
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 from hummingbot.strategy_v2.models.executors import CloseType
-from scripts.pk.pk_strategy_t import PkStrategyT
+from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
 from scripts.pk.pk_utils import was_an_order_recently_opened
 from scripts.pk.tracked_order_details import TrackedOrderDetails
-from scripts.thunderfury_config import ThunderfuryConfig
+from scripts.thunderfury_config import ExcaliburConfig
 
 # Mean reversion based on price, RSI & Stochastic
 # Generate config file: create --script-config thunderfury
@@ -30,12 +30,12 @@ from scripts.thunderfury_config import ThunderfuryConfig
 ORDER_REF_REV = "Rev"
 
 
-class ThunderfuryStrategy(PkStrategyT):
+class ExcaliburStrategy(PkStrategy):
     @classmethod
-    def init_markets(cls, config: ThunderfuryConfig):
+    def init_markets(cls, config: ExcaliburConfig):
         cls.markets = {config.connector_name: {config.trading_pair}}
 
-    def __init__(self, connectors: Dict[str, ConnectorBase], config: ThunderfuryConfig):
+    def __init__(self, connectors: Dict[str, ConnectorBase], config: ExcaliburConfig):
         super().__init__(connectors, config)
 
         self.processed_data = pd.DataFrame()
@@ -98,9 +98,6 @@ class ThunderfuryStrategy(PkStrategyT):
         self.processed_data = candles_df
 
     def create_actions_proposal(self) -> List[CreateExecutorAction]:
-        # TODO: remove
-        self.logger().error("create_actions_proposal()")
-
         self.update_processed_data()
 
         processed_data_num_rows = self.processed_data.shape[0]
