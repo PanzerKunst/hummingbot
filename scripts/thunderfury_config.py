@@ -16,7 +16,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
         CandlesConfig(
             connector="binance_perpetual",
             interval="1m",
-            max_records=30,
+            max_records=80,
             trading_pair = "GOAT-USDT"
         )
     ])
