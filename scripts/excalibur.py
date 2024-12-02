@@ -416,7 +416,7 @@ class ExcaliburStrategy(PkStrategy):
     #     return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_ma
 
     def has_order_been_open_long_enough(self, filled_orders: List[TrackedOrderDetails]) -> bool:
-        if was_an_order_recently_opened(filled_orders, 18 * 60, self.get_market_data_provider_time()):
+        if was_an_order_recently_opened(filled_orders, 20 * 60, self.get_market_data_provider_time()):
             return False
 
     def is_sell_order_profitable(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
