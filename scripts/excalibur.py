@@ -415,8 +415,19 @@ class ExcaliburStrategy(PkStrategy):
     #
     #     return price_delta_pct > self.config.min_price_delta_pct_for_sudden_reversal_to_short_ma
 
+    # TODO: remove
+    def was_an_order_recently_opened(self, tracked_orders: List[TrackedOrderDetails], seconds: int, current_timestamp: float) -> bool:
+        if len(tracked_orders) == 0:
+            return False
+
+        most_recent_created_at = max(tracked_orders, key=lambda order: order.created_at).created_at
+
+        self.logger().info(f"was_an_order_recently_opened() | most_recent_created_at:{most_recent_created_at} | current_timestamp:{current_timestamp}")
+
+        return most_recent_created_at + seconds > current_timestamp
+
     def has_order_been_open_long_enough(self, filled_orders: List[TrackedOrderDetails]) -> bool:
-        if was_an_order_recently_opened(filled_orders, 20 * 60, self.get_market_data_provider_time()):
+        if self.was_an_order_recently_opened(filled_orders, 20 * 60, self.get_market_data_provider_time()):
             return False
 
     def is_sell_order_profitable(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
