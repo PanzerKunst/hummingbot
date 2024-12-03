@@ -269,13 +269,13 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         if side == TradeType.SELL:
-            if self.are_candles_fully_below_mal():
+            if self.are_candles_fully_below_mal() and not self.is_recent_rsi_too_low_to_open_sell():
                 self.logger().info("can_create_ma_channel_order() > 5 candles fully below MAL")
                 return True
 
             return False
 
-        if self.are_candles_fully_above_mah():
+        if self.are_candles_fully_above_mah() and not self.is_recent_rsi_too_high_to_open_buy():
             self.logger().info("can_create_ma_channel_order() > 5 candles fully above MAH")
             return True
 
@@ -478,21 +478,41 @@ class ExcaliburStrategy(PkStrategy):
 
     def are_candles_fully_below_mal(self) -> bool:
         high_series: pd.Series = self.processed_data["high"]
-        recent_highs = high_series.iloc[-5:].reset_index(drop=True)
+        recent_highs = high_series.iloc[-6:-1].reset_index(drop=True)
 
         mal_series: pd.Series = self.processed_data["SMA_10_l"]
-        recent_mals = mal_series.iloc[-5:].reset_index(drop=True)
+        recent_mals = mal_series.iloc[-6:-1].reset_index(drop=True)
 
         return all(recent_highs[i] < recent_mals[i] for i in range(len(recent_highs)))
 
     def are_candles_fully_above_mah(self) -> bool:
         low_series: pd.Series = self.processed_data["low"]
-        recent_lows = low_series.iloc[-5:].reset_index(drop=True)
+        recent_lows = low_series.iloc[-6:-1].reset_index(drop=True)
 
         mah_series: pd.Series = self.processed_data["SMA_10_h"]
-        recent_mahs = mah_series.iloc[-5:].reset_index(drop=True)
+        recent_mahs = mah_series.iloc[-6:-1].reset_index(drop=True)
 
         return all(recent_lows[i] > recent_mahs[i] for i in range(len(recent_lows)))
+
+    def is_recent_rsi_too_low_to_open_sell(self) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI_40"]
+        recent_rsis = rsi_series.iloc[-8:]
+        bottom_rsi: Decimal = Decimal(recent_rsis.min())
+
+        if bottom_rsi < 38:
+            self.logger().info(f"is_recent_rsi_too_low_to_open_sell() | bottom_rsi:{bottom_rsi}")
+
+        return bottom_rsi < 38
+
+    def is_recent_rsi_too_high_to_open_buy(self) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI_40"]
+        recent_rsis = rsi_series.iloc[-8:]
+        peak_rsi: Decimal = Decimal(recent_rsis.max())
+
+        if peak_rsi > 62:
+            self.logger().info(f"is_recent_rsi_too_high_to_open_buy() | peak_rsi:{peak_rsi}")
+
+        return peak_rsi > 62
 
     def is_current_price_over_mah(self) -> bool:
         current_price_minus_current_mah: Decimal = self.get_current_close() - self.get_current_mah()
