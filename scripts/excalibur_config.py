@@ -1,4 +1,3 @@
-import os
 from decimal import Decimal
 from typing import Dict, List, Set
 
@@ -24,7 +23,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     controllers_config: List[str] = Field(default_factory=list)
     config_update_interval: int = 10
-    script_file_name: str = Field(default_factory=lambda: os.path.basename(__file__))
+    script_file_name: str = "excalibur.py"
     # Standard attributes END
 
     # Used by PkStrategy
@@ -42,9 +41,8 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     ma_cross_take_profit_pct: Decimal = 1.5
 
     # Order settings
-    amount_quote_ma_cross: int = 30
-    amount_quote_rev: int = 30
+    amount_quote: int = 30
     entry_price_delta_bps: int = 0
     max_price_delta_pct_with_short_ma_to_open: Decimal = 2.7
-    price_start_delta_pct_for_rev: Decimal = 6.0
-    tiny_ma_reversal_bps_for_rev: Decimal = 12.5  # 10.0 15.0
+    min_price_delta_pct_for_sudden_reversal_to_short_ma = 2.7
+    tiny_ma_reversal_bps: Decimal = 12.5  # 10.0 15.0
