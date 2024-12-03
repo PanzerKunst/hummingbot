@@ -118,7 +118,7 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
-        # TODO self.create_actions_proposal_ma_cross()
+        self.create_actions_proposal_ma_cross()
         self.create_actions_proposal_ma_channel()
 
         return []  # Always return []
@@ -131,7 +131,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.check_orders()
 
-        # TODO self.stop_actions_proposal_ma_cross()
+        self.stop_actions_proposal_ma_cross()
         self.stop_actions_proposal_ma_channel()
 
         return []  # Always return []
