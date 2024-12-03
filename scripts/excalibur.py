@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import Dict, List
 
 import pandas as pd
+from pandas_ta import sma
 
 from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
@@ -28,6 +29,7 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 # Quickstart script: -p=a -f excalibur.py -c conf_excalibur_GOAT.yml
 
 ORDER_REF_MA_CROSS = "MaCross"
+ORDER_REF_MA_CHANNEL = "MaChannel"
 
 
 class ExcaliburStrategy(PkStrategy):
@@ -54,10 +56,15 @@ class ExcaliburStrategy(PkStrategy):
                 for trading_pair in self.market_data_provider.get_trading_pairs(connector_name):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
-    def get_triple_barrier(self) -> TripleBarrier:
+    def get_triple_barrier(self, ref: str) -> TripleBarrier:
+        if ref == ORDER_REF_MA_CHANNEL:
+            return TripleBarrier(
+                open_order_type=OrderType.MARKET,
+                take_profit=self.config.ma_cross_take_profit_pct / 100
+            )
+
         return TripleBarrier(
             open_order_type=OrderType.MARKET,
-            take_profit=self.config.ma_cross_take_profit_pct / 100
         )
 
     def update_processed_data(self):
@@ -83,6 +90,21 @@ class ExcaliburStrategy(PkStrategy):
         candles_df["SMA_75"] = candles_df.ta.sma(length=75)
         candles_df["SMA_300"] = candles_df.ta.sma(length=300)
 
+        candles_df["SMA_10_h"] = sma(close=candles_df["high"], length=10)
+        candles_df["SMA_10_l"] = sma(close=candles_df["low"], length=10)
+
+        # Calling the lower-level function, because the one in core.py has a bug in the argument names
+        # stoch_40_df = stoch(
+        #     high=candles_df["high"],
+        #     low=candles_df["low"],
+        #     close=candles_df["close"],
+        #     k=40,
+        #     d=6,
+        #     smooth_k=8
+        # )
+        #
+        # candles_df["STOCH_40_k"] = stoch_40_df["STOCHk_40_6_8"]
+
         candles_df.dropna(inplace=True)
 
         self.processed_data = candles_df
@@ -96,7 +118,8 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
-        self.create_actions_proposal_ma_cross()
+        # TODO self.create_actions_proposal_ma_cross()
+        self.create_actions_proposal_ma_channel()
 
         return []  # Always return []
 
@@ -108,7 +131,8 @@ class ExcaliburStrategy(PkStrategy):
 
         self.check_orders()
 
-        self.stop_actions_proposal_ma_cross()
+        # TODO self.stop_actions_proposal_ma_cross()
+        self.stop_actions_proposal_ma_channel()
 
         return []  # Always return []
 
@@ -125,7 +149,10 @@ class ExcaliburStrategy(PkStrategy):
                     "RSI_40",
                     "SMA_19",
                     "SMA_75",
-                    "SMA_300"
+                    "SMA_300",
+                    "SMA_10_h",
+                    "SMA_10_l"  # ,
+                    # "STOCH_40_k"
                 ]
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display], table_format="psql"))
@@ -142,7 +169,7 @@ class ExcaliburStrategy(PkStrategy):
 
         if self.can_create_ma_cross_order(TradeType.SELL, active_orders):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
-            triple_barrier = self.get_triple_barrier()
+            triple_barrier = self.get_triple_barrier(ORDER_REF_MA_CROSS)
 
             asyncio.get_running_loop().create_task(
                 self.create_twap_market_orders(TradeType.SELL, entry_price, triple_barrier, self.config.amount_quote, ORDER_REF_MA_CROSS)
@@ -150,7 +177,7 @@ class ExcaliburStrategy(PkStrategy):
 
         if self.can_create_ma_cross_order(TradeType.BUY, active_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
-            triple_barrier = self.get_triple_barrier()
+            triple_barrier = self.get_triple_barrier(ORDER_REF_MA_CROSS)
 
             asyncio.get_running_loop().create_task(
                 self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote, ORDER_REF_MA_CROSS)
@@ -211,6 +238,63 @@ class ExcaliburStrategy(PkStrategy):
                     self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
 
     #
+    # MA Channel start/stop action proposals
+    #
+
+    def create_actions_proposal_ma_channel(self):
+        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_MA_CHANNEL)
+        active_orders = active_sell_orders + active_buy_orders
+
+        if self.can_create_ma_channel_order(TradeType.SELL, active_orders):
+            entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
+            triple_barrier = self.get_triple_barrier(ORDER_REF_MA_CHANNEL)
+
+            asyncio.get_running_loop().create_task(
+                self.create_twap_market_orders(TradeType.SELL, entry_price, triple_barrier, self.config.amount_quote, ORDER_REF_MA_CHANNEL)
+            )
+
+        if self.can_create_ma_channel_order(TradeType.BUY, active_orders):
+            entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
+            triple_barrier = self.get_triple_barrier(ORDER_REF_MA_CHANNEL)
+
+            asyncio.get_running_loop().create_task(
+                self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote, ORDER_REF_MA_CHANNEL)
+            )
+
+    def can_create_ma_channel_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
+        if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_MA_CHANNEL, 0):
+            return False
+
+        if len(active_tracked_orders) > 0:
+            return False
+
+        if side == TradeType.SELL:
+            if self.are_candles_fully_below_mal():
+                self.logger().info("can_create_ma_channel_order() > 5 candles fully below MAL")
+                return True
+
+            return False
+
+        if self.are_candles_fully_above_mah():
+            self.logger().info("can_create_ma_channel_order() > 5 candles fully above MAH")
+            return True
+
+        return False
+
+    def stop_actions_proposal_ma_channel(self):
+        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_MA_CHANNEL)
+
+        if len(filled_sell_orders) > 0:
+            if self.is_current_price_over_mah():
+                self.logger().info("stop_actions_proposal_ma_channel() > Closing Sell MA-C")
+                self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
+
+        if len(filled_buy_orders) > 0:
+            if self.is_current_price_under_mal():
+                self.logger().info("stop_actions_proposal_ma_channel() > Closing Buy MA-C")
+                self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
+
+    #
     # Getters on `self.processed_data[]`
     #
 
@@ -240,6 +324,24 @@ class ExcaliburStrategy(PkStrategy):
     def _get_ma_at_index(self, length: int, index: int) -> Decimal:
         sma_series: pd.Series = self.processed_data[f"SMA_{length}"]
         return Decimal(sma_series.iloc[index])
+
+    def get_current_mah(self) -> Decimal:
+        smah_series: pd.Series = self.processed_data["SMA_10_h"]
+        return Decimal(smah_series.iloc[-1])
+
+    def get_current_mal(self) -> Decimal:
+        smal_series: pd.Series = self.processed_data["SMA_10_l"]
+        return Decimal(smal_series.iloc[-1])
+
+    # def get_current_stoch(self, length: int) -> Decimal:
+    #     return self._get_stoch_at_index(length, -1)
+    #
+    # def get_latest_stoch(self, length: int) -> Decimal:
+    #     return self._get_stoch_at_index(length, -2)
+    #
+    # def _get_stoch_at_index(self, length: int, index: int) -> Decimal:
+    #     stoch_series: pd.Series = self.processed_data[f"STOCH_{length}_k"]
+    #     return Decimal(stoch_series.iloc[index])
 
     #
     # MA Cross functions
@@ -344,7 +446,7 @@ class ExcaliburStrategy(PkStrategy):
 
         return pnl_pct > 0
 
-    def did_tiny_ma_bottom(self):
+    def did_tiny_ma_bottom(self) -> bool:
         ma_series: pd.Series = self.processed_data["SMA_19"]
         recent_mas = ma_series.iloc[-8:].reset_index(drop=True)
         bottom_ma: Decimal = Decimal(recent_mas.min())
@@ -357,7 +459,7 @@ class ExcaliburStrategy(PkStrategy):
 
         return current_ma > ma_threshold
 
-    def did_tiny_ma_peak(self):
+    def did_tiny_ma_peak(self) -> bool:
         ma_series: pd.Series = self.processed_data["SMA_19"]
         recent_mas = ma_series.iloc[-8:].reset_index(drop=True)
         peak_ma: Decimal = Decimal(recent_mas.max())
@@ -369,3 +471,33 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().info(f"did_tiny_ma_peak() | current_ma:{current_ma} | ma_threshold:{ma_threshold}")
 
         return current_ma < ma_threshold
+
+    #
+    # MA Channel functions
+    #
+
+    def are_candles_fully_below_mal(self) -> bool:
+        high_series: pd.Series = self.processed_data["high"]
+        recent_highs = high_series.iloc[-5:]
+
+        mal_series: pd.Series = self.processed_data["SMA_10_l"]
+        recent_mals = mal_series.iloc[-5:]
+
+        return all(recent_highs[i] < recent_mals[i] for i in range(len(recent_highs)))
+
+    def are_candles_fully_above_mah(self) -> bool:
+        low_series: pd.Series = self.processed_data["low"]
+        recent_lows = low_series.iloc[-5:]
+
+        mah_series: pd.Series = self.processed_data["SMA_10_h"]
+        recent_mahs = mah_series.iloc[-5:]
+
+        return all(recent_lows[i] > recent_mahs[i] for i in range(len(recent_lows)))
+
+    def is_current_price_over_mah(self) -> bool:
+        current_price_minus_current_mah: Decimal = self.get_current_close() - self.get_current_mah()
+        return current_price_minus_current_mah > 0
+
+    def is_current_price_under_mal(self) -> bool:
+        current_mal_minus_current_price: Decimal = self.get_current_mal() - self.get_current_close()
+        return current_mal_minus_current_price > 0
