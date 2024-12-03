@@ -478,19 +478,19 @@ class ExcaliburStrategy(PkStrategy):
 
     def are_candles_fully_below_mal(self) -> bool:
         high_series: pd.Series = self.processed_data["high"]
-        recent_highs = high_series.iloc[-5:]
+        recent_highs = high_series.iloc[-5:].reset_index(drop=True)
 
         mal_series: pd.Series = self.processed_data["SMA_10_l"]
-        recent_mals = mal_series.iloc[-5:]
+        recent_mals = mal_series.iloc[-5:].reset_index(drop=True)
 
         return all(recent_highs[i] < recent_mals[i] for i in range(len(recent_highs)))
 
     def are_candles_fully_above_mah(self) -> bool:
         low_series: pd.Series = self.processed_data["low"]
-        recent_lows = low_series.iloc[-5:]
+        recent_lows = low_series.iloc[-5:].reset_index(drop=True)
 
         mah_series: pd.Series = self.processed_data["SMA_10_h"]
-        recent_mahs = mah_series.iloc[-5:]
+        recent_mahs = mah_series.iloc[-5:].reset_index(drop=True)
 
         return all(recent_lows[i] > recent_mahs[i] for i in range(len(recent_lows)))
 
