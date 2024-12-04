@@ -14,7 +14,12 @@ from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.excalibur_config import ExcaliburConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
-from scripts.pk.pk_utils import compute_buy_orders_pnl_pct, compute_sell_orders_pnl_pct, was_an_order_recently_opened
+from scripts.pk.pk_utils import (
+    compute_buy_orders_pnl_pct,
+    compute_rsi_pullback_threshold,
+    compute_sell_orders_pnl_pct,
+    was_an_order_recently_opened,
+)
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 # Trend following via comparing 2 MAs, and reversions based on RSI & Stochastic
@@ -268,13 +273,19 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_MA_CHANNEL)
 
         if len(filled_sell_orders) > 0:
-            if self.is_current_price_over_mah():
-                self.logger().info("stop_actions_proposal_ma_channel() > Closing Sell MA-C")
+            if self.has_rsi20_bottomed():
+                self.logger().info("stop_actions_proposal_ma_channel() > Closing Sell MA-C: RSI 20 bottomed")
+                self.market_close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
+            elif self.is_current_price_over_mah():
+                self.logger().info("stop_actions_proposal_ma_channel() > Closing Sell MA-C: price > MAH")
                 self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
 
         if len(filled_buy_orders) > 0:
-            if self.is_current_price_under_mal():
-                self.logger().info("stop_actions_proposal_ma_channel() > Closing Buy MA-C")
+            if self.has_rsi20_peaked():
+                self.logger().info("stop_actions_proposal_ma_channel() > Closing Buy MA-C: RSI 20 peaked")
+                self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
+            elif self.is_current_price_under_mal():
+                self.logger().info("stop_actions_proposal_ma_channel() > Closing Buy MA-C: price < MAL")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
 
     #
@@ -502,3 +513,39 @@ class ExcaliburStrategy(PkStrategy):
     def is_current_price_under_mal(self) -> bool:
         current_mal_minus_current_price: Decimal = self.get_current_mal() - self.get_current_close()
         return current_mal_minus_current_price > 0
+
+    def has_rsi20_bottomed(self) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI_20"]
+        recent_rsis = rsi_series.iloc[-8:]
+
+        bottom_rsi = Decimal(recent_rsis.min())
+
+        if bottom_rsi > 30:
+            return False
+
+        rsi_threshold: Decimal = compute_rsi_pullback_threshold(bottom_rsi)
+        current_rsi = self.get_current_rsi(40)
+        has_bottomed = current_rsi > rsi_threshold
+
+        if has_bottomed:
+            self.logger().info(f"has_rsi20_bottomed() | bottom_rsi:{bottom_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
+
+        return has_bottomed
+
+    def has_rsi20_peaked(self) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI_20"]
+        recent_rsis = rsi_series.iloc[-8:]
+
+        peak_rsi = Decimal(recent_rsis.max())
+
+        if peak_rsi < 70:
+            return False
+
+        rsi_threshold: Decimal = compute_rsi_pullback_threshold(peak_rsi)
+        current_rsi = self.get_current_rsi(40)
+        has_peaked = current_rsi < rsi_threshold
+
+        if has_peaked:
+            self.logger().info(f"has_rsi20_peaked() | peak_rsi:{peak_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
+
+        return has_peaked

@@ -1,6 +1,5 @@
 from datetime import datetime
 from decimal import Decimal
-from enum import Enum
 from typing import List
 
 import pandas as pd
@@ -151,6 +150,35 @@ def timestamp_to_iso(timestamp: float) -> str:
     return datetime.fromtimestamp(timestamp).isoformat()
 
 
-class Trend(Enum):
-    UP = "UP"
-    DOWN = "DOWN"
+def compute_rsi_pullback_threshold(rsi: Decimal) -> Decimal:
+    """
+    When `rsi > 50`:
+    i:3 rsi:75 result:72 (rsi-i)
+    i:4 rsi:78 result:74 (rsi-i)
+    i:5 rsi:81 result:76 (rsi-i)
+    i:6 rsi:84 result:78 (rsi-i)
+    i:7 rsi:87 result:80 (rsi-i)
+    i:8 rsi:90 result:82 (rsi-i)
+    i:9 rsi:93 result:84 (rsi-i)
+
+    When `rsi < 50`:
+    i:3 rsi:25 result:28 (rsi+i)
+    i:4 rsi:22 result:26 (rsi+i)
+    i:5 rsi:18 result:24 (rsi+i)
+    i:6 rsi:15 result:22 (rsi+i)
+    i:7 rsi:12 result:20 (rsi+i)
+    i:8 rsi:09 result:18 (rsi+i)
+    i:9 rsi:06 result:16 (rsi+i)
+    """
+    if rsi > 50:
+        if rsi < 75:
+            return rsi - 2
+
+        decrement: Decimal = ((rsi - 75) // 3) + 3
+        return rsi - decrement
+
+    if rsi > 25:
+        return rsi + 2
+
+    increment = ((25 - rsi) // 3) + 3
+    return rsi + increment
