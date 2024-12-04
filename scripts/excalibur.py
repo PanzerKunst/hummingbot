@@ -476,10 +476,10 @@ class ExcaliburStrategy(PkStrategy):
         recent_rsi20s = rsi20_series.iloc[-4:]
         bottom_rsi20: Decimal = Decimal(recent_rsi20s.min())
 
-        if bottom_rsi40 < 38 or bottom_rsi20 < 32:
+        if bottom_rsi40 < 38 or bottom_rsi20 < 33:
             self.logger().info(f"is_recent_rsi_too_low_to_open_sell() | bottom_rsi40:{bottom_rsi40} | bottom_rsi20:{bottom_rsi20}")
 
-        return bottom_rsi40 < 38 or bottom_rsi20 < 32
+        return bottom_rsi40 < 38 or bottom_rsi20 < 33
 
     def is_recent_rsi_too_high_to_open_buy(self) -> bool:
         rsi40_series: pd.Series = self.processed_data["RSI_40"]
@@ -490,10 +490,10 @@ class ExcaliburStrategy(PkStrategy):
         recent_rsi20s = rsi20_series.iloc[-4:]
         peak_rsi20: Decimal = Decimal(recent_rsi20s.max())
 
-        if peak_rsi40 > 62 or peak_rsi20 > 68:
+        if peak_rsi40 > 62 or peak_rsi20 > 67:
             self.logger().info(f"is_recent_rsi_too_high_to_open_buy() | peak_rsi40:{peak_rsi40} | peak_rsi20:{peak_rsi20}")
 
-        return peak_rsi40 > 62 or peak_rsi20 > 68
+        return peak_rsi40 > 62 or peak_rsi20 > 67
 
     def is_current_price_over_mah(self) -> bool:
         current_price_minus_current_mah: Decimal = self.get_current_close() - self.get_current_mah()
