@@ -12,7 +12,7 @@ from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction,
 from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
-from scripts.pk.pk_utils import was_an_order_recently_opened
+from scripts.pk.pk_utils import compute_rsi_pullback_threshold, was_an_order_recently_opened
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 from scripts.thunderfury_config import ExcaliburConfig
 
@@ -281,8 +281,7 @@ class ExcaliburStrategy(PkStrategy):
         if peak_rsi < 63:
             return False
 
-        # If peak_rsi > 72, we wait until it's back down to 70
-        rsi_threshold: Decimal = 70 if peak_rsi > 72 else peak_rsi - 2
+        rsi_threshold: Decimal = compute_rsi_pullback_threshold(peak_rsi)
         current_rsi = self.get_current_rsi(40)
 
         if current_rsi > rsi_threshold:
@@ -305,7 +304,7 @@ class ExcaliburStrategy(PkStrategy):
         if bottom_rsi > 37:
             return False
 
-        rsi_threshold: Decimal = 30 if bottom_rsi < 28 else bottom_rsi + 2
+        rsi_threshold: Decimal = compute_rsi_pullback_threshold(bottom_rsi)
         current_rsi = self.get_current_rsi(40)
 
         if current_rsi < rsi_threshold:
