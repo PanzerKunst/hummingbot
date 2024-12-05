@@ -547,13 +547,13 @@ class ExcaliburStrategy(PkStrategy):
         low_series: pd.Series = self.processed_data["low"]
         recent_lows = low_series.iloc[-6:-1]
 
-        peak_price = Decimal(recent_lows.max())
-        peak_price_index = recent_lows.idxmax()
+        peak_price = Decimal(recent_highs.max())
+        peak_price_index = recent_highs.idxmax()
 
         if peak_price_index == 0:
             return False
 
-        bottom_price = Decimal(recent_highs.iloc[0:peak_price_index].min())
+        bottom_price = Decimal(recent_lows.iloc[0:peak_price_index].min())
         start_delta_pct: Decimal = (peak_price - bottom_price) / peak_price * 100
 
         if start_delta_pct < 0:
