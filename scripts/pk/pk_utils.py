@@ -1,5 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
+from enum import Enum
 from typing import List
 
 import pandas as pd
@@ -182,3 +183,8 @@ def compute_rsi_pullback_threshold(rsi: Decimal) -> Decimal:
 
     increment = ((25 - rsi) // 3) + 3
     return rsi + increment
+
+
+class Trend(Enum):
+    UP = "UP"
+    DOWN = "DOWN"

@@ -584,13 +584,11 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         rsi_threshold: Decimal = compute_rsi_pullback_threshold(bottom_rsi)
-        current_rsi = self.get_current_rsi(40)
-        has_bottomed = current_rsi > rsi_threshold
+        current_rsi = self.get_current_rsi(20)
 
-        if has_bottomed:
-            self.logger().info(f"has_rsi20_bottomed() | bottom_rsi:{bottom_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
+        self.logger().info(f"has_rsi20_bottomed() | bottom_rsi:{bottom_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
 
-        return has_bottomed
+        return current_rsi > rsi_threshold
 
     def has_rsi20_peaked(self) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI_20"]
@@ -602,10 +600,8 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         rsi_threshold: Decimal = compute_rsi_pullback_threshold(peak_rsi)
-        current_rsi = self.get_current_rsi(40)
-        has_peaked = current_rsi < rsi_threshold
+        current_rsi = self.get_current_rsi(20)
 
-        if has_peaked:
-            self.logger().info(f"has_rsi20_peaked() | peak_rsi:{peak_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
+        self.logger().info(f"has_rsi20_peaked() | peak_rsi:{peak_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
 
-        return has_peaked
+        return current_rsi < rsi_threshold
