@@ -257,14 +257,22 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         if side == TradeType.SELL:
-            if self.are_candles_fully_below_mal() and not self.is_recent_rsi_too_low_to_open_sell():
-                self.logger().info("can_create_ma_channel_order() > 5 candles fully below MAL")
+            if (
+                self.are_candles_fully_below_mal() and
+                not self.is_recent_rsi_too_low_to_open_sell() and
+                not self.did_price_recently_pull_back_up()
+            ):
+                self.logger().info("can_create_ma_channel_order() > Opening Sell MA-C position")
                 return True
 
             return False
 
-        if self.are_candles_fully_above_mah() and not self.is_recent_rsi_too_high_to_open_buy():
-            self.logger().info("can_create_ma_channel_order() > 5 candles fully above MAH")
+        if (
+            self.are_candles_fully_above_mah() and
+            not self.is_recent_rsi_too_high_to_open_buy() and
+            not self.did_price_recently_pull_back_down()
+        ):
+            self.logger().info("can_create_ma_channel_order() > Opening Buy MA-C position")
             return True
 
         return False
@@ -505,6 +513,58 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().info(f"is_recent_rsi_too_high_to_open_buy() | peak_rsi40:{peak_rsi40} | peak_rsi20:{peak_rsi20}")
 
         return peak_rsi40 > 62 or peak_rsi20 > 67
+
+    def did_price_recently_pull_back_up(self) -> bool:
+        low_series: pd.Series = self.processed_data["low"]
+        recent_lows = low_series.iloc[-6:-1].reset_index(drop=True)
+
+        high_series: pd.Series = self.processed_data["high"]
+        recent_highs = high_series.iloc[-6:-1]
+
+        bottom_price = Decimal(recent_lows.min())
+        bottom_price_index = recent_lows.idxmin()
+
+        if bottom_price_index == 0:
+            return False
+
+        peak_price = Decimal(recent_highs.iloc[0:bottom_price_index].max())
+        start_delta_pct: Decimal = (peak_price - bottom_price) / bottom_price * 100
+
+        if start_delta_pct < 0:
+            return False
+
+        current_close = self.get_current_close()
+        end_delta_pct: Decimal = (current_close - bottom_price) / bottom_price * 100
+
+        self.logger().info(f"did_price_recently_pull_back_up() | bottom_price:{bottom_price} | peak_price:{peak_price} | start_delta_pct:{start_delta_pct} | current_close:{current_close} | end_delta_pct:{end_delta_pct}")
+
+        return end_delta_pct > start_delta_pct / 3
+
+    def did_price_recently_pull_back_down(self) -> bool:
+        high_series: pd.Series = self.processed_data["high"]
+        recent_highs = high_series.iloc[-6:-1].reset_index(drop=True)
+
+        low_series: pd.Series = self.processed_data["low"]
+        recent_lows = low_series.iloc[-6:-1]
+
+        peak_price = Decimal(recent_lows.max())
+        peak_price_index = recent_lows.idxmax()
+
+        if peak_price_index == 0:
+            return False
+
+        bottom_price = Decimal(recent_highs.iloc[0:peak_price_index].min())
+        start_delta_pct: Decimal = (peak_price - bottom_price) / peak_price * 100
+
+        if start_delta_pct < 0:
+            return False
+
+        current_close = self.get_current_close()
+        end_delta_pct: Decimal = (peak_price - current_close) / peak_price * 100
+
+        self.logger().info(f"did_price_recently_pull_back_down() | peak_price:{peak_price} | bottom_price:{bottom_price} | start_delta_pct:{start_delta_pct} | current_close:{current_close} | end_delta_pct:{end_delta_pct}")
+
+        return end_delta_pct > start_delta_pct / 3
 
     def is_current_price_over_mah(self) -> bool:
         current_price_minus_current_mah: Decimal = self.get_current_close() - self.get_current_mah()
