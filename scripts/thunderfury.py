@@ -288,12 +288,10 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         too_late_threshold: Decimal = rsi_threshold - 2
-        has_peaked = current_rsi > too_late_threshold
 
-        if has_peaked:
-            self.logger().info(f"has_rsi_peaked() | peak_rsi:{peak_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
+        self.logger().info(f"has_rsi_peaked() | peak_rsi:{peak_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
 
-        return has_peaked
+        return current_rsi > too_late_threshold
 
     def has_rsi_bottomed(self, candle_count: int) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI_40"]
@@ -311,12 +309,10 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         too_late_threshold: Decimal = rsi_threshold + 2
-        has_bottomed = current_rsi < too_late_threshold
 
-        if has_bottomed:
-            self.logger().info(f"has_rsi_bottomed() | bottom_rsi:{bottom_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
+        self.logger().info(f"has_rsi_bottomed() | bottom_rsi:{bottom_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
 
-        return has_bottomed
+        return current_rsi < too_late_threshold
 
     def should_close_rev_sell_due_to_stoch_reversal(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
         # Don't close if we just opened
