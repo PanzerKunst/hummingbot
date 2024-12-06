@@ -1,7 +1,7 @@
 markets: {}
 candles_config:
 - connector: binance_perpetual
-  interval: 3m
+  interval: 1m
   max_records: 50
   trading_pair: PNUT-USDT
 controllers_config: []
