@@ -23,7 +23,6 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     controllers_config: List[str] = Field(default_factory=list)
     config_update_interval: int = 10
-    script_file_name: str = "thunderfury.py"
     # Standard attributes END
 
     # Used by PkStrategy
@@ -42,4 +41,4 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     # Order settings
     amount_quote: int = 30
     entry_price_delta_bps: int = 0
-    price_start_delta_pct_to_open: Decimal = 6.0
+    price_start_delta_pct_to_open: Decimal = 4.5

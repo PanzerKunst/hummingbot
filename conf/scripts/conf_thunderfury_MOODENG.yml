@@ -6,7 +6,6 @@ candles_config:
   trading_pair: MOODENG-USDT
 controllers_config: []
 config_update_interval: 10
-script_file_name: thunderfury.py
 connector_name: hyperliquid_perpetual
 trading_pair: MOODENG-USD
 leverage: 5
@@ -17,4 +16,4 @@ market_order_twap_interval: 5
 position_mode: ONEWAY
 amount_quote: 30
 entry_price_delta_bps: 0
-price_start_delta_pct_to_open: 6.0
+price_start_delta_pct_to_open: 4.5

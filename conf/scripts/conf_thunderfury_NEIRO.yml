@@ -6,7 +6,6 @@ candles_config:
   trading_pair: NEIRO-USDT
 controllers_config: []
 config_update_interval: 10
-script_file_name: thunderfury.py
 connector_name: hyperliquid_perpetual
 trading_pair: kNEIRO-USD
 leverage: 5

@@ -39,8 +39,7 @@ class ExcaliburStrategy(PkStrategy):
         super().__init__(connectors, config)
 
         self.processed_data = pd.DataFrame()
-
-        self.last_price_spike_or_crash_pct: Decimal = Decimal(0.0)
+        self.reset_context()
 
     def start(self, clock: Clock, timestamp: float) -> None:
         self._last_timestamp = timestamp
@@ -152,11 +151,13 @@ class ExcaliburStrategy(PkStrategy):
             entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
             triple_barrier = self.get_triple_barrier()
             self.create_order(TradeType.SELL, entry_price, triple_barrier, self.config.amount_quote, ORDER_REF_REV)
+            self.reset_context()
 
         if self.can_create_rev_order(TradeType.BUY, active_orders):
             entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
             triple_barrier = self.get_triple_barrier()
             self.create_order(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote, ORDER_REF_REV)
+            self.reset_context()
 
     def can_create_rev_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
         if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_REV, 8):
@@ -225,6 +226,11 @@ class ExcaliburStrategy(PkStrategy):
     # Reversion functions
     #
 
+    def reset_context(self):
+        self.last_price_spike_or_crash_pct: Decimal = Decimal(0.0)
+        self.real_bottom_rsi: Decimal = Decimal(50.0)
+        self.real_peak_rsi: Decimal = Decimal(50.0)
+
     def is_price_spiking(self, candle_count: int) -> bool:
         high_series: pd.Series = self.processed_data["high"]
         recent_highs = high_series.iloc[-candle_count:].reset_index(drop=True)
@@ -281,7 +287,10 @@ class ExcaliburStrategy(PkStrategy):
         if peak_rsi < 63:
             return False
 
-        rsi_threshold: Decimal = compute_rsi_pullback_threshold(peak_rsi)
+        if peak_rsi > self.real_peak_rsi:
+            self.real_peak_rsi = peak_rsi
+
+        rsi_threshold: Decimal = compute_rsi_pullback_threshold(self.real_peak_rsi)
         current_rsi = self.get_current_rsi(40)
 
         if current_rsi > rsi_threshold:
@@ -289,7 +298,7 @@ class ExcaliburStrategy(PkStrategy):
 
         too_late_threshold: Decimal = rsi_threshold - 2
 
-        self.logger().info(f"has_rsi_peaked() | peak_rsi:{peak_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
+        self.logger().info(f"has_rsi_peaked() | self.real_peak_rsi:{self.real_peak_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
 
         return current_rsi > too_late_threshold
 
@@ -302,7 +311,10 @@ class ExcaliburStrategy(PkStrategy):
         if bottom_rsi > 37:
             return False
 
-        rsi_threshold: Decimal = compute_rsi_pullback_threshold(bottom_rsi)
+        if bottom_rsi < self.real_bottom_rsi:
+            self.real_bottom_rsi = bottom_rsi
+
+        rsi_threshold: Decimal = compute_rsi_pullback_threshold(self.real_bottom_rsi)
         current_rsi = self.get_current_rsi(40)
 
         if current_rsi < rsi_threshold:
@@ -310,7 +322,7 @@ class ExcaliburStrategy(PkStrategy):
 
         too_late_threshold: Decimal = rsi_threshold + 2
 
-        self.logger().info(f"has_rsi_bottomed() | bottom_rsi:{bottom_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
+        self.logger().info(f"has_rsi_bottomed() | self.real_bottom_rsi:{self.real_bottom_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
 
         return current_rsi < too_late_threshold
 
