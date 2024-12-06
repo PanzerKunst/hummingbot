@@ -268,7 +268,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def is_price_drop_significant(self) -> bool:
         high_series: pd.Series = self.processed_data["high"]
-        recent_highs = high_series.iloc[-5:-1]
+        recent_highs = high_series.iloc[-6:-1]  # 1 more than `are_candles_fully_below/below()`
 
         peak_price = Decimal(recent_highs.max())
         current_price = self.get_current_close()
@@ -280,7 +280,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def is_price_increase_significant(self) -> bool:
         low_series: pd.Series = self.processed_data["low"]
-        recent_lows = low_series.iloc[-5:-1]
+        recent_lows = low_series.iloc[-6:-1]  # 1 more than `are_candles_fully_below/below()`
 
         bottom_price = Decimal(recent_lows.min())
         current_price = self.get_current_close()
