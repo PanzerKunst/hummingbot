@@ -19,12 +19,14 @@ from scripts.thunderfury_config import ExcaliburConfig
 # Mean reversion based on price, RSI & Stochastic
 # Generate config file: create --script-config thunderfury
 # Start the bot: start --script thunderfury.py --conf conf_thunderfury_GOAT.yml
+#                start --script thunderfury.py --conf conf_thunderfury_BOME.yml
 #                start --script thunderfury.py --conf conf_thunderfury_CHILLGUY.yml
 #                start --script thunderfury.py --conf conf_thunderfury_FLOKI.yml
 #                start --script thunderfury.py --conf conf_thunderfury_MOODENG.yml
 #                start --script thunderfury.py --conf conf_thunderfury_NEIRO.yml
 #                start --script thunderfury.py --conf conf_thunderfury_PNUT.yml
 #                start --script thunderfury.py --conf conf_thunderfury_POPCAT.yml
+#                start --script thunderfury.py --conf conf_thunderfury_SHIB.yml
 # Quickstart script: -p=a -f thunderfury.py -c conf_thunderfury_GOAT.yml
 
 ORDER_REF_REV = "Rev"
