@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import Dict, List
 
 import pandas as pd
+from pandas_ta import sma
 
 from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
@@ -13,7 +14,12 @@ from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.excalibur_config import ExcaliburConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
-from scripts.pk.pk_utils import compute_buy_orders_pnl_pct, compute_sell_orders_pnl_pct, was_an_order_recently_opened
+from scripts.pk.pk_utils import (
+    compute_buy_orders_pnl_pct,
+    compute_rsi_pullback_threshold,
+    compute_sell_orders_pnl_pct,
+    was_an_order_recently_opened,
+)
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 # Trend following via comparing 2 MAs, and reversions based on RSI & Stochastic
@@ -28,6 +34,7 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 # Quickstart script: -p=a -f excalibur.py -c conf_excalibur_GOAT.yml
 
 ORDER_REF_MA_CROSS = "MaCross"
+ORDER_REF_MA_CHANNEL = "MaChannel"
 
 
 class ExcaliburStrategy(PkStrategy):
@@ -56,8 +63,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def get_triple_barrier(self) -> TripleBarrier:
         return TripleBarrier(
-            open_order_type=OrderType.MARKET,
-            take_profit=self.config.ma_cross_take_profit_pct / 100
+            open_order_type=OrderType.MARKET
         )
 
     def update_processed_data(self):
@@ -77,11 +83,15 @@ class ExcaliburStrategy(PkStrategy):
 
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
 
+        candles_df["RSI_20"] = candles_df.ta.rsi(length=20)
         candles_df["RSI_40"] = candles_df.ta.rsi(length=40)
 
         candles_df["SMA_19"] = candles_df.ta.sma(length=19)
         candles_df["SMA_75"] = candles_df.ta.sma(length=75)
         candles_df["SMA_300"] = candles_df.ta.sma(length=300)
+
+        candles_df["SMA_10_h"] = sma(close=candles_df["high"], length=10)
+        candles_df["SMA_10_l"] = sma(close=candles_df["low"], length=10)
 
         candles_df.dropna(inplace=True)
 
@@ -97,6 +107,7 @@ class ExcaliburStrategy(PkStrategy):
             return []
 
         self.create_actions_proposal_ma_cross()
+        self.create_actions_proposal_ma_channel()
 
         return []  # Always return []
 
@@ -109,6 +120,7 @@ class ExcaliburStrategy(PkStrategy):
         self.check_orders()
 
         self.stop_actions_proposal_ma_cross()
+        self.stop_actions_proposal_ma_channel()
 
         return []  # Always return []
 
@@ -122,10 +134,13 @@ class ExcaliburStrategy(PkStrategy):
                     "timestamp_iso",
                     "close",
                     "volume",
+                    "RSI_20",
                     "RSI_40",
                     "SMA_19",
                     "SMA_75",
-                    "SMA_300"
+                    "SMA_300",
+                    "SMA_10_h",
+                    "SMA_10_l"
                 ]
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display], table_format="psql"))
@@ -145,7 +160,7 @@ class ExcaliburStrategy(PkStrategy):
             triple_barrier = self.get_triple_barrier()
 
             asyncio.get_running_loop().create_task(
-                self.create_twap_market_orders(TradeType.SELL, entry_price, triple_barrier, self.config.amount_quote, ORDER_REF_MA_CROSS)
+                self.create_twap_market_orders(TradeType.SELL, entry_price, triple_barrier, self.config.amount_quote_ma_cross, ORDER_REF_MA_CROSS)
             )
 
         if self.can_create_ma_cross_order(TradeType.BUY, active_orders):
@@ -153,12 +168,12 @@ class ExcaliburStrategy(PkStrategy):
             triple_barrier = self.get_triple_barrier()
 
             asyncio.get_running_loop().create_task(
-                self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote, ORDER_REF_MA_CROSS)
+                self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote_ma_cross, ORDER_REF_MA_CROSS)
             )
 
     def can_create_ma_cross_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
         # Same cooldown as candle duration
-        if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_MA_CROSS, 3):
+        if not self.can_create_order(side, self.config.amount_quote_ma_cross, ORDER_REF_MA_CROSS, 3):
             return False
 
         if len(active_tracked_orders) > 0:
@@ -211,6 +226,77 @@ class ExcaliburStrategy(PkStrategy):
                     self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
 
     #
+    # MA Channel start/stop action proposals
+    #
+
+    def create_actions_proposal_ma_channel(self):
+        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_MA_CHANNEL)
+        active_orders = active_sell_orders + active_buy_orders
+
+        if self.can_create_ma_channel_order(TradeType.SELL, active_orders):
+            entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
+            triple_barrier = self.get_triple_barrier()
+
+            asyncio.get_running_loop().create_task(
+                self.create_twap_market_orders(TradeType.SELL, entry_price, triple_barrier, self.config.amount_quote_ma_channel, ORDER_REF_MA_CHANNEL)
+            )
+
+        if self.can_create_ma_channel_order(TradeType.BUY, active_orders):
+            entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
+            triple_barrier = self.get_triple_barrier()
+
+            asyncio.get_running_loop().create_task(
+                self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote_ma_channel, ORDER_REF_MA_CHANNEL)
+            )
+
+    def can_create_ma_channel_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
+        if not self.can_create_order(side, self.config.amount_quote_ma_channel, ORDER_REF_MA_CHANNEL, 8):
+            return False
+
+        if len(active_tracked_orders) > 0:
+            return False
+
+        if side == TradeType.SELL:
+            if (
+                self.are_candles_fully_below_mal() and
+                not self.is_recent_rsi_too_low_to_open_sell() and
+                not self.did_price_recently_pull_back_up()
+            ):
+                self.logger().info("can_create_ma_channel_order() > Opening Sell MA-C position")
+                return True
+
+            return False
+
+        if (
+            self.are_candles_fully_above_mah() and
+            not self.is_recent_rsi_too_high_to_open_buy() and
+            not self.did_price_recently_pull_back_down()
+        ):
+            self.logger().info("can_create_ma_channel_order() > Opening Buy MA-C position")
+            return True
+
+        return False
+
+    def stop_actions_proposal_ma_channel(self):
+        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_MA_CHANNEL)
+
+        if len(filled_sell_orders) > 0:
+            if self.has_rsi20_bottomed():
+                self.logger().info("stop_actions_proposal_ma_channel() > Closing Sell MA-C: RSI 20 bottomed")
+                self.market_close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
+            elif self.is_current_price_over_mah():
+                self.logger().info("stop_actions_proposal_ma_channel() > Closing Sell MA-C: price > MAH")
+                self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
+
+        if len(filled_buy_orders) > 0:
+            if self.has_rsi20_peaked():
+                self.logger().info("stop_actions_proposal_ma_channel() > Closing Buy MA-C: RSI 20 peaked")
+                self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
+            elif self.is_current_price_under_mal():
+                self.logger().info("stop_actions_proposal_ma_channel() > Closing Buy MA-C: price < MAL")
+                self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
+
+    #
     # Getters on `self.processed_data[]`
     #
 
@@ -240,6 +326,14 @@ class ExcaliburStrategy(PkStrategy):
     def _get_ma_at_index(self, length: int, index: int) -> Decimal:
         sma_series: pd.Series = self.processed_data[f"SMA_{length}"]
         return Decimal(sma_series.iloc[index])
+
+    def get_current_mah(self) -> Decimal:
+        smah_series: pd.Series = self.processed_data["SMA_10_h"]
+        return Decimal(smah_series.iloc[-1])
+
+    def get_current_mal(self) -> Decimal:
+        smal_series: pd.Series = self.processed_data["SMA_10_l"]
+        return Decimal(smal_series.iloc[-1])
 
     #
     # MA Cross functions
@@ -344,7 +438,7 @@ class ExcaliburStrategy(PkStrategy):
 
         return pnl_pct > 0
 
-    def did_tiny_ma_bottom(self):
+    def did_tiny_ma_bottom(self) -> bool:
         ma_series: pd.Series = self.processed_data["SMA_19"]
         recent_mas = ma_series.iloc[-8:].reset_index(drop=True)
         bottom_ma: Decimal = Decimal(recent_mas.min())
@@ -357,7 +451,7 @@ class ExcaliburStrategy(PkStrategy):
 
         return current_ma > ma_threshold
 
-    def did_tiny_ma_peak(self):
+    def did_tiny_ma_peak(self) -> bool:
         ma_series: pd.Series = self.processed_data["SMA_19"]
         recent_mas = ma_series.iloc[-8:].reset_index(drop=True)
         peak_ma: Decimal = Decimal(recent_mas.max())
@@ -369,3 +463,145 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().info(f"did_tiny_ma_peak() | current_ma:{current_ma} | ma_threshold:{ma_threshold}")
 
         return current_ma < ma_threshold
+
+    #
+    # MA Channel functions
+    #
+
+    def are_candles_fully_below_mal(self) -> bool:
+        high_series: pd.Series = self.processed_data["high"]
+        recent_highs = high_series.iloc[-6:-1].reset_index(drop=True)
+
+        mal_series: pd.Series = self.processed_data["SMA_10_l"]
+        recent_mals = mal_series.iloc[-6:-1].reset_index(drop=True)
+
+        return all(recent_highs[i] < recent_mals[i] for i in range(len(recent_highs)))
+
+    def are_candles_fully_above_mah(self) -> bool:
+        low_series: pd.Series = self.processed_data["low"]
+        recent_lows = low_series.iloc[-6:-1].reset_index(drop=True)
+
+        mah_series: pd.Series = self.processed_data["SMA_10_h"]
+        recent_mahs = mah_series.iloc[-6:-1].reset_index(drop=True)
+
+        return all(recent_lows[i] > recent_mahs[i] for i in range(len(recent_lows)))
+
+    def is_recent_rsi_too_low_to_open_sell(self) -> bool:
+        rsi40_series: pd.Series = self.processed_data["RSI_40"]
+        recent_rsi40s = rsi40_series.iloc[-4:]
+        bottom_rsi40: Decimal = Decimal(recent_rsi40s.min())
+
+        rsi20_series: pd.Series = self.processed_data["RSI_20"]
+        recent_rsi20s = rsi20_series.iloc[-4:]
+        bottom_rsi20: Decimal = Decimal(recent_rsi20s.min())
+
+        if bottom_rsi40 < 38 or bottom_rsi20 < 32:
+            self.logger().info(f"is_recent_rsi_too_low_to_open_sell() | bottom_rsi40:{bottom_rsi40} | bottom_rsi20:{bottom_rsi20}")
+
+        return bottom_rsi40 < 38 or bottom_rsi20 < 32
+
+    def is_recent_rsi_too_high_to_open_buy(self) -> bool:
+        rsi40_series: pd.Series = self.processed_data["RSI_40"]
+        recent_rsi40s = rsi40_series.iloc[-4:]
+        peak_rsi40: Decimal = Decimal(recent_rsi40s.max())
+
+        rsi20_series: pd.Series = self.processed_data["RSI_20"]
+        recent_rsi20s = rsi20_series.iloc[-4:]
+        peak_rsi20: Decimal = Decimal(recent_rsi20s.max())
+
+        if peak_rsi40 > 62 or peak_rsi20 > 68:
+            self.logger().info(f"is_recent_rsi_too_high_to_open_buy() | peak_rsi40:{peak_rsi40} | peak_rsi20:{peak_rsi20}")
+
+        return peak_rsi40 > 62 or peak_rsi20 > 68
+
+    def did_price_recently_pull_back_up(self) -> bool:
+        low_series: pd.Series = self.processed_data["low"]
+        recent_lows = low_series.iloc[-6:-1].reset_index(drop=True)
+
+        high_series: pd.Series = self.processed_data["high"]
+        recent_highs = high_series.iloc[-6:-1]
+
+        bottom_price = Decimal(recent_lows.min())
+        bottom_price_index = recent_lows.idxmin()
+
+        if bottom_price_index == 0:
+            return False
+
+        peak_price = Decimal(recent_highs.iloc[0:bottom_price_index].max())
+        start_delta_pct: Decimal = (peak_price - bottom_price) / bottom_price * 100
+
+        if start_delta_pct < 0:
+            return False
+
+        current_close = self.get_current_close()
+        end_delta_pct: Decimal = (current_close - bottom_price) / bottom_price * 100
+
+        self.logger().info(f"did_price_recently_pull_back_up() | bottom_price:{bottom_price} | peak_price:{peak_price} | start_delta_pct:{start_delta_pct} | current_close:{current_close} | end_delta_pct:{end_delta_pct}")
+
+        return end_delta_pct > start_delta_pct / 3
+
+    def did_price_recently_pull_back_down(self) -> bool:
+        high_series: pd.Series = self.processed_data["high"]
+        recent_highs = high_series.iloc[-6:-1].reset_index(drop=True)
+
+        low_series: pd.Series = self.processed_data["low"]
+        recent_lows = low_series.iloc[-6:-1]
+
+        peak_price = Decimal(recent_highs.max())
+        peak_price_index = recent_highs.idxmax()
+
+        if peak_price_index == 0:
+            return False
+
+        bottom_price = Decimal(recent_lows.iloc[0:peak_price_index].min())
+        start_delta_pct: Decimal = (peak_price - bottom_price) / peak_price * 100
+
+        if start_delta_pct < 0:
+            return False
+
+        current_close = self.get_current_close()
+        end_delta_pct: Decimal = (peak_price - current_close) / peak_price * 100
+
+        self.logger().info(f"did_price_recently_pull_back_down() | peak_price:{peak_price} | bottom_price:{bottom_price} | start_delta_pct:{start_delta_pct} | current_close:{current_close} | end_delta_pct:{end_delta_pct}")
+
+        return end_delta_pct > start_delta_pct / 3
+
+    def is_current_price_over_mah(self) -> bool:
+        current_price_minus_current_mah: Decimal = self.get_current_close() - self.get_current_mah()
+        return current_price_minus_current_mah > 0
+
+    def is_current_price_under_mal(self) -> bool:
+        current_mal_minus_current_price: Decimal = self.get_current_mal() - self.get_current_close()
+        return current_mal_minus_current_price > 0
+
+    def has_rsi20_bottomed(self) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI_20"]
+        recent_rsis = rsi_series.iloc[-8:]
+
+        bottom_rsi = Decimal(recent_rsis.min())
+
+        if bottom_rsi > 30:
+            return False
+
+        rsi_threshold: Decimal = compute_rsi_pullback_threshold(bottom_rsi)
+        current_rsi = self.get_current_rsi(20)
+
+        self.logger().info(f"has_rsi20_bottomed() | bottom_rsi:{bottom_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
+
+        return current_rsi > rsi_threshold
+
+    def has_rsi20_peaked(self) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI_20"]
+        recent_rsis = rsi_series.iloc[-8:]
+
+        peak_rsi = Decimal(recent_rsis.max())
+
+        if peak_rsi < 70:
+            return False
+
+        rsi_threshold: Decimal = compute_rsi_pullback_threshold(peak_rsi)
+        current_rsi = self.get_current_rsi(20)
+
+        self.logger().info(f"has_rsi20_peaked() | peak_rsi:{peak_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
+
+        return current_rsi < rsi_threshold

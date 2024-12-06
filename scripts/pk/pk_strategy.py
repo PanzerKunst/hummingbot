@@ -286,7 +286,7 @@ class PkStrategy(StrategyV2Base):
                 self.logger().info(f"did_fill_order: {tracked_order}")
                 break
 
-    def can_create_order(self, side: TradeType, amount_quote: int, ref: str, cooldown_time_min: int = 0) -> bool:
+    def can_create_order(self, side: TradeType, amount_quote: int, ref: str, cooldown_time_min: int) -> bool:
         if self.get_position_quote_amount(side, amount_quote) == 0:
             return False
 
