@@ -9,7 +9,7 @@ from hummingbot.core.event.events import BuyOrderCreatedEvent, OrderFilledEvent,
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base
 from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig
 from hummingbot.strategy_v2.models.executors import CloseType
-from scripts.excalibur_config import ExcaliburConfig
+from scripts.ashbringer_config import ExcaliburConfig
 from scripts.pk.pk_triple_barrier import TripleBarrier
 from scripts.pk.pk_utils import (
     has_current_price_reached_stop_loss,

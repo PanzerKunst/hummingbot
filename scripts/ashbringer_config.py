@@ -16,14 +16,13 @@ class ExcaliburConfig(StrategyV2ConfigBase):
         CandlesConfig(
             connector="binance_perpetual",
             interval="3m",
-            max_records=330,
+            max_records=50,
             trading_pair = "GOAT-USDT"
         )
     ])
 
     controllers_config: List[str] = Field(default_factory=list)
     config_update_interval: int = 10
-    script_file_name: str = "excalibur.py"
     # Standard attributes END
 
     # Used by PkStrategy
@@ -38,11 +37,8 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     position_mode: PositionMode = PositionMode.ONEWAY
 
     # Triple Barrier
+    take_profit_pct: Decimal = 0.5
 
     # Order settings
-    amount_quote_ma_cross: int = 30
-    amount_quote_ma_channel: int = 30
+    amount_quote: int = 30
     entry_price_delta_bps: int = 0
-    max_price_delta_pct_with_short_ma_to_open: Decimal = 2.7
-    min_price_delta_pct_for_sudden_reversal_to_short_ma = 2.7
-    tiny_ma_reversal_bps: Decimal = 12.5  # 10.0 15.0
