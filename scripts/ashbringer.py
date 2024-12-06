@@ -164,6 +164,7 @@ class ExcaliburStrategy(PkStrategy):
             if (
                 self.are_candles_fully_below_mal() and
                 not self.is_recent_rsi_too_low_to_open_sell() and
+                self.is_price_drop_significant() and
                 not self.did_price_recently_pull_back_up()
             ):
                 self.logger().info("can_create_ma_channel_order() > Opening Sell MA-C position")
@@ -174,6 +175,7 @@ class ExcaliburStrategy(PkStrategy):
         if (
             self.are_candles_fully_above_mah() and
             not self.is_recent_rsi_too_high_to_open_buy() and
+            self.is_price_increase_significant() and
             not self.did_price_recently_pull_back_down()
         ):
             self.logger().info("can_create_ma_channel_order() > Opening Buy MA-C position")
@@ -264,6 +266,30 @@ class ExcaliburStrategy(PkStrategy):
 
         return peak_rsi > 66
 
+    def is_price_drop_significant(self) -> bool:
+        high_series: pd.Series = self.processed_data["high"]
+        recent_highs = high_series.iloc[-5:-1]
+
+        peak_price = Decimal(recent_highs.max())
+        current_price = self.get_current_close()
+        delta_pct: Decimal = (peak_price - current_price) / current_price * 100
+
+        self.logger().info(f"is_price_drop_significant() | peak_price:{peak_price} | current_price:{current_price} | delta_pct:{delta_pct}")
+
+        return delta_pct > Decimal(0.75)
+
+    def is_price_increase_significant(self) -> bool:
+        low_series: pd.Series = self.processed_data["low"]
+        recent_lows = low_series.iloc[-5:-1]
+
+        bottom_price = Decimal(recent_lows.min())
+        current_price = self.get_current_close()
+        delta_pct: Decimal = (current_price - bottom_price) / current_price * 100
+
+        self.logger().info(f"is_price_increase_significant() | bottom_price:{bottom_price} | current_price:{current_price} | delta_pct:{delta_pct}")
+
+        return delta_pct > Decimal(0.75)
+
     def did_price_recently_pull_back_up(self) -> bool:
         low_series: pd.Series = self.processed_data["low"]
         recent_lows = low_series.iloc[-5:-1].reset_index(drop=True)
@@ -283,10 +309,10 @@ class ExcaliburStrategy(PkStrategy):
         if start_delta_pct < 0:
             return False
 
-        current_close = self.get_current_close()
-        end_delta_pct: Decimal = (current_close - bottom_price) / bottom_price * 100
+        current_price = self.get_current_close()
+        end_delta_pct: Decimal = (current_price - bottom_price) / bottom_price * 100
 
-        self.logger().info(f"did_price_recently_pull_back_up() | bottom_price:{bottom_price} | peak_price:{peak_price} | start_delta_pct:{start_delta_pct} | current_close:{current_close} | end_delta_pct:{end_delta_pct}")
+        self.logger().info(f"did_price_recently_pull_back_up() | bottom_price:{bottom_price} | peak_price:{peak_price} | start_delta_pct:{start_delta_pct} | current_price:{current_price} | end_delta_pct:{end_delta_pct}")
 
         return end_delta_pct > start_delta_pct / 3
 
@@ -309,10 +335,10 @@ class ExcaliburStrategy(PkStrategy):
         if start_delta_pct < 0:
             return False
 
-        current_close = self.get_current_close()
-        end_delta_pct: Decimal = (peak_price - current_close) / peak_price * 100
+        current_price = self.get_current_close()
+        end_delta_pct: Decimal = (peak_price - current_price) / peak_price * 100
 
-        self.logger().info(f"did_price_recently_pull_back_down() | peak_price:{peak_price} | bottom_price:{bottom_price} | start_delta_pct:{start_delta_pct} | current_close:{current_close} | end_delta_pct:{end_delta_pct}")
+        self.logger().info(f"did_price_recently_pull_back_down() | peak_price:{peak_price} | bottom_price:{bottom_price} | start_delta_pct:{start_delta_pct} | current_price:{current_price} | end_delta_pct:{end_delta_pct}")
 
         return end_delta_pct > start_delta_pct / 3
 
