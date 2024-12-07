@@ -56,7 +56,7 @@ class ExcaliburStrategy(PkStrategy):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
     def get_triple_barrier(self) -> TripleBarrier:
-        stop_loss_pct: Decimal = self.last_price_spike_or_crash_pct / 6
+        stop_loss_pct: Decimal = self.last_price_spike_or_crash_pct / 5
 
         return TripleBarrier(
             open_order_type=OrderType.MARKET,
@@ -83,16 +83,16 @@ class ExcaliburStrategy(PkStrategy):
         candles_df["RSI_40"] = candles_df.ta.rsi(length=40)
 
         # Calling the lower-level function, because the one in core.py has a bug in the argument names
-        stoch_40_df = stoch(
+        stoch_4_df = stoch(
             high=candles_df["high"],
             low=candles_df["low"],
             close=candles_df["close"],
-            k=40,
-            d=6,
-            smooth_k=8
+            k=4,
+            d=2,
+            smooth_k=2
         )
 
-        candles_df["STOCH_40_k"] = stoch_40_df["STOCHk_40_6_8"]
+        candles_df["STOCH_4_k"] = stoch_4_df["STOCHk_4_2_2"]
 
         candles_df.dropna(inplace=True)
 
@@ -134,7 +134,7 @@ class ExcaliburStrategy(PkStrategy):
                     "close",
                     "volume",
                     "RSI_40",
-                    "STOCH_40_k"
+                    "STOCH_4_k"
                 ]
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display].tail(30), table_format="psql"))
@@ -230,6 +230,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def reset_context(self):
         self.last_price_spike_or_crash_pct: Decimal = Decimal(0.0)
+
         self.real_bottom_rsi: Decimal = Decimal(50.0)
         self.real_peak_rsi: Decimal = Decimal(50.0)
 
@@ -330,18 +331,18 @@ class ExcaliburStrategy(PkStrategy):
 
     def should_close_rev_sell_due_to_stoch_reversal(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
         # Don't close if we just opened
-        if was_an_order_recently_opened(filled_sell_orders, 8 * 60, self.get_market_data_provider_time()):
+        if was_an_order_recently_opened(filled_sell_orders, 5 * 60, self.get_market_data_provider_time()):
             return False
 
-        stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
+        stoch_series: pd.Series = self.processed_data["STOCH_4_k"]
         recent_stochs = stoch_series.iloc[-8:]
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
 
-        if bottom_stoch > 45:
+        if bottom_stoch > 35:
             return False
 
-        current_stoch = self.get_current_stoch(40)
-        stoch_threshold: Decimal = bottom_stoch + 1
+        current_stoch = self.get_current_stoch(4)
+        stoch_threshold: Decimal = bottom_stoch + 3
 
         self.logger().info(f"should_close_rev_sell_due_to_stoch_reversal() | bottom_stoch:{bottom_stoch} | current_stoch:{current_stoch}")
 
@@ -349,18 +350,18 @@ class ExcaliburStrategy(PkStrategy):
 
     def should_close_rev_buy_due_to_stoch_reversal(self, filled_buy_orders: List[TrackedOrderDetails]) -> bool:
         # Don't close if we just opened
-        if was_an_order_recently_opened(filled_buy_orders, 8 * 60, self.get_market_data_provider_time()):
+        if was_an_order_recently_opened(filled_buy_orders, 5 * 60, self.get_market_data_provider_time()):
             return False
 
-        stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
+        stoch_series: pd.Series = self.processed_data["STOCH_4_k"]
         recent_stochs = stoch_series.iloc[-8:]
         peak_stoch: Decimal = Decimal(recent_stochs.max())
 
-        if peak_stoch < 55:
+        if peak_stoch < 65:
             return False
 
-        current_stoch = self.get_current_stoch(40)
-        stoch_threshold: Decimal = peak_stoch - 1
+        current_stoch = self.get_current_stoch(4)
+        stoch_threshold: Decimal = peak_stoch - 3
 
         self.logger().info(f"should_close_rev_buy_due_to_stoch_reversal() | peak_stoch:{peak_stoch} | current_stoch:{current_stoch}")
 
