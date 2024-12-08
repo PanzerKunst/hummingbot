@@ -109,7 +109,7 @@ class ExcaliburStrategy(PkStrategy):
             return []
 
         self.create_actions_proposal_major_rev()
-        self.create_actions_proposal_minor_rev()
+        # self.create_actions_proposal_minor_rev()
 
         return []  # Always return []
 
