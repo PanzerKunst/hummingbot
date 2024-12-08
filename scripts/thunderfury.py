@@ -305,6 +305,10 @@ class ExcaliburStrategy(PkStrategy):
         self.real_bottom_rsi: Decimal = Decimal(50.0)
         self.real_peak_rsi: Decimal = Decimal(50.0)
 
+        self.logger().info(f"reset_context() | self.real_bottom_price:{self.real_bottom_price} | self.real_peak_price:{self.real_peak_price}")
+        self.logger().info(f"reset_context() | self.last_price_spike_or_crash_pct:{self.last_price_spike_or_crash_pct}")
+        self.logger().info(f"reset_context() | self.real_bottom_rsi:{self.real_bottom_rsi} | self.real_peak_rsi:{self.real_peak_rsi}")
+
     def should_close_rev_sell_due_to_stoch_reversal(self, filled_sell_orders: List[TrackedOrderDetails], max_bottom_stoch: int) -> bool:
         # Don't close if we just opened
         if was_an_order_recently_opened(filled_sell_orders, 5 * 60, self.get_market_data_provider_time()):
