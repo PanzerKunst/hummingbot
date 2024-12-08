@@ -173,7 +173,7 @@ class ExcaliburStrategy(PkStrategy):
         if side == TradeType.SELL:
             if self.is_price_spiking(candle_count_for_rev) and self.has_rsi_peaked(candle_count_for_rev):
                 self.logger().info("can_create_rev_order() > Opening Sell reversion")
-                return True
+                return False
 
             return False
 
