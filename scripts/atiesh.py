@@ -171,8 +171,8 @@ class ExcaliburStrategy(PkStrategy):
 
         if side == TradeType.SELL:
             if (
-                self.is_price_spiking(candle_count_for_rev) and
                 self.has_rsi_peaked(candle_count_for_rev) and
+                self.is_price_spiking(candle_count_for_rev) and
                 self.is_price_still_close_to_peak()
             ):
                 self.logger().info("can_create_rev_order() > Opening Sell reversion")
@@ -181,8 +181,8 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         if (
-            self.is_price_crashing(candle_count_for_rev) and
             self.has_rsi_bottomed(candle_count_for_rev) and
+            self.is_price_crashing(candle_count_for_rev) and
             self.is_price_still_close_to_bottom()
         ):
             self.logger().info("can_create_rev_order() > Opening Buy reversion")
@@ -315,6 +315,7 @@ class ExcaliburStrategy(PkStrategy):
         peak_price_index = recent_highs.idxmax()
 
         if peak_price_index == 0:
+            self.logger().info(f"is_price_spiking() | peak_price_index == 0 | peak_price:{peak_price}")
             return False
 
         timestamp_series: pd.Series = self.processed_data["timestamp"]
@@ -348,6 +349,7 @@ class ExcaliburStrategy(PkStrategy):
         bottom_price_index = recent_lows.idxmin()
 
         if bottom_price_index == 0:
+            self.logger().info(f"is_price_crashing() | bottom_price_index == 0 | bottom_price:{bottom_price}")
             return False
 
         timestamp_series: pd.Series = self.processed_data["timestamp"]
@@ -378,6 +380,7 @@ class ExcaliburStrategy(PkStrategy):
         peak_rsi_index = recent_rsis.idxmax()
 
         if peak_rsi_index == 0:
+            self.logger().info(f"has_rsi_peaked() | peak_rsi_index == 0 | peak_rsi:{peak_rsi}")
             return False
 
         # Avoids opening an opposite Sell Rev, when the price goes back up after a crash
@@ -421,6 +424,7 @@ class ExcaliburStrategy(PkStrategy):
         bottom_rsi_index = recent_rsis.idxmin()
 
         if bottom_rsi_index == 0:
+            self.logger().info(f"has_rsi_bottomed() | bottom_rsi_index == 0 | bottom_rsi:{bottom_rsi}")
             return False
 
         if bottom_rsi > 38:
