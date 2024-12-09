@@ -39,9 +39,6 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     # Triple Barrier
 
     # Order settings
-    amount_quote_major_rev: int = 30
-    amount_quote_minor_rev: int = 30
+    amount_quote: int = 30
     entry_price_delta_bps: int = 0
-    min_price_delta_pct_to_open_major_rev: Decimal = 4.5
-    min_price_delta_pct_to_open_minor_rev: Decimal = 1.0
-    max_price_delta_pct_to_open_minor_rev: Decimal = 2.0
+    min_price_delta_pct_to_open: Decimal = 4.5
