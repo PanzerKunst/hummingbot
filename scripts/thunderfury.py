@@ -304,6 +304,9 @@ class ExcaliburStrategy(PkStrategy):
         peak_price = Decimal(recent_highs.max())
         peak_price_index = recent_highs.idxmax()
 
+        if peak_price_index == 0:
+            return False
+
         timestamp_series: pd.Series = self.processed_data["timestamp"]
         recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
         saved_peak_price, _ = self.saved_peak_price
@@ -334,6 +337,9 @@ class ExcaliburStrategy(PkStrategy):
         bottom_price = Decimal(recent_lows.min())
         bottom_price_index = recent_lows.idxmin()
 
+        if bottom_price_index == 0:
+            return False
+
         timestamp_series: pd.Series = self.processed_data["timestamp"]
         recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
         saved_bottom_price, _ = self.saved_bottom_price
@@ -360,6 +366,9 @@ class ExcaliburStrategy(PkStrategy):
 
         peak_rsi = Decimal(recent_rsis.max())
         peak_rsi_index = recent_rsis.idxmax()
+
+        if peak_rsi_index == 0:
+            return False
 
         # Avoids opening an opposite Sell Rev, when the price goes back up after a crash
         if peak_rsi < 63:
@@ -393,6 +402,9 @@ class ExcaliburStrategy(PkStrategy):
 
         bottom_rsi = Decimal(recent_rsis.min())
         bottom_rsi_index = recent_rsis.idxmin()
+
+        if bottom_rsi_index == 0:
+            return False
 
         if bottom_rsi > 37:
             return False
