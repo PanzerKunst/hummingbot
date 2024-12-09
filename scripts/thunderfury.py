@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import pandas as pd
 from pandas_ta import stoch
@@ -56,7 +56,8 @@ class ExcaliburStrategy(PkStrategy):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
     def get_triple_barrier(self) -> TripleBarrier:
-        stop_loss_pct: Decimal = self.last_price_spike_or_crash_pct / 5
+        saved_price_spike_or_crash_pct, _ = self.saved_price_spike_or_crash_pct
+        stop_loss_pct: Decimal = saved_price_spike_or_crash_pct / 5
 
         return TripleBarrier(
             open_order_type=OrderType.MARKET,
@@ -107,6 +108,7 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
+        self.check_context(6)  # `candle_count_for_rev` + 1
         self.create_actions_proposal_rev()
 
         return []  # Always return []
@@ -153,13 +155,11 @@ class ExcaliburStrategy(PkStrategy):
             entry_price: Decimal = self.get_mid_price() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
             triple_barrier = self.get_triple_barrier()
             self.create_order(TradeType.SELL, entry_price, triple_barrier, self.config.amount_quote, ORDER_REF_REV)
-            self.reset_context()
 
         if self.can_create_rev_order(TradeType.BUY, active_orders):
             entry_price: Decimal = self.get_mid_price() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
             triple_barrier = self.get_triple_barrier()
             self.create_order(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote, ORDER_REF_REV)
-            self.reset_context()
 
     def can_create_rev_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
         if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_REV, 8):
@@ -229,17 +229,66 @@ class ExcaliburStrategy(PkStrategy):
     #
 
     def reset_context(self):
-        self.real_bottom_price: Decimal = Decimal("Infinity")
-        self.real_peak_price: Decimal = Decimal(0.0)
+        self.save_bottom_price(Decimal("Infinity"), self.get_market_data_provider_time())
+        self.save_peak_price(Decimal(0.0), self.get_market_data_provider_time())
 
-        self.last_price_spike_or_crash_pct: Decimal = Decimal(0.0)
+        self.save_price_spike_or_crash_pct(Decimal(0.0), self.get_market_data_provider_time())
 
-        self.real_bottom_rsi: Decimal = Decimal(50.0)
-        self.real_peak_rsi: Decimal = Decimal(50.0)
+        self.save_bottom_rsi(Decimal(50.0), self.get_market_data_provider_time())
+        self.save_peak_rsi(Decimal(50.0), self.get_market_data_provider_time())
 
-        self.logger().info(f"reset_context() | self.real_bottom_price:{self.real_bottom_price} | self.real_peak_price:{self.real_peak_price}")
-        self.logger().info(f"reset_context() | self.last_price_spike_or_crash_pct:{self.last_price_spike_or_crash_pct}")
-        self.logger().info(f"reset_context() | self.real_bottom_rsi:{self.real_bottom_rsi} | self.real_peak_rsi:{self.real_peak_rsi}")
+    def save_bottom_price(self, bottom_price: Decimal, timestamp: float):
+        self.saved_bottom_price: Tuple[Decimal, float] = bottom_price, timestamp
+
+    def save_peak_price(self, peak_price: Decimal, timestamp: float):
+        self.saved_peak_price: Tuple[Decimal, float] = peak_price, timestamp
+
+    def save_price_spike_or_crash_pct(self, price_spike_or_crash_pct: Decimal, timestamp: float):
+        self.saved_price_spike_or_crash_pct: Tuple[Decimal, float] = price_spike_or_crash_pct, timestamp
+
+    def save_bottom_rsi(self, bottom_rsi: Decimal, timestamp: float):
+        self.saved_bottom_rsi: Tuple[Decimal, float] = bottom_rsi, timestamp
+
+    def save_peak_rsi(self, peak_rsi: Decimal, timestamp: float):
+        self.saved_peak_rsi: Tuple[Decimal, float] = peak_rsi, timestamp
+
+    def check_context(self, lifetime_minutes: int):
+        saved_bottom_price, saved_bottom_price_timestamp = self.saved_bottom_price
+        saved_peak_price, saved_peak_price_timestamp = self.saved_peak_price
+        saved_price_spike_or_crash_pct, saved_price_spike_or_crash_pct_timestamp = self.saved_price_spike_or_crash_pct
+        saved_bottom_rsi, saved_bottom_rsi_timestamp = self.saved_bottom_rsi
+        saved_peak_rsi, saved_peak_rsi_timestamp = self.saved_peak_rsi
+
+        all_timestamps: List[float] = [
+            saved_bottom_price_timestamp,
+            saved_peak_price_timestamp,
+            saved_price_spike_or_crash_pct_timestamp,
+            saved_bottom_rsi_timestamp,
+            saved_peak_rsi_timestamp
+        ]
+
+        last_acceptable_timestamp = self.get_market_data_provider_time() - lifetime_minutes * 60
+
+        is_any_outdated: bool = any(timestamp < last_acceptable_timestamp for timestamp in all_timestamps)
+
+        if is_any_outdated and not self.is_context_default():
+            self.logger().info(f"check_context() | One of the context vars is outdated | {last_acceptable_timestamp} | all_timestamps:{all_timestamps}")
+            self.reset_context()
+
+    def is_context_default(self) -> bool:
+        saved_bottom_price, _ = self.saved_bottom_price
+        saved_peak_price, _ = self.saved_peak_price
+        saved_price_spike_or_crash_pct, _ = self.saved_price_spike_or_crash_pct
+        saved_bottom_rsi, _ = self.saved_bottom_rsi
+        saved_peak_rsi, _ = self.saved_peak_rsi
+
+        return (
+            saved_bottom_price == Decimal("Infinity") and
+            saved_peak_price == Decimal(0.0) and
+            saved_price_spike_or_crash_pct == Decimal(0.0) and
+            saved_bottom_rsi == Decimal(50.0) and
+            saved_peak_rsi == Decimal(50.0)
+        )
 
     #
     # Reversion functions
@@ -258,16 +307,23 @@ class ExcaliburStrategy(PkStrategy):
         if peak_price_index == 0:
             return False
 
-        if peak_price > self.real_peak_price:
-            self.real_peak_price = peak_price
+        timestamp_series: pd.Series = self.processed_data["timestamp"]
+        recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
+        saved_peak_price, _ = self.saved_peak_price
+
+        if peak_price > saved_peak_price:
+            peak_price_timestamp = recent_timestamps.iloc[peak_price_index]
+            self.save_peak_price(peak_price, peak_price_timestamp)
+
+        saved_peak_price, _ = self.saved_peak_price
 
         bottom_price = Decimal(recent_lows.iloc[0:peak_price_index].min())
-        price_delta_pct: Decimal = (self.real_peak_price - bottom_price) / bottom_price * 100
+        price_delta_pct: Decimal = (saved_peak_price - bottom_price) / bottom_price * 100
         is_spiking = price_delta_pct > self.config.min_price_delta_pct_to_open
 
         if is_spiking:
-            self.logger().info(f"is_price_spiking() | peak_price_index:{peak_price_index} | self.real_peak_price:{self.real_peak_price} | bottom_price:{bottom_price} | price_delta_pct:{price_delta_pct}")
-            self.last_price_spike_or_crash_pct = price_delta_pct
+            self.logger().info(f"is_price_spiking() | peak_price_index:{peak_price_index} | saved_peak_price:{saved_peak_price} | bottom_price:{bottom_price} | price_delta_pct:{price_delta_pct}")
+            self.save_price_spike_or_crash_pct(price_delta_pct, self.get_market_data_provider_time())
 
         return is_spiking
 
@@ -284,65 +340,94 @@ class ExcaliburStrategy(PkStrategy):
         if bottom_price_index == 0:
             return False
 
-        if bottom_price < self.real_bottom_price:
-            self.real_bottom_price = bottom_price
+        timestamp_series: pd.Series = self.processed_data["timestamp"]
+        recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
+        saved_bottom_price, _ = self.saved_bottom_price
+
+        if bottom_price < saved_bottom_price:
+            bottom_price_timestamp = recent_timestamps.iloc[bottom_price_index]
+            self.save_bottom_price(bottom_price, bottom_price_timestamp)
+
+        saved_bottom_price, _ = self.saved_bottom_price
 
         peak_price = Decimal(recent_highs.iloc[0:bottom_price_index].max())
-        price_delta_pct: Decimal = (peak_price - self.real_bottom_price) / self.real_bottom_price * 100
+        price_delta_pct: Decimal = (peak_price - saved_bottom_price) / saved_bottom_price * 100
         is_crashing = price_delta_pct > self.config.min_price_delta_pct_to_open
 
         if is_crashing:
-            self.logger().info(f"is_price_crashing() | bottom_price_index:{bottom_price_index} | self.real_bottom_price:{self.real_bottom_price} | peak_price:{peak_price} | price_delta_pct:{price_delta_pct}")
-            self.last_price_spike_or_crash_pct = price_delta_pct
+            self.logger().info(f"is_price_crashing() | bottom_price_index:{bottom_price_index} | saved_bottom_price:{saved_bottom_price} | peak_price:{peak_price} | price_delta_pct:{price_delta_pct}")
+            self.save_price_spike_or_crash_pct(price_delta_pct, self.get_market_data_provider_time())
 
         return is_crashing
 
     def has_rsi_peaked(self, candle_count: int) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI_40"]
-        recent_rsis = rsi_series.iloc[-candle_count:]
+        recent_rsis = rsi_series.iloc[-candle_count:].reset_index(drop=True)
 
         peak_rsi = Decimal(recent_rsis.max())
+        peak_rsi_index = recent_rsis.idxmax()
+
+        if peak_rsi_index == 0:
+            return False
 
         # Avoids opening an opposite Sell Rev, when the price goes back up after a crash
         if peak_rsi < 63:
             return False
 
-        if peak_rsi > self.real_peak_rsi:
-            self.real_peak_rsi = peak_rsi
+        timestamp_series: pd.Series = self.processed_data["timestamp"]
+        recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
+        saved_peak_rsi, _ = self.saved_peak_rsi
 
-        rsi_threshold: Decimal = compute_rsi_pullback_threshold(self.real_peak_rsi)
+        if peak_rsi > saved_peak_rsi:
+            peak_rsi_timestamp = recent_timestamps.iloc[peak_rsi_index]
+            self.save_peak_rsi(peak_rsi, peak_rsi_timestamp)
+
+        saved_peak_rsi, _ = self.saved_peak_rsi
+
+        rsi_threshold: Decimal = compute_rsi_pullback_threshold(saved_peak_rsi)
         current_rsi = self.get_current_rsi(40)
+
+        self.logger().info(f"has_rsi_peaked() | saved_peak_rsi:{saved_peak_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
 
         if current_rsi > rsi_threshold:
             return False
 
         too_late_threshold: Decimal = rsi_threshold - 2
 
-        self.logger().info(f"has_rsi_peaked() | self.real_peak_rsi:{self.real_peak_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
-
         return current_rsi > too_late_threshold
 
     def has_rsi_bottomed(self, candle_count: int) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI_40"]
-        recent_rsis = rsi_series.iloc[-candle_count:]
+        recent_rsis = rsi_series.iloc[-candle_count:].reset_index(drop=True)
 
         bottom_rsi = Decimal(recent_rsis.min())
+        bottom_rsi_index = recent_rsis.idxmin()
+
+        if bottom_rsi_index == 0:
+            return False
 
         if bottom_rsi > 37:
             return False
 
-        if bottom_rsi < self.real_bottom_rsi:
-            self.real_bottom_rsi = bottom_rsi
+        timestamp_series: pd.Series = self.processed_data["timestamp"]
+        recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
+        saved_bottom_rsi, _ = self.saved_bottom_rsi
 
-        rsi_threshold: Decimal = compute_rsi_pullback_threshold(self.real_bottom_rsi)
+        if bottom_rsi < saved_bottom_rsi:
+            bottom_rsi_timestamp = recent_timestamps.iloc[bottom_rsi_index]
+            self.save_bottom_rsi(bottom_rsi, bottom_rsi_timestamp)
+
+        saved_bottom_rsi, _ = self.saved_bottom_rsi
+
+        rsi_threshold: Decimal = compute_rsi_pullback_threshold(saved_bottom_rsi)
         current_rsi = self.get_current_rsi(40)
+
+        self.logger().info(f"has_rsi_bottomed() | saved_bottom_rsi:{saved_bottom_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
 
         if current_rsi < rsi_threshold:
             return False
 
         too_late_threshold: Decimal = rsi_threshold + 2
-
-        self.logger().info(f"has_rsi_bottomed() | self.real_bottom_rsi:{self.real_bottom_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
 
         return current_rsi < too_late_threshold
 
