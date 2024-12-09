@@ -14,9 +14,7 @@ limit_take_profit_price_delta_bps: 0
 market_order_twap_count: 1
 market_order_twap_interval: 5
 position_mode: ONEWAY
-amount_quote_major_rev: 30
-amount_quote_minor_rev: 30
+amount_quote: 30
 entry_price_delta_bps: 0
-min_price_delta_pct_to_open_major_rev: 4.5
-min_price_delta_pct_to_open_minor_rev: 1.0
-max_price_delta_pct_to_open_minor_rev: 2.0
+min_price_delta_pct_to_open: 1.0
+max_price_delta_pct_to_open: 2.0

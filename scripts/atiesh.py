@@ -13,7 +13,7 @@ from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.atiesh_config import ExcaliburConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
-from scripts.pk.pk_utils import was_an_order_recently_opened
+from scripts.pk.pk_utils import compute_rsi_pullback_threshold, was_an_order_recently_opened
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 # Generate config file: create --script-config atiesh
@@ -80,7 +80,7 @@ class ExcaliburStrategy(PkStrategy):
 
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
 
-        candles_df["RSI_40"] = candles_df.ta.rsi(length=40)
+        candles_df["RSI_20"] = candles_df.ta.rsi(length=20)
 
         # Calling the lower-level function, because the one in core.py has a bug in the argument names
         stoch_10_df = stoch(
@@ -134,7 +134,7 @@ class ExcaliburStrategy(PkStrategy):
                     "timestamp_iso",
                     "close",
                     "volume",
-                    "RSI_40",
+                    "RSI_20",
                     "STOCH_10_k"
                 ]
 
@@ -153,15 +153,15 @@ class ExcaliburStrategy(PkStrategy):
         if self.can_create_rev_order(TradeType.SELL, active_orders):
             entry_price: Decimal = self.get_mid_price() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
             triple_barrier = self.get_triple_barrier()
-            self.create_order(TradeType.SELL, entry_price, triple_barrier, self.config.amount_quote_minor_rev, ORDER_REF_REV)
+            self.create_order(TradeType.SELL, entry_price, triple_barrier, self.config.amount_quote, ORDER_REF_REV)
 
         if self.can_create_rev_order(TradeType.BUY, active_orders):
             entry_price: Decimal = self.get_mid_price() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
             triple_barrier = self.get_triple_barrier()
-            self.create_order(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote_minor_rev, ORDER_REF_REV)
+            self.create_order(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote, ORDER_REF_REV)
 
     def can_create_rev_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, self.config.amount_quote_minor_rev, ORDER_REF_REV, 8):
+        if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_REV, 8):
             return False
 
         if len(active_tracked_orders) > 0:
@@ -171,9 +171,9 @@ class ExcaliburStrategy(PkStrategy):
 
         if side == TradeType.SELL:
             if (
-                self.is_price_spiking_for_minor_rev(candle_count_for_rev) and
-                self.has_rsi_peaked(candle_count_for_rev, 58)  # TODO and
-                # self.is_price_still_close_to_peak()
+                self.is_price_spiking(candle_count_for_rev) and
+                self.has_rsi_peaked(candle_count_for_rev) and
+                self.is_price_still_close_to_peak()
             ):
                 self.logger().info("can_create_rev_order() > Opening Sell reversion")
                 return True
@@ -181,9 +181,9 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         if (
-            self.is_price_crashing_for_minor_rev(candle_count_for_rev) and
-            self.has_rsi_bottomed(candle_count_for_rev, 42)  # TODO and
-            # self.is_price_still_close_to_bottom()
+            self.is_price_crashing(candle_count_for_rev) and
+            self.has_rsi_bottomed(candle_count_for_rev) and
+            self.is_price_still_close_to_bottom()
         ):
             self.logger().info("can_create_rev_order() > Opening Buy reversion")
             return True
@@ -194,12 +194,12 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_REV)
 
         if len(filled_sell_orders) > 0:
-            if self.should_close_rev_sell_due_to_stoch_reversal(filled_sell_orders, 28):
+            if self.should_close_rev_sell_due_to_stoch_reversal(filled_sell_orders):
                 self.logger().info("stop_actions_proposal_rev() > Closing Sell reversion")
                 self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
 
         if len(filled_buy_orders) > 0:
-            if self.should_close_rev_buy_due_to_stoch_reversal(filled_buy_orders, 72):
+            if self.should_close_rev_buy_due_to_stoch_reversal(filled_buy_orders):
                 self.logger().info("stop_actions_proposal_rev() > Closing Buy reversion")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
 
@@ -243,6 +243,8 @@ class ExcaliburStrategy(PkStrategy):
 
         self.save_bottom_rsi(Decimal(50.0), self.get_market_data_provider_time())
         self.save_peak_rsi(Decimal(50.0), self.get_market_data_provider_time())
+
+        self.rsi_reversal_counter: int = 0
 
     def save_bottom_price(self, bottom_price: Decimal, timestamp: float):
         self.saved_bottom_price: Tuple[Decimal, float] = bottom_price, timestamp
@@ -294,14 +296,15 @@ class ExcaliburStrategy(PkStrategy):
             saved_peak_price == Decimal(0.0) and
             saved_price_spike_or_crash_pct == Decimal(0.0) and
             saved_bottom_rsi == Decimal(50.0) and
-            saved_peak_rsi == Decimal(50.0)
+            saved_peak_rsi == Decimal(50.0) and
+            self.rsi_reversal_counter == 0
         )
 
     #
-    # Minor Rev functions
+    # Reversion functions
     #
 
-    def is_price_spiking_for_minor_rev(self, candle_count: int) -> bool:
+    def is_price_spiking(self, candle_count: int) -> bool:
         high_series: pd.Series = self.processed_data["high"]
         recent_highs = high_series.iloc[-candle_count:].reset_index(drop=True)
 
@@ -326,15 +329,15 @@ class ExcaliburStrategy(PkStrategy):
 
         bottom_price = Decimal(recent_lows.iloc[0:peak_price_index].min())
         price_delta_pct: Decimal = (saved_peak_price - bottom_price) / bottom_price * 100
-        is_spiking = self.config.min_price_delta_pct_to_open_minor_rev < price_delta_pct < self.config.max_price_delta_pct_to_open_minor_rev
+        is_spiking = self.config.min_price_delta_pct_to_open < price_delta_pct < self.config.max_price_delta_pct_to_open
 
         if is_spiking:
-            self.logger().info(f"is_price_spiking_for_minor_rev() | peak_price_index:{peak_price_index} | saved_peak_price:{saved_peak_price} | bottom_price:{bottom_price} | price_delta_pct:{price_delta_pct}")
+            self.logger().info(f"is_price_spiking() | peak_price_index:{peak_price_index} | saved_peak_price:{saved_peak_price} | bottom_price:{bottom_price} | price_delta_pct:{price_delta_pct}")
             self.save_price_spike_or_crash_pct(price_delta_pct, self.get_market_data_provider_time())
 
         return is_spiking
 
-    def is_price_crashing_for_minor_rev(self, candle_count: int) -> bool:
+    def is_price_crashing(self, candle_count: int) -> bool:
         low_series: pd.Series = self.processed_data["low"]
         recent_lows = low_series.iloc[-candle_count:].reset_index(drop=True)
 
@@ -359,31 +362,122 @@ class ExcaliburStrategy(PkStrategy):
 
         peak_price = Decimal(recent_highs.iloc[0:bottom_price_index].max())
         price_delta_pct: Decimal = (peak_price - saved_bottom_price) / saved_bottom_price * 100
-        is_crashing = self.config.min_price_delta_pct_to_open_minor_rev < price_delta_pct < self.config.max_price_delta_pct_to_open_minor_rev
+        is_crashing = self.config.min_price_delta_pct_to_open < price_delta_pct < self.config.max_price_delta_pct_to_open
 
         if is_crashing:
-            self.logger().info(f"is_price_crashing_for_minor_rev() | bottom_price_index:{bottom_price_index} | saved_bottom_price:{saved_bottom_price} | peak_price:{peak_price} | price_delta_pct:{price_delta_pct}")
+            self.logger().info(f"is_price_crashing() | bottom_price_index:{bottom_price_index} | saved_bottom_price:{saved_bottom_price} | peak_price:{peak_price} | price_delta_pct:{price_delta_pct}")
             self.save_price_spike_or_crash_pct(price_delta_pct, self.get_market_data_provider_time())
 
         return is_crashing
 
-    # def is_price_still_close_to_peak(self) -> bool:
-    #     current_price = self.get_current_close()
-    #     threshold: Decimal = self.real_peak_price * Decimal(1 - self.last_price_spike_or_crash_pct / 100 / 5)
-    #
-    #     self.logger().info(f"is_price_still_close_to_peak() | current_price:{current_price} | threshold:{threshold}")
-    #
-    #     return current_price > threshold
-    #
-    # def is_price_still_close_to_bottom(self) -> bool:
-    #     current_price = self.get_current_close()
-    #     threshold: Decimal = self.real_bottom_price * Decimal(1 + self.last_price_spike_or_crash_pct / 100 / 5)
-    #
-    #     self.logger().info(f"is_price_still_close_to_bottom() | current_price:{current_price} | threshold:{threshold}")
-    #
-    #     return current_price < threshold
+    def has_rsi_peaked(self, candle_count: int) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI_20"]
+        recent_rsis = rsi_series.iloc[-candle_count:].reset_index(drop=True)
 
-    def should_close_rev_sell_due_to_stoch_reversal(self, filled_sell_orders: List[TrackedOrderDetails], max_bottom_stoch: int) -> bool:
+        peak_rsi = Decimal(recent_rsis.max())
+        peak_rsi_index = recent_rsis.idxmax()
+
+        if peak_rsi_index == 0:
+            return False
+
+        # Avoids opening an opposite Sell Rev, when the price goes back up after a crash
+        if peak_rsi < 70:
+            return False
+
+        timestamp_series: pd.Series = self.processed_data["timestamp"]
+        recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
+        saved_peak_rsi, _ = self.saved_peak_rsi
+
+        if peak_rsi > saved_peak_rsi:
+            peak_rsi_timestamp = recent_timestamps.iloc[peak_rsi_index]
+            self.save_peak_rsi(peak_rsi, peak_rsi_timestamp)
+
+        saved_peak_rsi, _ = self.saved_peak_rsi
+
+        rsi_threshold: Decimal = compute_rsi_pullback_threshold(saved_peak_rsi)
+        current_rsi = self.get_current_rsi(20)
+
+        self.logger().info(f"has_rsi_peaked() | saved_peak_rsi:{saved_peak_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
+
+        if current_rsi > rsi_threshold:
+            self.rsi_reversal_counter = 0
+            return False
+
+        self.rsi_reversal_counter += 1
+        self.logger().info(f"has_rsi_bottomed() | incremented self.rsi_reversal_counter to:{self.rsi_reversal_counter}")
+
+        if self.rsi_reversal_counter < 3:
+            return False
+
+        too_late_threshold: Decimal = rsi_threshold - 2
+
+        return current_rsi > too_late_threshold
+
+    def has_rsi_bottomed(self, candle_count: int) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI_20"]
+        recent_rsis = rsi_series.iloc[-candle_count:].reset_index(drop=True)
+
+        bottom_rsi = Decimal(recent_rsis.min())
+        bottom_rsi_index = recent_rsis.idxmin()
+
+        if bottom_rsi_index == 0:
+            return False
+
+        if bottom_rsi > 30:
+            return False
+
+        timestamp_series: pd.Series = self.processed_data["timestamp"]
+        recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
+        saved_bottom_rsi, _ = self.saved_bottom_rsi
+
+        if bottom_rsi < saved_bottom_rsi:
+            bottom_rsi_timestamp = recent_timestamps.iloc[bottom_rsi_index]
+            self.save_bottom_rsi(bottom_rsi, bottom_rsi_timestamp)
+
+        saved_bottom_rsi, _ = self.saved_bottom_rsi
+
+        rsi_threshold: Decimal = compute_rsi_pullback_threshold(saved_bottom_rsi)
+        current_rsi = self.get_current_rsi(20)
+
+        self.logger().info(f"has_rsi_bottomed() | saved_bottom_rsi:{saved_bottom_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
+
+        if current_rsi < rsi_threshold:
+            self.rsi_reversal_counter = 0
+            return False
+
+        self.rsi_reversal_counter += 1
+        self.logger().info(f"has_rsi_bottomed() | incremented self.rsi_reversal_counter to:{self.rsi_reversal_counter}")
+
+        if self.rsi_reversal_counter < 3:
+            return False
+
+        too_late_threshold: Decimal = rsi_threshold + 2
+
+        return current_rsi < too_late_threshold
+
+    def is_price_still_close_to_peak(self) -> bool:
+        current_price = self.get_current_close()
+        saved_peak_price, _ = self.saved_peak_price
+        saved_price_spike_or_crash_pct, _ = self.saved_price_spike_or_crash_pct
+
+        threshold: Decimal = saved_peak_price * Decimal(1 - saved_price_spike_or_crash_pct / 100 / 5)
+
+        self.logger().info(f"is_price_still_close_to_peak() | current_price:{current_price} | threshold:{threshold}")
+
+        return current_price > threshold
+
+    def is_price_still_close_to_bottom(self) -> bool:
+        current_price = self.get_current_close()
+        saved_bottom_price, _ = self.saved_bottom_price
+        saved_price_spike_or_crash_pct, _ = self.saved_price_spike_or_crash_pct
+
+        threshold: Decimal = saved_bottom_price * Decimal(1 + saved_price_spike_or_crash_pct / 100 / 5)
+
+        self.logger().info(f"is_price_still_close_to_bottom() | current_price:{current_price} | threshold:{threshold}")
+
+        return current_price < threshold
+
+    def should_close_rev_sell_due_to_stoch_reversal(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
         # Don't close if we just opened
         if was_an_order_recently_opened(filled_sell_orders, 5 * 60, self.get_market_data_provider_time()):
             return False
@@ -392,17 +486,17 @@ class ExcaliburStrategy(PkStrategy):
         recent_stochs = stoch_series.iloc[-8:]
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
 
-        if bottom_stoch > max_bottom_stoch:
+        if bottom_stoch > 50:
             return False
 
-        current_stoch = self.get_current_stoch(4)
+        current_stoch = self.get_current_stoch(10)
         stoch_threshold: Decimal = bottom_stoch + 3
 
         self.logger().info(f"should_close_rev_sell_due_to_stoch_reversal() | bottom_stoch:{bottom_stoch} | current_stoch:{current_stoch}")
 
         return current_stoch > stoch_threshold
 
-    def should_close_rev_buy_due_to_stoch_reversal(self, filled_buy_orders: List[TrackedOrderDetails], min_peak_stoch: int) -> bool:
+    def should_close_rev_buy_due_to_stoch_reversal(self, filled_buy_orders: List[TrackedOrderDetails]) -> bool:
         # Don't close if we just opened
         if was_an_order_recently_opened(filled_buy_orders, 5 * 60, self.get_market_data_provider_time()):
             return False
@@ -411,10 +505,10 @@ class ExcaliburStrategy(PkStrategy):
         recent_stochs = stoch_series.iloc[-8:]
         peak_stoch: Decimal = Decimal(recent_stochs.max())
 
-        if peak_stoch < min_peak_stoch:
+        if peak_stoch < 50:
             return False
 
-        current_stoch = self.get_current_stoch(4)
+        current_stoch = self.get_current_stoch(10)
         stoch_threshold: Decimal = peak_stoch - 3
 
         self.logger().info(f"should_close_rev_buy_due_to_stoch_reversal() | peak_stoch:{peak_stoch} | current_stoch:{current_stoch}")
