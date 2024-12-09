@@ -168,16 +168,16 @@ class ExcaliburStrategy(PkStrategy):
         if len(active_tracked_orders) > 0:
             return False
 
-        candle_count_for_major_rev: int = 5
+        candle_count_for_rev: int = 5
 
         if side == TradeType.SELL:
-            if self.is_price_spiking(candle_count_for_major_rev) and self.has_rsi_peaked(candle_count_for_major_rev):
+            if self.is_price_spiking(candle_count_for_rev) and self.has_rsi_peaked(candle_count_for_rev):
                 # self.logger().info("can_create_rev_order() > Opening Sell reversion")
                 return False  # Disabled for now
 
             return False
 
-        if self.is_price_crashing(candle_count_for_major_rev) and self.has_rsi_bottomed(candle_count_for_major_rev):
+        if self.is_price_crashing(candle_count_for_rev) and self.has_rsi_bottomed(candle_count_for_rev):
             self.logger().info("can_create_rev_order() > Opening Buy reversion")
             return True
 
