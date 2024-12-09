@@ -242,7 +242,7 @@ class ExcaliburStrategy(PkStrategy):
         self.logger().info(f"reset_context() | self.real_bottom_rsi:{self.real_bottom_rsi} | self.real_peak_rsi:{self.real_peak_rsi}")
 
     #
-    # Rev functions
+    # Reversion functions
     #
 
     def is_price_spiking(self, candle_count: int) -> bool:
