@@ -41,4 +41,4 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     # Order settings
     amount_quote: int = 30
     entry_price_delta_bps: int = 0
-    price_start_delta_pct_to_open: Decimal = 4.5
+    min_price_delta_pct_to_open: Decimal = 4.5

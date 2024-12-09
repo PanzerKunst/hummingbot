@@ -150,13 +150,13 @@ class ExcaliburStrategy(PkStrategy):
         active_orders = active_sell_orders + active_buy_orders
 
         if self.can_create_rev_order(TradeType.SELL, active_orders):
-            entry_price: Decimal = self.get_best_bid() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
+            entry_price: Decimal = self.get_mid_price() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
             triple_barrier = self.get_triple_barrier()
             self.create_order(TradeType.SELL, entry_price, triple_barrier, self.config.amount_quote, ORDER_REF_REV)
             self.reset_context()
 
         if self.can_create_rev_order(TradeType.BUY, active_orders):
-            entry_price: Decimal = self.get_best_ask() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
+            entry_price: Decimal = self.get_mid_price() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
             triple_barrier = self.get_triple_barrier()
             self.create_order(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote, ORDER_REF_REV)
             self.reset_context()
@@ -168,12 +168,12 @@ class ExcaliburStrategy(PkStrategy):
         if len(active_tracked_orders) > 0:
             return False
 
-        candle_count_for_rev: int = 6
+        candle_count_for_rev: int = 5
 
         if side == TradeType.SELL:
             if self.is_price_spiking(candle_count_for_rev) and self.has_rsi_peaked(candle_count_for_rev):
-                self.logger().info("can_create_rev_order() > Opening Sell reversion")
-                return False
+                # self.logger().info("can_create_rev_order() > Opening Sell reversion")
+                return False  # Disabled for now
 
             return False
 
@@ -225,14 +225,25 @@ class ExcaliburStrategy(PkStrategy):
         return Decimal(stoch_series.iloc[index])
 
     #
-    # Reversion functions
+    # Context functions
     #
 
     def reset_context(self):
+        self.real_bottom_price: Decimal = Decimal("Infinity")
+        self.real_peak_price: Decimal = Decimal(0.0)
+
         self.last_price_spike_or_crash_pct: Decimal = Decimal(0.0)
 
         self.real_bottom_rsi: Decimal = Decimal(50.0)
         self.real_peak_rsi: Decimal = Decimal(50.0)
+
+        self.logger().info(f"reset_context() | self.real_bottom_price:{self.real_bottom_price} | self.real_peak_price:{self.real_peak_price}")
+        self.logger().info(f"reset_context() | self.last_price_spike_or_crash_pct:{self.last_price_spike_or_crash_pct}")
+        self.logger().info(f"reset_context() | self.real_bottom_rsi:{self.real_bottom_rsi} | self.real_peak_rsi:{self.real_peak_rsi}")
+
+    #
+    # Reversion functions
+    #
 
     def is_price_spiking(self, candle_count: int) -> bool:
         high_series: pd.Series = self.processed_data["high"]
@@ -247,13 +258,16 @@ class ExcaliburStrategy(PkStrategy):
         if peak_price_index == 0:
             return False
 
+        if peak_price > self.real_peak_price:
+            self.real_peak_price = peak_price
+
         bottom_price = Decimal(recent_lows.iloc[0:peak_price_index].min())
-        start_delta_pct: Decimal = (peak_price - bottom_price) / bottom_price * 100
-        is_spiking = start_delta_pct > self.config.price_start_delta_pct_to_open
+        price_delta_pct: Decimal = (self.real_peak_price - bottom_price) / bottom_price * 100
+        is_spiking = price_delta_pct > self.config.min_price_delta_pct_to_open
 
         if is_spiking:
-            self.logger().info(f"is_price_spiking() | peak_price_index:{peak_price_index} | peak_price:{peak_price} | bottom_price:{bottom_price} | start_delta_pct:{start_delta_pct}")
-            self.last_price_spike_or_crash_pct = start_delta_pct
+            self.logger().info(f"is_price_spiking() | peak_price_index:{peak_price_index} | self.real_peak_price:{self.real_peak_price} | bottom_price:{bottom_price} | price_delta_pct:{price_delta_pct}")
+            self.last_price_spike_or_crash_pct = price_delta_pct
 
         return is_spiking
 
@@ -270,13 +284,16 @@ class ExcaliburStrategy(PkStrategy):
         if bottom_price_index == 0:
             return False
 
+        if bottom_price < self.real_bottom_price:
+            self.real_bottom_price = bottom_price
+
         peak_price = Decimal(recent_highs.iloc[0:bottom_price_index].max())
-        start_delta_pct: Decimal = (peak_price - bottom_price) / bottom_price * 100
-        is_crashing = start_delta_pct > self.config.price_start_delta_pct_to_open
+        price_delta_pct: Decimal = (peak_price - self.real_bottom_price) / self.real_bottom_price * 100
+        is_crashing = price_delta_pct > self.config.min_price_delta_pct_to_open
 
         if is_crashing:
-            self.logger().info(f"is_price_crashing() | bottom_price_index:{bottom_price_index} | bottom_price:{bottom_price} | peak_price:{peak_price} | start_delta_pct:{start_delta_pct}")
-            self.last_price_spike_or_crash_pct = start_delta_pct
+            self.logger().info(f"is_price_crashing() | bottom_price_index:{bottom_price_index} | self.real_bottom_price:{self.real_bottom_price} | peak_price:{peak_price} | price_delta_pct:{price_delta_pct}")
+            self.last_price_spike_or_crash_pct = price_delta_pct
 
         return is_crashing
 
