@@ -80,7 +80,7 @@ class ExcaliburStrategy(PkStrategy):
 
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
 
-        candles_df["RSI_20"] = candles_df.ta.rsi(length=20)
+        candles_df["RSI_40"] = candles_df.ta.rsi(length=40)
 
         # Calling the lower-level function, because the one in core.py has a bug in the argument names
         stoch_10_df = stoch(
@@ -134,7 +134,7 @@ class ExcaliburStrategy(PkStrategy):
                     "timestamp_iso",
                     "close",
                     "volume",
-                    "RSI_20",
+                    "RSI_40",
                     "STOCH_10_k"
                 ]
 
@@ -371,7 +371,7 @@ class ExcaliburStrategy(PkStrategy):
         return is_crashing
 
     def has_rsi_peaked(self, candle_count: int) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI_20"]
+        rsi_series: pd.Series = self.processed_data["RSI_40"]
         recent_rsis = rsi_series.iloc[-candle_count:].reset_index(drop=True)
 
         peak_rsi = Decimal(recent_rsis.max())
@@ -381,7 +381,7 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         # Avoids opening an opposite Sell Rev, when the price goes back up after a crash
-        if peak_rsi < 70:
+        if peak_rsi < 62:
             return False
 
         timestamp_series: pd.Series = self.processed_data["timestamp"]
@@ -395,7 +395,7 @@ class ExcaliburStrategy(PkStrategy):
         saved_peak_rsi, _ = self.saved_peak_rsi
 
         rsi_threshold: Decimal = compute_rsi_pullback_threshold(saved_peak_rsi)
-        current_rsi = self.get_current_rsi(20)
+        current_rsi = self.get_current_rsi(40)
 
         self.logger().info(f"has_rsi_peaked() | saved_peak_rsi:{saved_peak_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
 
@@ -414,7 +414,7 @@ class ExcaliburStrategy(PkStrategy):
         return current_rsi > too_late_threshold
 
     def has_rsi_bottomed(self, candle_count: int) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI_20"]
+        rsi_series: pd.Series = self.processed_data["RSI_40"]
         recent_rsis = rsi_series.iloc[-candle_count:].reset_index(drop=True)
 
         bottom_rsi = Decimal(recent_rsis.min())
@@ -423,7 +423,7 @@ class ExcaliburStrategy(PkStrategy):
         if bottom_rsi_index == 0:
             return False
 
-        if bottom_rsi > 30:
+        if bottom_rsi > 38:
             return False
 
         timestamp_series: pd.Series = self.processed_data["timestamp"]
@@ -437,7 +437,7 @@ class ExcaliburStrategy(PkStrategy):
         saved_bottom_rsi, _ = self.saved_bottom_rsi
 
         rsi_threshold: Decimal = compute_rsi_pullback_threshold(saved_bottom_rsi)
-        current_rsi = self.get_current_rsi(20)
+        current_rsi = self.get_current_rsi(40)
 
         self.logger().info(f"has_rsi_bottomed() | saved_bottom_rsi:{saved_bottom_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
 
