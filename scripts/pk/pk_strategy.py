@@ -9,6 +9,7 @@ from hummingbot.core.event.events import BuyOrderCreatedEvent, OrderFilledEvent,
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base
 from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig
 from hummingbot.strategy_v2.models.executors import CloseType
+from scripts.atiesh_config import ExcaliburConfig
 from scripts.pk.pk_triple_barrier import TripleBarrier
 from scripts.pk.pk_utils import (
     has_current_price_reached_stop_loss,
@@ -19,7 +20,6 @@ from scripts.pk.pk_utils import (
     update_trailing_stop,
 )
 from scripts.pk.tracked_order_details import TrackedOrderDetails
-from scripts.thunderfury_config import ExcaliburConfig
 
 
 class PkStrategy(StrategyV2Base):

@@ -18,5 +18,5 @@ amount_quote_major_rev: 30
 amount_quote_minor_rev: 30
 entry_price_delta_bps: 0
 min_price_delta_pct_to_open_major_rev: 4.5
-min_price_delta_pct_to_open_minor_rev: 1.0
+min_price_delta_pct_to_open_minor_rev: 0.5
 max_price_delta_pct_to_open_minor_rev: 2.0
