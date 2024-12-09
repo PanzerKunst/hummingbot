@@ -443,7 +443,7 @@ class ExcaliburStrategy(PkStrategy):
         if bottom_stoch > 50:
             return False
 
-        current_stoch = self.get_current_stoch(4)
+        current_stoch = self.get_current_stoch(10)
         stoch_threshold: Decimal = bottom_stoch + 3
 
         self.logger().info(f"should_close_rev_sell_due_to_stoch_reversal() | bottom_stoch:{bottom_stoch} | current_stoch:{current_stoch}")
@@ -462,7 +462,7 @@ class ExcaliburStrategy(PkStrategy):
         if peak_stoch < 50:
             return False
 
-        current_stoch = self.get_current_stoch(4)
+        current_stoch = self.get_current_stoch(10)
         stoch_threshold: Decimal = peak_stoch - 3
 
         self.logger().info(f"should_close_rev_buy_due_to_stoch_reversal() | peak_stoch:{peak_stoch} | current_stoch:{current_stoch}")
