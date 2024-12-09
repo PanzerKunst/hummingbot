@@ -84,16 +84,16 @@ class ExcaliburStrategy(PkStrategy):
         candles_df["RSI_40"] = candles_df.ta.rsi(length=40)
 
         # Calling the lower-level function, because the one in core.py has a bug in the argument names
-        stoch_4_df = stoch(
+        stoch_10_df = stoch(
             high=candles_df["high"],
             low=candles_df["low"],
             close=candles_df["close"],
-            k=4,
-            d=2,
-            smooth_k=2
+            k=10,
+            d=1,
+            smooth_k=1
         )
 
-        candles_df["STOCH_4_k"] = stoch_4_df["STOCHk_4_2_2"]
+        candles_df["STOCH_10_k"] = stoch_10_df["STOCHk_10_1_1"]
 
         candles_df.dropna(inplace=True)
 
@@ -136,7 +136,7 @@ class ExcaliburStrategy(PkStrategy):
                     "close",
                     "volume",
                     "RSI_40",
-                    "STOCH_4_k"
+                    "STOCH_10_k"
                 ]
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display].tail(30), table_format="psql"))
@@ -436,11 +436,11 @@ class ExcaliburStrategy(PkStrategy):
         if was_an_order_recently_opened(filled_sell_orders, 5 * 60, self.get_market_data_provider_time()):
             return False
 
-        stoch_series: pd.Series = self.processed_data["STOCH_4_k"]
+        stoch_series: pd.Series = self.processed_data["STOCH_10_k"]
         recent_stochs = stoch_series.iloc[-8:]
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
 
-        if bottom_stoch > 35:
+        if bottom_stoch > 50:
             return False
 
         current_stoch = self.get_current_stoch(4)
@@ -455,11 +455,11 @@ class ExcaliburStrategy(PkStrategy):
         if was_an_order_recently_opened(filled_buy_orders, 5 * 60, self.get_market_data_provider_time()):
             return False
 
-        stoch_series: pd.Series = self.processed_data["STOCH_4_k"]
+        stoch_series: pd.Series = self.processed_data["STOCH_10_k"]
         recent_stochs = stoch_series.iloc[-8:]
         peak_stoch: Decimal = Decimal(recent_stochs.max())
 
-        if peak_stoch < 65:
+        if peak_stoch < 50:
             return False
 
         current_stoch = self.get_current_stoch(4)
