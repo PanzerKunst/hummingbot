@@ -13,7 +13,7 @@ from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.atiesh_config import ExcaliburConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
-from scripts.pk.pk_utils import compute_rsi_pullback_threshold, was_an_order_recently_opened
+from scripts.pk.pk_utils import compute_rsi_pullback_difference, was_an_order_recently_opened
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 # Generate config file: create --script-config atiesh
@@ -107,7 +107,7 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
-        self.check_context(4)  # `candle_count_for_rev` + 1
+        self.check_context(5)  # `candle_count_for_rev` + 1
         self.create_actions_proposal_rev()
 
         return []  # Always return []
@@ -161,13 +161,13 @@ class ExcaliburStrategy(PkStrategy):
             self.create_order(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote, ORDER_REF_REV)
 
     def can_create_rev_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_REV, 8):
+        if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_REV, 5):
             return False
 
         if len(active_tracked_orders) > 0:
             return False
 
-        candle_count_for_rev: int = 3
+        candle_count_for_rev: int = 4
 
         if side == TradeType.SELL:
             if (
@@ -245,6 +245,7 @@ class ExcaliburStrategy(PkStrategy):
         self.save_peak_rsi(Decimal(50.0), self.get_market_data_provider_time())
 
         self.rsi_reversal_counter: int = 0
+        self.stoch_reversal_counter: int = 0
 
     def save_bottom_price(self, bottom_price: Decimal, timestamp: float):
         self.saved_bottom_price: Tuple[Decimal, float] = bottom_price, timestamp
@@ -297,7 +298,8 @@ class ExcaliburStrategy(PkStrategy):
             saved_price_spike_or_crash_pct == Decimal(0.0) and
             saved_bottom_rsi == Decimal(50.0) and
             saved_peak_rsi == Decimal(50.0) and
-            self.rsi_reversal_counter == 0
+            self.rsi_reversal_counter == 0 and
+            self.stoch_reversal_counter == 0
         )
 
     #
@@ -315,7 +317,6 @@ class ExcaliburStrategy(PkStrategy):
         peak_price_index = recent_highs.idxmax()
 
         if peak_price_index == 0:
-            self.logger().info(f"is_price_spiking() | peak_price_index == 0 | peak_price:{peak_price}")
             return False
 
         timestamp_series: pd.Series = self.processed_data["timestamp"]
@@ -349,7 +350,6 @@ class ExcaliburStrategy(PkStrategy):
         bottom_price_index = recent_lows.idxmin()
 
         if bottom_price_index == 0:
-            self.logger().info(f"is_price_crashing() | bottom_price_index == 0 | bottom_price:{bottom_price}")
             return False
 
         timestamp_series: pd.Series = self.processed_data["timestamp"]
@@ -380,7 +380,6 @@ class ExcaliburStrategy(PkStrategy):
         peak_rsi_index = recent_rsis.idxmax()
 
         if peak_rsi_index == 0:
-            self.logger().info(f"has_rsi_peaked() | peak_rsi_index == 0 | peak_rsi:{peak_rsi}")
             return False
 
         # Avoids opening an opposite Sell Rev, when the price goes back up after a crash
@@ -397,22 +396,24 @@ class ExcaliburStrategy(PkStrategy):
 
         saved_peak_rsi, _ = self.saved_peak_rsi
 
-        rsi_threshold: Decimal = compute_rsi_pullback_threshold(saved_peak_rsi)
+        rsi_decrement: Decimal = compute_rsi_pullback_difference(saved_peak_rsi)
+        rsi_threshold: Decimal = saved_peak_rsi - rsi_decrement
         current_rsi = self.get_current_rsi(40)
 
-        self.logger().info(f"has_rsi_peaked() | saved_peak_rsi:{saved_peak_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
+        self.logger().info(f"has_rsi_peaked() | saved_peak_rsi:{saved_peak_rsi} | current_rsi:{current_rsi} | rsi_decrement:{rsi_decrement} | rsi_threshold:{rsi_threshold}")
 
         if current_rsi > rsi_threshold:
             self.rsi_reversal_counter = 0
+            self.logger().info("has_rsi_peaked() | resetting self.rsi_reversal_counter to 0")
             return False
 
         self.rsi_reversal_counter += 1
-        self.logger().info(f"has_rsi_bottomed() | incremented self.rsi_reversal_counter to:{self.rsi_reversal_counter}")
+        self.logger().info(f"has_rsi_peaked() | incremented self.rsi_reversal_counter to:{self.rsi_reversal_counter}")
 
-        if self.rsi_reversal_counter < 3:
+        if self.rsi_reversal_counter < 5:
             return False
 
-        too_late_threshold: Decimal = rsi_threshold - 2
+        too_late_threshold: Decimal = rsi_threshold - rsi_decrement
 
         return current_rsi > too_late_threshold
 
@@ -424,7 +425,6 @@ class ExcaliburStrategy(PkStrategy):
         bottom_rsi_index = recent_rsis.idxmin()
 
         if bottom_rsi_index == 0:
-            self.logger().info(f"has_rsi_bottomed() | bottom_rsi_index == 0 | bottom_rsi:{bottom_rsi}")
             return False
 
         if bottom_rsi > 38:
@@ -440,13 +440,15 @@ class ExcaliburStrategy(PkStrategy):
 
         saved_bottom_rsi, _ = self.saved_bottom_rsi
 
-        rsi_threshold: Decimal = compute_rsi_pullback_threshold(saved_bottom_rsi)
+        rsi_increment: Decimal = compute_rsi_pullback_difference(saved_bottom_rsi)
+        rsi_threshold: Decimal = saved_bottom_rsi + rsi_increment
         current_rsi = self.get_current_rsi(40)
 
-        self.logger().info(f"has_rsi_bottomed() | saved_bottom_rsi:{saved_bottom_rsi} | current_rsi:{current_rsi} | rsi_threshold:{rsi_threshold}")
+        self.logger().info(f"has_rsi_bottomed() | saved_bottom_rsi:{saved_bottom_rsi} | current_rsi:{current_rsi} | rsi_increment:{rsi_increment} | rsi_threshold:{rsi_threshold}")
 
         if current_rsi < rsi_threshold:
             self.rsi_reversal_counter = 0
+            self.logger().info("has_rsi_bottomed() | resetting self.rsi_reversal_counter to 0")
             return False
 
         self.rsi_reversal_counter += 1
@@ -455,7 +457,7 @@ class ExcaliburStrategy(PkStrategy):
         if self.rsi_reversal_counter < 3:
             return False
 
-        too_late_threshold: Decimal = rsi_threshold + 2
+        too_late_threshold: Decimal = rsi_threshold + rsi_increment
 
         return current_rsi < too_late_threshold
 
@@ -498,7 +500,15 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"should_close_rev_sell_due_to_stoch_reversal() | bottom_stoch:{bottom_stoch} | current_stoch:{current_stoch}")
 
-        return current_stoch > stoch_threshold
+        if current_stoch < stoch_threshold:
+            self.stoch_reversal_counter = 0
+            self.logger().info("should_close_rev_sell_due_to_stoch_reversal() | resetting self.stoch_reversal_counter to 0")
+            return False
+
+        self.stoch_reversal_counter += 1
+        self.logger().info(f"should_close_rev_sell_due_to_stoch_reversal() | incremented self.stoch_reversal_counter to:{self.stoch_reversal_counter}")
+
+        return self.stoch_reversal_counter > 2
 
     def should_close_rev_buy_due_to_stoch_reversal(self, filled_buy_orders: List[TrackedOrderDetails]) -> bool:
         # Don't close if we just opened
@@ -517,4 +527,12 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"should_close_rev_buy_due_to_stoch_reversal() | peak_stoch:{peak_stoch} | current_stoch:{current_stoch}")
 
-        return current_stoch < stoch_threshold
+        if current_stoch > stoch_threshold:
+            self.stoch_reversal_counter = 0
+            self.logger().info("should_close_rev_buy_due_to_stoch_reversal() | resetting self.stoch_reversal_counter to 0")
+            return False
+
+        self.stoch_reversal_counter += 1
+        self.logger().info(f"should_close_rev_buy_due_to_stoch_reversal() | incremented self.stoch_reversal_counter to:{self.stoch_reversal_counter}")
+
+        return self.stoch_reversal_counter > 2

@@ -32,16 +32,12 @@ class PkStrategy(StrategyV2Base):
 
         self.tracked_orders: List[TrackedOrderDetails] = []
 
-    def get_position_quote_amount(self, side: TradeType, amount_quote: int) -> Decimal:
-        leverage = self.config.leverage
-
-        # If amount_quote = 100 USDT with leverage 20x, the quote position should be 500
-        position_quote_amount: Decimal = amount_quote * leverage * Decimal(0.25)
-
+    @staticmethod
+    def get_position_quote_amount(side: TradeType, amount_quote: int) -> Decimal:
         if side == TradeType.SELL:
-            position_quote_amount = position_quote_amount * Decimal(0.67)  # Less, because closing a Short position on SL costs significantly more
+            return amount_quote * Decimal(0.67)  # Less, because closing a Short position on SL costs significantly more
 
-        return position_quote_amount
+        return Decimal(amount_quote)
 
     def get_mid_price(self) -> Decimal:
         connector_name = self.config.connector_name
