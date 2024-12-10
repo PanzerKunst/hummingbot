@@ -356,7 +356,7 @@ class ExcaliburStrategy(PkStrategy):
 
         bottom_price = Decimal(recent_lows.iloc[0:peak_price_index].min())
         price_delta_pct: Decimal = (saved_peak_price - bottom_price) / bottom_price * 100
-        is_spiking = self.config.min_price_delta_pct_to_open < price_delta_pct  # < self.config.max_price_delta_pct_to_open
+        is_spiking = self.config.min_price_delta_pct_to_open < price_delta_pct < self.config.max_price_delta_pct_to_open
 
         if is_spiking:
             self.logger().info(f"is_price_spiking() | peak_price_index:{peak_price_index} | saved_peak_price:{saved_peak_price} | bottom_price:{bottom_price} | price_delta_pct:{price_delta_pct}")
@@ -389,7 +389,7 @@ class ExcaliburStrategy(PkStrategy):
 
         peak_price = Decimal(recent_highs.iloc[0:bottom_price_index].max())
         price_delta_pct: Decimal = (peak_price - saved_bottom_price) / saved_bottom_price * 100
-        is_crashing = self.config.min_price_delta_pct_to_open < price_delta_pct  # < self.config.max_price_delta_pct_to_open
+        is_crashing = self.config.min_price_delta_pct_to_open < price_delta_pct < self.config.max_price_delta_pct_to_open
 
         if is_crashing:
             self.logger().info(f"is_price_crashing() | bottom_price_index:{bottom_price_index} | saved_bottom_price:{saved_bottom_price} | peak_price:{peak_price} | price_delta_pct:{price_delta_pct}")
