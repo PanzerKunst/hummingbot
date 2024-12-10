@@ -401,8 +401,6 @@ class ExcaliburStrategy(PkStrategy):
         candle_end_index: int = -candle_count
         candle_start_index: int = candle_end_index * 2
 
-        self.logger().info(f"is_price_spike_a_reversal() | candle_start_index:{candle_start_index} | candle_end_index:{candle_end_index}")
-
         high_series: pd.Series = self.processed_data["high"]
         previous_highs = high_series.iloc[candle_start_index:candle_end_index]  # last one excluded
 
@@ -417,8 +415,6 @@ class ExcaliburStrategy(PkStrategy):
     def is_price_crash_a_reversal(self, candle_count: int) -> bool:
         candle_end_index: int = -candle_count
         candle_start_index: int = candle_end_index * 2
-
-        self.logger().info(f"is_price_crash_a_reversal() | candle_start_index:{candle_start_index} | candle_end_index:{candle_end_index}")
 
         low_series: pd.Series = self.processed_data["low"]
         previous_lows = low_series.iloc[candle_start_index:candle_end_index]
