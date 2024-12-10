@@ -151,7 +151,8 @@ def timestamp_to_iso(timestamp: float) -> str:
     return datetime.fromtimestamp(timestamp).isoformat()
 
 
-def compute_rsi_pullback_threshold(rsi: Decimal) -> Decimal:
+# TODO: return int instead of Decimal
+def compute_rsi_pullback_difference(rsi: Decimal) -> Decimal:
     """
     When `rsi > 50`:
     i:3 rsi:75 result:72 (rsi-i)
@@ -173,16 +174,16 @@ def compute_rsi_pullback_threshold(rsi: Decimal) -> Decimal:
     """
     if rsi > 50:
         if rsi < 75:
-            return rsi - 2
+            return Decimal(2.0)
 
-        decrement: Decimal = ((rsi - 75) // 3) + 3
-        return rsi - decrement
+        decrement = ((rsi - 75) // 3) + 3
+        return decrement
 
     if rsi > 25:
-        return rsi + 2
+        return Decimal(2.0)
 
     increment = ((25 - rsi) // 3) + 3
-    return rsi + increment
+    return increment
 
 
 class Trend(Enum):
