@@ -441,8 +441,7 @@ class ExcaliburStrategy(PkStrategy):
         if peak_rsi_index == 0:
             return False
 
-        # Avoids opening an opposite Sell Rev, when the price goes back up after a crash
-        if peak_rsi < 62:
+        if peak_rsi < 55:
             return False
 
         timestamp_series: pd.Series = self.processed_data["timestamp"]
@@ -486,7 +485,7 @@ class ExcaliburStrategy(PkStrategy):
         if bottom_rsi_index == 0:
             return False
 
-        if bottom_rsi > 38:
+        if bottom_rsi > 45:
             return False
 
         timestamp_series: pd.Series = self.processed_data["timestamp"]
