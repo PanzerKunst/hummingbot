@@ -441,7 +441,7 @@ class ExcaliburStrategy(PkStrategy):
         if peak_rsi_index == 0:
             return False
 
-        if peak_rsi < 55:
+        if peak_rsi < 60:
             return False
 
         timestamp_series: pd.Series = self.processed_data["timestamp"]
@@ -485,7 +485,7 @@ class ExcaliburStrategy(PkStrategy):
         if bottom_rsi_index == 0:
             return False
 
-        if bottom_rsi > 45:
+        if bottom_rsi > 40:
             return False
 
         timestamp_series: pd.Series = self.processed_data["timestamp"]
