@@ -172,6 +172,7 @@ class ExcaliburStrategy(PkStrategy):
         if side == TradeType.SELL:
             if (
                 self.is_price_spiking(candle_count_for_rev) and
+                not self.is_price_spike_a_reversal(candle_count_for_rev) and
                 self.has_rsi_peaked(candle_count_for_rev) and
                 self.is_price_still_close_to_peak()
             ):
@@ -182,6 +183,7 @@ class ExcaliburStrategy(PkStrategy):
 
         if (
             self.is_price_crashing(candle_count_for_rev) and
+            not self.is_price_crash_a_reversal(candle_count_for_rev) and
             self.has_rsi_bottomed(candle_count_for_rev) and
             self.is_price_still_close_to_bottom()
         ):
@@ -394,6 +396,40 @@ class ExcaliburStrategy(PkStrategy):
             self.save_price_spike_or_crash_pct(price_delta_pct, self.get_market_data_provider_time())
 
         return is_crashing
+
+    def is_price_spike_a_reversal(self, candle_count: int) -> bool:
+        candle_end_index: int = -candle_count
+        candle_start_index: int = candle_end_index * 2
+
+        self.logger().info(f"is_price_spike_a_reversal() | candle_start_index:{candle_start_index} | candle_end_index:{candle_end_index}")
+
+        high_series: pd.Series = self.processed_data["high"]
+        previous_highs = high_series.iloc[candle_start_index:candle_end_index]  # last one excluded
+
+        previous_peak = Decimal(previous_highs.max())
+        saved_peak_price, _ = self.saved_peak_price
+        delta_pct: Decimal = (saved_peak_price - previous_peak) / saved_peak_price * 100
+
+        self.logger().info(f"is_price_spike_a_reversal() | saved_peak_price:{saved_peak_price} | previous_peak:{previous_peak} | delta_pct:{delta_pct}")
+
+        return delta_pct < self.config.min_price_delta_pct_to_open * Decimal(0.75)
+
+    def is_price_crash_a_reversal(self, candle_count: int) -> bool:
+        candle_end_index: int = -candle_count
+        candle_start_index: int = candle_end_index * 2
+
+        self.logger().info(f"is_price_crash_a_reversal() | candle_start_index:{candle_start_index} | candle_end_index:{candle_end_index}")
+
+        low_series: pd.Series = self.processed_data["low"]
+        previous_lows = low_series.iloc[candle_start_index:candle_end_index]
+
+        previous_bottom = Decimal(previous_lows.min())
+        saved_bottom_price, _ = self.saved_bottom_price
+        delta_pct: Decimal = (previous_bottom - saved_bottom_price) / saved_bottom_price * 100
+
+        self.logger().info(f"is_price_crash_a_reversal() | saved_bottom_price:{saved_bottom_price} | previous_bottom:{previous_bottom} | delta_pct:{delta_pct}")
+
+        return delta_pct < self.config.min_price_delta_pct_to_open * Decimal(0.75)
 
     def has_rsi_peaked(self, candle_count: int) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI_40"]
