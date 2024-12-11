@@ -508,7 +508,7 @@ class ExcaliburStrategy(PkStrategy):
         self.rsi_reversal_counter += 1
         self.logger().info(f"has_rsi_bottomed() | incremented self.rsi_reversal_counter to:{self.rsi_reversal_counter}")
 
-        if self.rsi_reversal_counter < 3:
+        if self.rsi_reversal_counter < 5:
             return False
 
         too_late_threshold: Decimal = rsi_threshold + rsi_increment
@@ -577,7 +577,7 @@ class ExcaliburStrategy(PkStrategy):
         self.stoch_reversal_counter += 1
         self.logger().info(f"should_close_rev_sell_due_to_stoch_reversal() | incremented self.stoch_reversal_counter to:{self.stoch_reversal_counter}")
 
-        return self.stoch_reversal_counter > 2
+        return self.stoch_reversal_counter > 9
 
     def should_close_rev_buy_due_to_stoch_reversal(self, filled_buy_orders: List[TrackedOrderDetails]) -> bool:
         # Don't close if we just opened
@@ -619,4 +619,4 @@ class ExcaliburStrategy(PkStrategy):
         self.stoch_reversal_counter += 1
         self.logger().info(f"should_close_rev_buy_due_to_stoch_reversal() | incremented self.stoch_reversal_counter to:{self.stoch_reversal_counter}")
 
-        return self.stoch_reversal_counter > 2
+        return self.stoch_reversal_counter > 9
