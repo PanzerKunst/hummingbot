@@ -17,4 +17,4 @@ position_mode: ONEWAY
 amount_quote: 30
 entry_price_delta_bps: 0
 min_price_delta_pct_to_open: 1.5
-max_price_delta_pct_to_open: 3.0
+max_price_delta_pct_to_open: 4.5
