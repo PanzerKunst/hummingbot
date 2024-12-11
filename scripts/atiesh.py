@@ -564,7 +564,7 @@ class ExcaliburStrategy(PkStrategy):
 
         saved_bottom_stoch, _ = self.saved_bottom_stoch
 
-        stoch_threshold: Decimal = bottom_stoch + 3
+        stoch_threshold: Decimal = saved_bottom_stoch + 3
         current_stoch = self.get_current_stoch(10)
 
         self.logger().info(f"should_close_rev_sell_due_to_stoch_reversal() | saved_bottom_stoch:{saved_bottom_stoch} | current_stoch:{current_stoch} | stoch_threshold:{stoch_threshold}")
