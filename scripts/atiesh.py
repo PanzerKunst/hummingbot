@@ -25,7 +25,7 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 #                start --script atiesh.py --conf conf_atiesh_NEIRO.yml
 #                start --script atiesh.py --conf conf_atiesh_PNUT.yml
 #                start --script atiesh.py --conf conf_atiesh_POPCAT.yml
-#                start --script atiesh.py --conf conf_atiesh_SHIB.yml
+#                start --script atiesh.py --conf conf_atiesh_WIF.yml
 # Quickstart script: -p=a -f atiesh.py -c conf_atiesh_GOAT.yml
 
 ORDER_REF_REV = "Rev"
@@ -437,9 +437,6 @@ class ExcaliburStrategy(PkStrategy):
         if peak_rsi_index == 0:
             return False
 
-        if peak_rsi < 60:
-            return False
-
         timestamp_series: pd.Series = self.processed_data["timestamp"]
         recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
         saved_peak_rsi, _ = self.saved_peak_rsi
@@ -479,9 +476,6 @@ class ExcaliburStrategy(PkStrategy):
         bottom_rsi_index = recent_rsis.idxmin()
 
         if bottom_rsi_index == 0:
-            return False
-
-        if bottom_rsi > 40:
             return False
 
         timestamp_series: pd.Series = self.processed_data["timestamp"]
