@@ -444,6 +444,9 @@ class ExcaliburStrategy(PkStrategy):
         if peak_rsi_index == 0:
             return False
 
+        if peak_rsi < 55:
+            return False
+
         timestamp_series: pd.Series = self.processed_data["timestamp"]
         recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
         saved_peak_rsi, _ = self.saved_peak_rsi
@@ -483,6 +486,9 @@ class ExcaliburStrategy(PkStrategy):
         bottom_rsi_index = recent_rsis.idxmin()
 
         if bottom_rsi_index == 0:
+            return False
+
+        if bottom_rsi > 45:
             return False
 
         timestamp_series: pd.Series = self.processed_data["timestamp"]
