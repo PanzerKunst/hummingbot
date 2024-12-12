@@ -12,7 +12,7 @@ from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction,
 from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
-from scripts.pk.pk_utils import compute_rsi_pullback_difference, was_an_order_recently_opened
+from scripts.pk.pk_utils import compute_rsi_pullback_difference
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 from scripts.thunderfury_config import ExcaliburConfig
 
@@ -82,6 +82,8 @@ class ExcaliburStrategy(PkStrategy):
 
         candles_df["RSI_40"] = candles_df.ta.rsi(length=40)
 
+        candles_df["SMA_8"] = candles_df.ta.sma(length=8)
+
         # Calling the lower-level function, because the one in core.py has a bug in the argument names
         stoch_10_df = stoch(
             high=candles_df["high"],
@@ -135,6 +137,7 @@ class ExcaliburStrategy(PkStrategy):
                     "close",
                     "volume",
                     "RSI_40",
+                    "SMA_8",
                     "STOCH_10_k"
                 ]
 
@@ -196,12 +199,12 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_REV)
 
         if len(filled_sell_orders) > 0:
-            if self.should_close_rev_sell_due_to_stoch_reversal(filled_sell_orders):
+            if self.is_price_under_ma() and self.has_stoch_reversed_for_sell():
                 self.logger().info("stop_actions_proposal_rev() > Closing Sell reversion")
                 self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
 
         if len(filled_buy_orders) > 0:
-            if self.should_close_rev_buy_due_to_stoch_reversal(filled_buy_orders):
+            if self.is_price_over_ma() and self.has_stoch_reversed_for_buy():
                 self.logger().info("stop_actions_proposal_rev() > Closing Buy reversion")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
 
@@ -222,6 +225,10 @@ class ExcaliburStrategy(PkStrategy):
     def get_current_rsi(self, length: int) -> Decimal:
         rsi_series: pd.Series = self.processed_data[f"RSI_{length}"]
         return Decimal(rsi_series.iloc[-1])
+
+    def get_current_ma(self) -> Decimal:
+        sma_series: pd.Series = self.processed_data["SMA_8"]
+        return Decimal(sma_series.iloc[-1])
 
     def get_current_stoch(self, length: int) -> Decimal:
         return self._get_stoch_at_index(length, -1)
@@ -537,13 +544,25 @@ class ExcaliburStrategy(PkStrategy):
 
         return current_price < threshold
 
-    def should_close_rev_sell_due_to_stoch_reversal(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
-        # Don't close if we just opened
-        if was_an_order_recently_opened(filled_sell_orders, 5 * 60, self.get_market_data_provider_time()):
-            return False
+    def is_price_under_ma(self) -> bool:
+        current_price: Decimal = self.get_current_close()
+        current_ma: Decimal = self.get_current_ma()
 
+        self.logger().info(f"is_price_under_ma() | current_price:{current_price} | current_ma:{current_ma}")
+
+        return current_price < current_ma
+
+    def is_price_over_ma(self) -> bool:
+        current_price: Decimal = self.get_current_close()
+        current_ma: Decimal = self.get_current_ma()
+
+        self.logger().info(f"is_price_over_ma() | current_price:{current_price} | current_ma:{current_ma}")
+
+        return current_price > current_ma
+
+    def has_stoch_reversed_for_sell(self) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_10_k"]
-        recent_stochs = stoch_series.iloc[-8:].reset_index(drop=True)
+        recent_stochs = stoch_series.iloc[-5:].reset_index(drop=True)
 
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
         bottom_stoch_index = recent_stochs.idxmin()
@@ -555,7 +574,7 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         timestamp_series: pd.Series = self.processed_data["timestamp"]
-        recent_timestamps = timestamp_series.iloc[-8:].reset_index(drop=True)
+        recent_timestamps = timestamp_series.iloc[-5:].reset_index(drop=True)
         saved_bottom_stoch, _ = self.saved_bottom_stoch
 
         if bottom_stoch < saved_bottom_stoch:
@@ -567,25 +586,21 @@ class ExcaliburStrategy(PkStrategy):
         stoch_threshold: Decimal = saved_bottom_stoch + 3
         current_stoch = self.get_current_stoch(10)
 
-        self.logger().info(f"should_close_rev_sell_due_to_stoch_reversal() | saved_bottom_stoch:{saved_bottom_stoch} | current_stoch:{current_stoch} | stoch_threshold:{stoch_threshold} | current_price:{self.get_current_close()}")
+        self.logger().info(f"has_stoch_reversed_for_sell() | saved_bottom_stoch:{saved_bottom_stoch} | current_stoch:{current_stoch} | stoch_threshold:{stoch_threshold} | current_price:{self.get_current_close()}")
 
         if current_stoch < stoch_threshold:
             self.stoch_reversal_counter = 0
-            self.logger().info("should_close_rev_sell_due_to_stoch_reversal() | resetting self.stoch_reversal_counter to 0")
+            self.logger().info("has_stoch_reversed_for_sell() | resetting self.stoch_reversal_counter to 0")
             return False
 
         self.stoch_reversal_counter += 1
-        self.logger().info(f"should_close_rev_sell_due_to_stoch_reversal() | incremented self.stoch_reversal_counter to:{self.stoch_reversal_counter}")
+        self.logger().info(f"has_stoch_reversed_for_sell() | incremented self.stoch_reversal_counter to:{self.stoch_reversal_counter}")
 
         return self.stoch_reversal_counter > 4
 
-    def should_close_rev_buy_due_to_stoch_reversal(self, filled_buy_orders: List[TrackedOrderDetails]) -> bool:
-        # Don't close if we just opened
-        if was_an_order_recently_opened(filled_buy_orders, 5 * 60, self.get_market_data_provider_time()):
-            return False
-
+    def has_stoch_reversed_for_buy(self) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_10_k"]
-        recent_stochs = stoch_series.iloc[-8:].reset_index(drop=True)
+        recent_stochs = stoch_series.iloc[-5:].reset_index(drop=True)
 
         peak_stoch: Decimal = Decimal(recent_stochs.max())
         peak_stoch_index = recent_stochs.idxmax()
@@ -597,7 +612,7 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         timestamp_series: pd.Series = self.processed_data["timestamp"]
-        recent_timestamps = timestamp_series.iloc[-8:].reset_index(drop=True)
+        recent_timestamps = timestamp_series.iloc[-5:].reset_index(drop=True)
         saved_peak_stoch, _ = self.saved_peak_stoch
 
         if peak_stoch > saved_peak_stoch:
@@ -609,14 +624,14 @@ class ExcaliburStrategy(PkStrategy):
         stoch_threshold: Decimal = saved_peak_stoch - 3
         current_stoch = self.get_current_stoch(10)
 
-        self.logger().info(f"should_close_rev_buy_due_to_stoch_reversal() | saved_peak_stoch:{saved_peak_stoch} | current_stoch:{current_stoch} | stoch_threshold:{stoch_threshold} | current_price:{self.get_current_close()}")
+        self.logger().info(f"has_stoch_reversed_for_buy() | saved_peak_stoch:{saved_peak_stoch} | current_stoch:{current_stoch} | stoch_threshold:{stoch_threshold} | current_price:{self.get_current_close()}")
 
         if current_stoch > stoch_threshold:
             self.stoch_reversal_counter = 0
-            self.logger().info("should_close_rev_buy_due_to_stoch_reversal() | resetting self.stoch_reversal_counter to 0")
+            self.logger().info("has_stoch_reversed_for_buy() | resetting self.stoch_reversal_counter to 0")
             return False
 
         self.stoch_reversal_counter += 1
-        self.logger().info(f"should_close_rev_buy_due_to_stoch_reversal() | incremented self.stoch_reversal_counter to:{self.stoch_reversal_counter}")
+        self.logger().info(f"has_stoch_reversed_for_buy() | incremented self.stoch_reversal_counter to:{self.stoch_reversal_counter}")
 
         return self.stoch_reversal_counter > 4
