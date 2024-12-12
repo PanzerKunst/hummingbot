@@ -359,7 +359,7 @@ class ExcaliburStrategy(PkStrategy):
         is_spiking = self.config.min_price_delta_pct_to_open < price_delta_pct < self.config.max_price_delta_pct_to_open
 
         if is_spiking:
-            self.logger().info(f"is_price_spiking() | peak_price_index:{peak_price_index} | saved_peak_price:{saved_peak_price} | bottom_price:{bottom_price} | price_delta_pct:{price_delta_pct}")
+            self.logger().info(f"is_price_spiking() | current_price:{self.get_current_close()} | peak_price_index:{peak_price_index} | saved_peak_price:{saved_peak_price} | bottom_price:{bottom_price} | price_delta_pct:{price_delta_pct}")
             self.save_price_spike_or_crash_pct(price_delta_pct, self.get_market_data_provider_time())
 
         return is_spiking
@@ -392,7 +392,7 @@ class ExcaliburStrategy(PkStrategy):
         is_crashing = self.config.min_price_delta_pct_to_open < price_delta_pct < self.config.max_price_delta_pct_to_open
 
         if is_crashing:
-            self.logger().info(f"is_price_crashing() | bottom_price_index:{bottom_price_index} | saved_bottom_price:{saved_bottom_price} | peak_price:{peak_price} | price_delta_pct:{price_delta_pct}")
+            self.logger().info(f"is_price_crashing() | current_price:{self.get_current_close()} | bottom_price_index:{bottom_price_index} | saved_bottom_price:{saved_bottom_price} | peak_price:{peak_price} | price_delta_pct:{price_delta_pct}")
             self.save_price_spike_or_crash_pct(price_delta_pct, self.get_market_data_provider_time())
 
         return is_crashing
