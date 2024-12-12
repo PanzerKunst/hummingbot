@@ -25,7 +25,7 @@ from scripts.thunderfury_config import ExcaliburConfig
 #                start --script thunderfury.py --conf conf_thunderfury_NEIRO.yml
 #                start --script thunderfury.py --conf conf_thunderfury_PNUT.yml
 #                start --script thunderfury.py --conf conf_thunderfury_POPCAT.yml
-#                start --script thunderfury.py --conf conf_thunderfury_SHIB.yml
+#                start --script thunderfury.py --conf conf_thunderfury_WIF.yml
 # Quickstart script: -p=a -f thunderfury.py -c conf_thunderfury_GOAT.yml
 
 ORDER_REF_REV = "Rev"
@@ -567,7 +567,7 @@ class ExcaliburStrategy(PkStrategy):
         stoch_threshold: Decimal = saved_bottom_stoch + 3
         current_stoch = self.get_current_stoch(10)
 
-        self.logger().info(f"should_close_rev_sell_due_to_stoch_reversal() | saved_bottom_stoch:{saved_bottom_stoch} | current_stoch:{current_stoch} | stoch_threshold:{stoch_threshold}")
+        self.logger().info(f"should_close_rev_sell_due_to_stoch_reversal() | saved_bottom_stoch:{saved_bottom_stoch} | current_stoch:{current_stoch} | stoch_threshold:{stoch_threshold} | current_price:{self.get_current_close()}")
 
         if current_stoch < stoch_threshold:
             self.stoch_reversal_counter = 0
@@ -577,7 +577,7 @@ class ExcaliburStrategy(PkStrategy):
         self.stoch_reversal_counter += 1
         self.logger().info(f"should_close_rev_sell_due_to_stoch_reversal() | incremented self.stoch_reversal_counter to:{self.stoch_reversal_counter}")
 
-        return self.stoch_reversal_counter > 9
+        return self.stoch_reversal_counter > 4
 
     def should_close_rev_buy_due_to_stoch_reversal(self, filled_buy_orders: List[TrackedOrderDetails]) -> bool:
         # Don't close if we just opened
@@ -609,7 +609,7 @@ class ExcaliburStrategy(PkStrategy):
         stoch_threshold: Decimal = saved_peak_stoch - 3
         current_stoch = self.get_current_stoch(10)
 
-        self.logger().info(f"should_close_rev_buy_due_to_stoch_reversal() | saved_peak_stoch:{saved_peak_stoch} | current_stoch:{current_stoch} | stoch_threshold:{stoch_threshold}")
+        self.logger().info(f"should_close_rev_buy_due_to_stoch_reversal() | saved_peak_stoch:{saved_peak_stoch} | current_stoch:{current_stoch} | stoch_threshold:{stoch_threshold} | current_price:{self.get_current_close()}")
 
         if current_stoch > stoch_threshold:
             self.stoch_reversal_counter = 0
@@ -619,4 +619,4 @@ class ExcaliburStrategy(PkStrategy):
         self.stoch_reversal_counter += 1
         self.logger().info(f"should_close_rev_buy_due_to_stoch_reversal() | incremented self.stoch_reversal_counter to:{self.stoch_reversal_counter}")
 
-        return self.stoch_reversal_counter > 9
+        return self.stoch_reversal_counter > 4

@@ -3,12 +3,12 @@ candles_config:
 - connector: binance_perpetual
   interval: 1m
   max_records: 70
-  trading_pair: 1000SHIB-USDT
+  trading_pair: WIF-USDT
 controllers_config: []
 config_update_interval: 10
 connector_name: hyperliquid_perpetual
-trading_pair: kSHIB-USD
-leverage: 20
+trading_pair: WIF-USD
+leverage: 5
 unfilled_order_expiration_min: 1
 limit_take_profit_price_delta_bps: 0
 market_order_twap_count: 1
