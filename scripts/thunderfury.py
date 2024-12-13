@@ -176,8 +176,8 @@ class ExcaliburStrategy(PkStrategy):
                 not self.is_price_spike_a_reversal(candle_count_for_rev) and
                 self.is_price_below_last_open()
             ):
-                # self.logger().info("can_create_rev_order() > Opening Sell reversion")
-                return False  # Disabled for now
+                self.logger().info("can_create_rev_order() > Opening Sell reversion")
+                return True
 
             return False
 
