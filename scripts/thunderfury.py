@@ -12,7 +12,6 @@ from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction,
 from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
-from scripts.pk.pk_utils import compute_buy_orders_pnl_pct, compute_sell_orders_pnl_pct
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 from scripts.thunderfury_config import ExcaliburConfig
 
@@ -55,8 +54,12 @@ class ExcaliburStrategy(PkStrategy):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
     def get_triple_barrier(self) -> TripleBarrier:
+        saved_price_spike_or_crash_pct, _ = self.saved_price_spike_or_crash_pct
+        stop_loss_pct: Decimal = saved_price_spike_or_crash_pct / 2
+
         return TripleBarrier(
-            open_order_type=OrderType.MARKET
+            open_order_type=OrderType.MARKET,
+            stop_loss=stop_loss_pct / 100
         )
 
     def update_processed_data(self):
@@ -192,22 +195,14 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_REV)
 
         if len(filled_sell_orders) > 0:
-            if self.is_price_under_ma():
-                if not self.is_sell_order_profitable(filled_sell_orders):
-                    self.logger().info("stop_actions_proposal_rev() > Closing Sell reversion as SL")
-                    self.market_close_orders(filled_sell_orders, CloseType.STOP_LOSS)
-                elif self.has_stoch_reversed_for_sell():
-                    self.logger().info("stop_actions_proposal_rev() > Closing Sell reversion as TP")
-                    self.market_close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
+            if self.is_price_under_ma() and self.has_stoch_reversed_for_sell():
+                self.logger().info("stop_actions_proposal_rev() > Closing Sell reversion")
+                self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
 
         if len(filled_buy_orders) > 0:
-            if self.is_price_over_ma():
-                if not self.is_buy_order_profitable(filled_buy_orders):
-                    self.logger().info("stop_actions_proposal_rev() > Closing Buy reversion as SL")
-                    self.market_close_orders(filled_buy_orders, CloseType.STOP_LOSS)
-                elif self.has_stoch_reversed_for_buy():
-                    self.logger().info("stop_actions_proposal_rev() > Closing Buy reversion as TP")
-                    self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
+            if self.is_price_over_ma() and self.has_stoch_reversed_for_buy():
+                self.logger().info("stop_actions_proposal_rev() > Closing Buy reversion")
+                self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
 
     #
     # Getters on `self.processed_data[]`
@@ -249,13 +244,12 @@ class ExcaliburStrategy(PkStrategy):
         self.save_bottom_price(Decimal("Infinity"), self.get_market_data_provider_time())
         self.save_peak_price(Decimal(0.0), self.get_market_data_provider_time())
 
-        # TODO: remove this variable if it remains unused
         self.save_price_spike_or_crash_pct(Decimal(0.0), self.get_market_data_provider_time())
 
         self.save_bottom_stoch(Decimal(50.0), self.get_market_data_provider_time())
         self.save_peak_stoch(Decimal(50.0), self.get_market_data_provider_time())
 
-        self.rsi_reversal_counter: int = 0
+        self.price_reversal_counter: int = 0
         self.stoch_reversal_counter: int = 0
 
     def save_bottom_price(self, bottom_price: Decimal, timestamp: float):
@@ -313,7 +307,7 @@ class ExcaliburStrategy(PkStrategy):
             saved_price_spike_or_crash_pct == Decimal(0.0) and
             saved_bottom_stoch == Decimal(50.0) and
             saved_peak_stoch == Decimal(50.0) and
-            self.rsi_reversal_counter == 0 and
+            self.price_reversal_counter == 0 and
             self.stoch_reversal_counter == 0
         )
 
@@ -423,9 +417,17 @@ class ExcaliburStrategy(PkStrategy):
         open_series: pd.Series = self.processed_data["open"]
         last_open = Decimal(open_series.iloc[-2])
 
-        self.logger().info(f"is_price_below_last_open() | current_price:{current_price} | last_open:{last_open} | result:{current_price < last_open}")
+        self.logger().info(f"is_price_below_last_open() | current_price:{current_price} | last_open:{last_open}")
 
-        return current_price < last_open
+        if current_price > last_open:
+            self.price_reversal_counter = 0
+            self.logger().info("is_price_below_last_open() | resetting self.price_reversal_counter to 0")
+            return False
+
+        self.price_reversal_counter += 1
+        self.logger().info(f"is_price_below_last_open() | incremented self.price_reversal_counter to:{self.price_reversal_counter}")
+
+        return self.price_reversal_counter > 14
 
     def is_price_above_last_open(self) -> bool:
         current_price: Decimal = self.get_current_close()
@@ -433,9 +435,17 @@ class ExcaliburStrategy(PkStrategy):
         open_series: pd.Series = self.processed_data["open"]
         last_open = Decimal(open_series.iloc[-2])
 
-        self.logger().info(f"is_price_above_last_open() | current_price:{current_price} | last_open:{last_open} | result:{current_price > last_open}")
+        self.logger().info(f"is_price_above_last_open() | current_price:{current_price} | last_open:{last_open}")
 
-        return current_price > last_open
+        if current_price < last_open:
+            self.price_reversal_counter = 0
+            self.logger().info("is_price_above_last_open() | resetting self.price_reversal_counter to 0")
+            return False
+
+        self.price_reversal_counter += 1
+        self.logger().info(f"is_price_above_last_open() | incremented self.price_reversal_counter to:{self.price_reversal_counter}")
+
+        return self.price_reversal_counter > 14
 
     def is_price_under_ma(self) -> bool:
         current_price: Decimal = self.get_current_close()
@@ -452,20 +462,6 @@ class ExcaliburStrategy(PkStrategy):
         self.logger().info(f"is_price_over_ma() | current_price:{current_price} | current_ma:{current_ma}")
 
         return current_price > current_ma
-
-    def is_sell_order_profitable(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
-        pnl_pct = compute_sell_orders_pnl_pct(filled_sell_orders, self.get_current_close())
-
-        self.logger().info(f"is_sell_order_profitable() | pnl_pct:{pnl_pct}")
-
-        return pnl_pct > 0
-
-    def is_buy_order_profitable(self, filled_buy_orders: List[TrackedOrderDetails]) -> bool:
-        pnl_pct = compute_buy_orders_pnl_pct(filled_buy_orders, self.get_current_close())
-
-        self.logger().info(f"is_buy_order_profitable() | pnl_pct:{pnl_pct}")
-
-        return pnl_pct > 0
 
     def has_stoch_reversed_for_sell(self) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_15_k"]
