@@ -121,7 +121,6 @@ class ExcaliburStrategy(PkStrategy):
             return []
 
         self.check_orders()
-
         self.stop_actions_proposal_rev()
 
         return []  # Always return []
@@ -176,8 +175,7 @@ class ExcaliburStrategy(PkStrategy):
             if (
                 self.is_price_spiking(candle_count_for_rev) and
                 not self.is_price_spike_a_reversal(candle_count_for_rev) and
-                self.has_rsi_peaked(candle_count_for_rev) and
-                self.is_price_still_close_to_peak()
+                self.has_rsi_peaked(candle_count_for_rev)
             ):
                 self.logger().info("can_create_rev_order() > Opening Sell reversion")
                 return True
@@ -187,8 +185,7 @@ class ExcaliburStrategy(PkStrategy):
         if (
             self.is_price_crashing(candle_count_for_rev) and
             not self.is_price_crash_a_reversal(candle_count_for_rev) and
-            self.has_rsi_bottomed(candle_count_for_rev) and
-            self.is_price_still_close_to_bottom()
+            self.has_rsi_bottomed(candle_count_for_rev)
         ):
             self.logger().info("can_create_rev_order() > Opening Buy reversion")
             return True
@@ -521,28 +518,6 @@ class ExcaliburStrategy(PkStrategy):
         too_late_threshold: Decimal = rsi_threshold + rsi_increment
 
         return current_rsi < too_late_threshold
-
-    def is_price_still_close_to_peak(self) -> bool:
-        current_price = self.get_current_close()
-        saved_peak_price, _ = self.saved_peak_price
-        saved_price_spike_or_crash_pct, _ = self.saved_price_spike_or_crash_pct
-
-        threshold: Decimal = saved_peak_price * Decimal(1 - saved_price_spike_or_crash_pct / 100 / 5)
-
-        self.logger().info(f"is_price_still_close_to_peak() | current_price:{current_price} | threshold:{threshold}")
-
-        return current_price > threshold
-
-    def is_price_still_close_to_bottom(self) -> bool:
-        current_price = self.get_current_close()
-        saved_bottom_price, _ = self.saved_bottom_price
-        saved_price_spike_or_crash_pct, _ = self.saved_price_spike_or_crash_pct
-
-        threshold: Decimal = saved_bottom_price * Decimal(1 + saved_price_spike_or_crash_pct / 100 / 5)
-
-        self.logger().info(f"is_price_still_close_to_bottom() | current_price:{current_price} | threshold:{threshold}")
-
-        return current_price < threshold
 
     def is_price_under_ma(self) -> bool:
         current_price: Decimal = self.get_current_close()
