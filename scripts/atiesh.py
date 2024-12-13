@@ -108,7 +108,7 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
-        self.check_context(6)  # `candle_count_for_rev` + 1
+        self.check_context(5)  # `candle_count_for_rev` + 1
         self.create_actions_proposal_rev()
 
         return []  # Always return []
@@ -168,7 +168,7 @@ class ExcaliburStrategy(PkStrategy):
         if len(active_tracked_orders) > 0:
             return False
 
-        candle_count_for_rev: int = 5
+        candle_count_for_rev: int = 4
 
         if side == TradeType.SELL:
             if (
