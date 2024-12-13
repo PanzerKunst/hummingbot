@@ -427,7 +427,7 @@ class ExcaliburStrategy(PkStrategy):
         self.price_reversal_counter += 1
         self.logger().info(f"is_price_below_last_open() | incremented self.price_reversal_counter to:{self.price_reversal_counter}")
 
-        return self.price_reversal_counter > 4
+        return self.price_reversal_counter > 14
 
     def is_price_above_last_open(self) -> bool:
         current_price: Decimal = self.get_current_close()
@@ -445,7 +445,7 @@ class ExcaliburStrategy(PkStrategy):
         self.price_reversal_counter += 1
         self.logger().info(f"is_price_above_last_open() | incremented self.price_reversal_counter to:{self.price_reversal_counter}")
 
-        return self.price_reversal_counter > 4
+        return self.price_reversal_counter > 14
 
     def is_price_under_ma(self) -> bool:
         current_price: Decimal = self.get_current_close()
