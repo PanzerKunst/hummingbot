@@ -473,7 +473,7 @@ class ExcaliburStrategy(PkStrategy):
         if bottom_stoch_index == 0:
             return False
 
-        if bottom_stoch > 40:
+        if bottom_stoch > 50:
             return False
 
         timestamp_series: pd.Series = self.processed_data["timestamp"]
@@ -511,7 +511,7 @@ class ExcaliburStrategy(PkStrategy):
         if peak_stoch_index == 0:
             return False
 
-        if peak_stoch < 60:
+        if peak_stoch < 50:
             return False
 
         timestamp_series: pd.Series = self.processed_data["timestamp"]
