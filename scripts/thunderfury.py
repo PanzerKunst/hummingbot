@@ -12,6 +12,7 @@ from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction,
 from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
+from scripts.pk.pk_utils import compute_buy_orders_pnl_pct, compute_sell_orders_pnl_pct
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 from scripts.thunderfury_config import ExcaliburConfig
 
@@ -54,12 +55,8 @@ class ExcaliburStrategy(PkStrategy):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
     def get_triple_barrier(self) -> TripleBarrier:
-        saved_price_spike_or_crash_pct, _ = self.saved_price_spike_or_crash_pct
-        stop_loss_pct: Decimal = saved_price_spike_or_crash_pct / 2
-
         return TripleBarrier(
-            open_order_type=OrderType.MARKET,
-            stop_loss=stop_loss_pct / 100
+            open_order_type=OrderType.MARKET
         )
 
     def update_processed_data(self):
@@ -84,16 +81,16 @@ class ExcaliburStrategy(PkStrategy):
         candles_df["SMA_8"] = candles_df.ta.sma(length=8)
 
         # Calling the lower-level function, because the one in core.py has a bug in the argument names
-        stoch_10_df = stoch(
+        stoch_15_df = stoch(
             high=candles_df["high"],
             low=candles_df["low"],
             close=candles_df["close"],
-            k=10,
+            k=15,
             d=1,
             smooth_k=1
         )
 
-        candles_df["STOCH_10_k"] = stoch_10_df["STOCHk_10_1_1"]
+        candles_df["STOCH_15_k"] = stoch_15_df["STOCHk_15_1_1"]
 
         candles_df.dropna(inplace=True)
 
@@ -136,10 +133,10 @@ class ExcaliburStrategy(PkStrategy):
                     "volume",
                     "RSI_40",
                     "SMA_8",
-                    "STOCH_10_k"
+                    "STOCH_15_k"
                 ]
 
-                custom_status.append(format_df_for_printout(self.processed_data[columns_to_display].tail(30), table_format="psql"))
+                custom_status.append(format_df_for_printout(self.processed_data[columns_to_display], table_format="psql"))
 
         return original_status + "\n".join(custom_status)
 
@@ -195,14 +192,22 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_REV)
 
         if len(filled_sell_orders) > 0:
-            if self.is_price_under_ma() and self.has_stoch_reversed_for_sell():
-                self.logger().info("stop_actions_proposal_rev() > Closing Sell reversion")
-                self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
+            if self.is_price_under_ma():
+                if not self.is_sell_order_profitable(filled_sell_orders):
+                    self.logger().info("stop_actions_proposal_rev() > Closing Sell reversion as SL")
+                    self.market_close_orders(filled_sell_orders, CloseType.STOP_LOSS)
+                elif self.has_stoch_reversed_for_sell():
+                    self.logger().info("stop_actions_proposal_rev() > Closing Sell reversion as TP")
+                    self.market_close_orders(filled_sell_orders, CloseType.TAKE_PROFIT)
 
         if len(filled_buy_orders) > 0:
-            if self.is_price_over_ma() and self.has_stoch_reversed_for_buy():
-                self.logger().info("stop_actions_proposal_rev() > Closing Buy reversion")
-                self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
+            if self.is_price_over_ma():
+                if not self.is_buy_order_profitable(filled_buy_orders):
+                    self.logger().info("stop_actions_proposal_rev() > Closing Buy reversion as SL")
+                    self.market_close_orders(filled_buy_orders, CloseType.STOP_LOSS)
+                elif self.has_stoch_reversed_for_buy():
+                    self.logger().info("stop_actions_proposal_rev() > Closing Buy reversion as TP")
+                    self.market_close_orders(filled_buy_orders, CloseType.TAKE_PROFIT)
 
     #
     # Getters on `self.processed_data[]`
@@ -244,6 +249,7 @@ class ExcaliburStrategy(PkStrategy):
         self.save_bottom_price(Decimal("Infinity"), self.get_market_data_provider_time())
         self.save_peak_price(Decimal(0.0), self.get_market_data_provider_time())
 
+        # TODO: remove this variable if it remains unused
         self.save_price_spike_or_crash_pct(Decimal(0.0), self.get_market_data_provider_time())
 
         self.save_bottom_stoch(Decimal(50.0), self.get_market_data_provider_time())
@@ -447,8 +453,22 @@ class ExcaliburStrategy(PkStrategy):
 
         return current_price > current_ma
 
+    def is_sell_order_profitable(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
+        pnl_pct = compute_sell_orders_pnl_pct(filled_sell_orders, self.get_current_close())
+
+        self.logger().info(f"is_sell_order_profitable() | pnl_pct:{pnl_pct}")
+
+        return pnl_pct > 0
+
+    def is_buy_order_profitable(self, filled_buy_orders: List[TrackedOrderDetails]) -> bool:
+        pnl_pct = compute_buy_orders_pnl_pct(filled_buy_orders, self.get_current_close())
+
+        self.logger().info(f"is_buy_order_profitable() | pnl_pct:{pnl_pct}")
+
+        return pnl_pct > 0
+
     def has_stoch_reversed_for_sell(self) -> bool:
-        stoch_series: pd.Series = self.processed_data["STOCH_10_k"]
+        stoch_series: pd.Series = self.processed_data["STOCH_15_k"]
         recent_stochs = stoch_series.iloc[-5:].reset_index(drop=True)
 
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
@@ -457,7 +477,7 @@ class ExcaliburStrategy(PkStrategy):
         if bottom_stoch_index == 0:
             return False
 
-        if bottom_stoch > 50:
+        if bottom_stoch > 40:
             return False
 
         timestamp_series: pd.Series = self.processed_data["timestamp"]
@@ -471,7 +491,7 @@ class ExcaliburStrategy(PkStrategy):
         saved_bottom_stoch, _ = self.saved_bottom_stoch
 
         stoch_threshold: Decimal = saved_bottom_stoch + 3
-        current_stoch = self.get_current_stoch(10)
+        current_stoch = self.get_current_stoch(15)
 
         self.logger().info(f"has_stoch_reversed_for_sell() | saved_bottom_stoch:{saved_bottom_stoch} | current_stoch:{current_stoch} | stoch_threshold:{stoch_threshold} | current_price:{self.get_current_close()}")
 
@@ -486,7 +506,7 @@ class ExcaliburStrategy(PkStrategy):
         return self.stoch_reversal_counter > 4
 
     def has_stoch_reversed_for_buy(self) -> bool:
-        stoch_series: pd.Series = self.processed_data["STOCH_10_k"]
+        stoch_series: pd.Series = self.processed_data["STOCH_15_k"]
         recent_stochs = stoch_series.iloc[-5:].reset_index(drop=True)
 
         peak_stoch: Decimal = Decimal(recent_stochs.max())
@@ -495,7 +515,7 @@ class ExcaliburStrategy(PkStrategy):
         if peak_stoch_index == 0:
             return False
 
-        if peak_stoch < 50:
+        if peak_stoch < 60:
             return False
 
         timestamp_series: pd.Series = self.processed_data["timestamp"]
@@ -509,7 +529,7 @@ class ExcaliburStrategy(PkStrategy):
         saved_peak_stoch, _ = self.saved_peak_stoch
 
         stoch_threshold: Decimal = saved_peak_stoch - 3
-        current_stoch = self.get_current_stoch(10)
+        current_stoch = self.get_current_stoch(15)
 
         self.logger().info(f"has_stoch_reversed_for_buy() | saved_peak_stoch:{saved_peak_stoch} | current_stoch:{current_stoch} | stoch_threshold:{stoch_threshold} | current_price:{self.get_current_close()}")
 
