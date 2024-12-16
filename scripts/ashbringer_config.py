@@ -16,7 +16,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
         CandlesConfig(
             connector="binance_perpetual",
             interval="1m",
-            max_records=70,
+            max_records=50,
             trading_pair = "GOAT-USDT"
         )
     ])
@@ -41,4 +41,4 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     # Order settings
     amount_quote: int = 30
     entry_price_delta_bps: int = 0
-    min_price_delta_pct_to_open: Decimal = 4.5
+    ma_reversal_bps: Decimal = 12.5  # 10.0 15.0
