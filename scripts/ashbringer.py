@@ -64,8 +64,8 @@ class ExcaliburStrategy(PkStrategy):
             )
 
         saved_price_spike_or_crash_pct, _ = self.saved_price_spike_or_crash_pct
-        take_profit_pct: Decimal = saved_price_spike_or_crash_pct / 3
-        stop_loss_pct: Decimal = saved_price_spike_or_crash_pct / 2
+        take_profit_pct: Decimal = saved_price_spike_or_crash_pct / 2
+        stop_loss_pct: Decimal = take_profit_pct * Decimal(1.5)
 
         return TripleBarrier(
             open_order_type=OrderType.MARKET,
@@ -460,18 +460,6 @@ class ExcaliburStrategy(PkStrategy):
         return all(recent_lows[i] > recent_mahs[i] for i in range(len(recent_lows)))
 
     def save_ma_channel_sell_price_delta_pct(self, candle_count: int):
-        high_series: pd.Series = self.processed_data["high"]
-        high: Decimal = Decimal(high_series.iloc[-candle_count])
-
-        current_price = self.get_current_close()
-
-        delta_pct: Decimal = (high - current_price) / current_price * 100
-
-        self.logger().info(f"save_ma_channel_sell_price_delta_pct() | high:{high} | current_price:{current_price} | delta_pct:{delta_pct}")
-
-        self.save_price_spike_or_crash_pct(delta_pct, self.get_market_data_provider_time())
-
-    def save_ma_channel_buy_price_delta_pct(self, candle_count: int):
         low_series: pd.Series = self.processed_data["low"]
         low: Decimal = Decimal(low_series.iloc[-candle_count])
 
@@ -479,6 +467,18 @@ class ExcaliburStrategy(PkStrategy):
 
         delta_pct: Decimal = (current_price - low) / current_price * 100
 
-        self.logger().info(f"save_ma_channel_buy_price_delta_pct() | low:{low} | current_price:{current_price} | delta_pct:{delta_pct}")
+        self.logger().info(f"save_ma_channel_sell_price_delta_pct() | low:{low} | current_price:{current_price} | delta_pct:{delta_pct}")
+
+        self.save_price_spike_or_crash_pct(delta_pct, self.get_market_data_provider_time())
+
+    def save_ma_channel_buy_price_delta_pct(self, candle_count: int):
+        high_series: pd.Series = self.processed_data["high"]
+        high: Decimal = Decimal(high_series.iloc[-candle_count])
+
+        current_price = self.get_current_close()
+
+        delta_pct: Decimal = (high - current_price) / current_price * 100
+
+        self.logger().info(f"save_ma_channel_buy_price_delta_pct() | high:{high} | current_price:{current_price} | delta_pct:{delta_pct}")
 
         self.save_price_spike_or_crash_pct(delta_pct, self.get_market_data_provider_time())
