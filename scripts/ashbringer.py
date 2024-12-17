@@ -92,6 +92,7 @@ class ExcaliburStrategy(PkStrategy):
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
 
         candles_df["RSI_20"] = candles_df.ta.rsi(length=20)
+        candles_df["RSI_40"] = candles_df.ta.rsi(length=40)
 
         # Calling the lower-level function, because the one in core.py has a bug in the argument names
         stoch_40_df = stoch(
@@ -150,6 +151,7 @@ class ExcaliburStrategy(PkStrategy):
                     "close",
                     "volume",
                     "RSI_20",
+                    "RSI_40",
                     "STOCH_40_k",
                     "SMA_10_h",
                     "SMA_10_l"
@@ -239,6 +241,7 @@ class ExcaliburStrategy(PkStrategy):
                 self.did_price_cross_under_mal(candle_index_candle_crossing_ma) and
                 self.are_candles_fully_below_mal(candle_count_outside_ma) and
                 self.are_candles_red(candle_count_outside_ma) and
+                not self.is_recent_rsi_too_low(3) and
                 self.is_price_continuing_down_trend()
             ):
                 self.logger().info("can_create_ma_channel_order() > Opening Sell MA-C")
@@ -251,6 +254,7 @@ class ExcaliburStrategy(PkStrategy):
                 self.did_price_cross_over_mah(candle_index_candle_crossing_ma) and
                 self.are_candles_fully_above_mah(candle_count_outside_ma) and
                 self.are_candles_green(candle_count_outside_ma) and
+                not self.is_recent_rsi_too_high(3) and
                 self.is_price_continuing_up_trend()
         ):
             self.logger().info("can_create_ma_channel_order() > Opening Buy MA-C")
@@ -506,6 +510,26 @@ class ExcaliburStrategy(PkStrategy):
 
         return all(recent_lows[i] > recent_mahs[i] for i in range(len(recent_lows)))
 
+    def is_recent_rsi_too_low(self, candle_count: int) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI_40"]
+        recent_rsis = rsi_series.iloc[-candle_count:].reset_index(drop=True)
+        bottom_rsi: Decimal = Decimal(recent_rsis.min())
+
+        if bottom_rsi < 40:
+            self.logger().info(f"is_recent_rsi_too_low() | bottom_rsi:{bottom_rsi}")
+
+        return bottom_rsi < 40
+
+    def is_recent_rsi_too_high(self, candle_count: int) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI_40"]
+        recent_rsis = rsi_series.iloc[-candle_count:].reset_index(drop=True)
+        peak_rsi: Decimal = Decimal(recent_rsis.max())
+
+        if peak_rsi > 60:
+            self.logger().info(f"is_recent_rsi_too_high() | peak_rsi:{peak_rsi}")
+
+        return peak_rsi > 60
+
     def is_price_continuing_down_trend(self) -> bool:
         current_price: Decimal = self.get_current_close()
 
@@ -550,7 +574,7 @@ class ExcaliburStrategy(PkStrategy):
 
         delta_pct: Decimal = (high - current_price) / current_price * 100
 
-        self.logger().info(f"compute_ma_channel_sell_price_delta_pct() | high:{high} | current_price:{current_price} | delta_pct:{delta_pct}")
+        self.logger().info(f"save_ma_channel_sell_price_delta_pct() | high:{high} | current_price:{current_price} | delta_pct:{delta_pct}")
 
         self.save_price_spike_or_crash_pct(delta_pct, self.get_market_data_provider_time())
 
@@ -562,6 +586,6 @@ class ExcaliburStrategy(PkStrategy):
 
         delta_pct: Decimal = (current_price - low) / current_price * 100
 
-        self.logger().info(f"compute_ma_channel_buy_price_delta_pct() | low:{low} | current_price:{current_price} | delta_pct:{delta_pct}")
+        self.logger().info(f"save_ma_channel_buy_price_delta_pct() | low:{low} | current_price:{current_price} | delta_pct:{delta_pct}")
 
         self.save_price_spike_or_crash_pct(delta_pct, self.get_market_data_provider_time())
