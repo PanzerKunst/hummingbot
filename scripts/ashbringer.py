@@ -28,9 +28,9 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 #                start --script ashbringer.py --conf conf_ashbringer_WIF.yml
 # Quickstart script: -p=a -f ashbringer.py -c conf_ashbringer_GOAT.yml
 
-ORDER_REF_TREND_REV: str = "TrendReversal"
-ORDER_REF_MA_CHANNEL: str = "MaChannel"
-CANDLE_COUNT_FOR_STOCH_REV_AND_MA_CHANNEL: int = 5
+ORDER_REF_TREND_REVERSAL: str = "TrendReversal"
+ORDER_REF_MEAN_REVERSION: str = "MeanReversion"
+CANDLE_COUNT_FOR_STOCH_REVERSAL_AND_MEAN_REVERSION: int = 5
 
 
 class ExcaliburStrategy(PkStrategy):
@@ -57,15 +57,15 @@ class ExcaliburStrategy(PkStrategy):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
     def get_triple_barrier(self, ref: str) -> TripleBarrier:
-        if ref == ORDER_REF_TREND_REV:
+        if ref == ORDER_REF_TREND_REVERSAL:
             return TripleBarrier(
                 open_order_type=OrderType.MARKET,
                 stop_loss=self.config.trend_rev_stop_loss_pct / 100
             )
 
         saved_price_spike_or_crash_pct, _ = self.saved_price_spike_or_crash_pct
-        take_profit_pct: Decimal = saved_price_spike_or_crash_pct / 2
-        stop_loss_pct: Decimal = take_profit_pct / 2
+        take_profit_pct: Decimal = saved_price_spike_or_crash_pct / 3
+        stop_loss_pct: Decimal = saved_price_spike_or_crash_pct / 2
 
         return TripleBarrier(
             open_order_type=OrderType.MARKET,
@@ -92,7 +92,6 @@ class ExcaliburStrategy(PkStrategy):
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
 
         candles_df["RSI_20"] = candles_df.ta.rsi(length=20)
-        candles_df["RSI_40"] = candles_df.ta.rsi(length=40)
 
         # Calling the lower-level function, because the one in core.py has a bug in the argument names
         stoch_40_df = stoch(
@@ -122,9 +121,9 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
-        self.check_context(CANDLE_COUNT_FOR_STOCH_REV_AND_MA_CHANNEL + 1)
+        self.check_context(CANDLE_COUNT_FOR_STOCH_REVERSAL_AND_MEAN_REVERSION + 1)
         self.create_actions_proposal_trend_reversal()
-        self.create_actions_proposal_ma_channel()
+        self.create_actions_proposal_mean_reversion()
 
         return []  # Always return []
 
@@ -136,7 +135,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.check_orders()
         self.stop_actions_proposal_trend_reversal()
-        self.stop_actions_proposal_ma_channel()
+        self.stop_actions_proposal_mean_reversion()
 
         return []  # Always return []
 
@@ -151,7 +150,6 @@ class ExcaliburStrategy(PkStrategy):
                     "close",
                     "volume",
                     "RSI_20",
-                    "RSI_40",
                     "STOCH_40_k",
                     "SMA_10_h",
                     "SMA_10_l"
@@ -166,18 +164,18 @@ class ExcaliburStrategy(PkStrategy):
     #
 
     def create_actions_proposal_trend_reversal(self):
-        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_TREND_REV)
+        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_TREND_REVERSAL)
         active_orders = active_sell_orders + active_buy_orders
 
         if self.can_create_trend_reversal_order(TradeType.BUY, active_orders):
-            triple_barrier = self.get_triple_barrier(ORDER_REF_TREND_REV)
+            triple_barrier = self.get_triple_barrier(ORDER_REF_TREND_REVERSAL)
 
             asyncio.get_running_loop().create_task(
-                self.create_twap_market_orders(TradeType.BUY, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_TREND_REV)
+                self.create_twap_market_orders(TradeType.BUY, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_TREND_REVERSAL)
             )
 
     def can_create_trend_reversal_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_TREND_REV, 0):
+        if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_TREND_REVERSAL, 0):
             return False
 
         if len(active_tracked_orders) > 0:
@@ -191,79 +189,66 @@ class ExcaliburStrategy(PkStrategy):
             self.is_price_crashing(history_candle_count) and
             self.is_price_bottom_recent(history_candle_count, 5)
         ):
-            self.logger().info("can_create_ma_channel_order() > Opening Buy Trend Reversal")
+            self.logger().info("can_create_trend_reversal_order() > Opening Buy Trend Reversal")
             return True
 
         return False
 
     def stop_actions_proposal_trend_reversal(self):
-        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_TREND_REV)
+        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_TREND_REVERSAL)
 
         if len(filled_buy_orders) > 0:
-            if self.has_stoch_reversed_for_buy(CANDLE_COUNT_FOR_STOCH_REV_AND_MA_CHANNEL):
+            if self.has_stoch_reversed_for_buy(CANDLE_COUNT_FOR_STOCH_REVERSAL_AND_MEAN_REVERSION):
                 self.logger().info("stop_actions_proposal_rev() > Closing Buy Trend Reversal")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
 
     #
-    # MA Channel start/stop action proposals
+    # Mean Reversion start/stop action proposals
     #
 
-    def create_actions_proposal_ma_channel(self):
-        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_MA_CHANNEL)
+    def create_actions_proposal_mean_reversion(self):
+        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_MEAN_REVERSION)
         active_orders = active_sell_orders + active_buy_orders
 
-        if self.can_create_ma_channel_order(TradeType.SELL, active_orders):
-            triple_barrier = self.get_triple_barrier(ORDER_REF_MA_CHANNEL)
+        if self.can_create_mean_reversion_order(TradeType.SELL, active_orders):
+            triple_barrier = self.get_triple_barrier(ORDER_REF_MEAN_REVERSION)
 
             asyncio.get_running_loop().create_task(
-                self.create_twap_market_orders(TradeType.SELL, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_MA_CHANNEL)
+                self.create_twap_market_orders(TradeType.SELL, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_MEAN_REVERSION)
             )
 
-        if self.can_create_ma_channel_order(TradeType.BUY, active_orders):
-            triple_barrier = self.get_triple_barrier(ORDER_REF_MA_CHANNEL)
+        if self.can_create_mean_reversion_order(TradeType.BUY, active_orders):
+            triple_barrier = self.get_triple_barrier(ORDER_REF_MEAN_REVERSION)
 
             asyncio.get_running_loop().create_task(
-                self.create_twap_market_orders(TradeType.BUY, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_MA_CHANNEL)
+                self.create_twap_market_orders(TradeType.BUY, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_MEAN_REVERSION)
             )
 
-    def can_create_ma_channel_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_MA_CHANNEL, 0):
+    def can_create_mean_reversion_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
+        if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_MEAN_REVERSION, 5):
             return False
 
         if len(active_tracked_orders) > 0:
             return False
 
-        candle_index_candle_crossing_ma: int = -CANDLE_COUNT_FOR_STOCH_REV_AND_MA_CHANNEL
-        candle_count_outside_ma: int = CANDLE_COUNT_FOR_STOCH_REV_AND_MA_CHANNEL - 2
+        candle_count_outside_ma: int = CANDLE_COUNT_FOR_STOCH_REVERSAL_AND_MEAN_REVERSION - 1
 
         if side == TradeType.SELL:
-            if (
-                self.did_price_cross_under_mal(candle_index_candle_crossing_ma) and
-                self.are_candles_fully_below_mal(candle_count_outside_ma) and
-                self.are_candles_red(candle_count_outside_ma) and
-                not self.is_recent_rsi_too_low(3) and
-                self.is_price_continuing_down_trend()
-            ):
-                self.logger().info("can_create_ma_channel_order() > Opening Sell MA-C")
-                self.save_ma_channel_sell_price_delta_pct(CANDLE_COUNT_FOR_STOCH_REV_AND_MA_CHANNEL)
+            if self.are_candles_fully_above_mah(candle_count_outside_ma) and self.are_candles_green(candle_count_outside_ma):
+                self.logger().info("can_create_mean_reversion_order() > Opening Sell MA-C")
+                self.save_ma_channel_sell_price_delta_pct(CANDLE_COUNT_FOR_STOCH_REVERSAL_AND_MEAN_REVERSION)
                 return True
 
             return False
 
-        if (
-                self.did_price_cross_over_mah(candle_index_candle_crossing_ma) and
-                self.are_candles_fully_above_mah(candle_count_outside_ma) and
-                self.are_candles_green(candle_count_outside_ma) and
-                not self.is_recent_rsi_too_high(3) and
-                self.is_price_continuing_up_trend()
-        ):
-            self.logger().info("can_create_ma_channel_order() > Opening Buy MA-C")
-            self.save_ma_channel_buy_price_delta_pct(CANDLE_COUNT_FOR_STOCH_REV_AND_MA_CHANNEL)
+        if self.are_candles_fully_below_mal(candle_count_outside_ma) and self.are_candles_red(candle_count_outside_ma):
+            self.logger().info("can_create_mean_reversion_order() > Opening Buy MA-C")
+            self.save_ma_channel_buy_price_delta_pct(CANDLE_COUNT_FOR_STOCH_REVERSAL_AND_MEAN_REVERSION)
             return True
 
         return False
 
-    def stop_actions_proposal_ma_channel(self):
+    def stop_actions_proposal_mean_reversion(self):
         pass
 
     #
@@ -302,7 +287,6 @@ class ExcaliburStrategy(PkStrategy):
         self.save_price_spike_or_crash_pct(Decimal(0.0), self.get_market_data_provider_time())
 
         self.stoch_reversal_counter: int = 0
-        self.trend_continuation_counter: int = 0
 
     def save_peak_stoch(self, peak_stoch: Decimal, timestamp: float):
         self.saved_peak_stoch: Tuple[Decimal, float] = peak_stoch, timestamp
@@ -336,8 +320,7 @@ class ExcaliburStrategy(PkStrategy):
         return (
             saved_peak_stoch == Decimal(50.0) and
             saved_price_spike_or_crash_pct == Decimal(0.0) and
-            self.stoch_reversal_counter == 0 and
-            self.trend_continuation_counter == 0
+            self.stoch_reversal_counter == 0
         )
 
     #
@@ -410,7 +393,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_price_bottom_recent() | bottom_price_index:{bottom_price_index}")
 
-        return bottom_price_index > history_candle_count - recent_candle_count
+        return bottom_price_index >= history_candle_count - recent_candle_count
 
     def has_stoch_reversed_for_buy(self, candle_count: int) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
@@ -451,32 +434,8 @@ class ExcaliburStrategy(PkStrategy):
         return self.stoch_reversal_counter > 4
 
     #
-    # MA Channel functions
+    # Mean Reversion functions
     #
-
-    def did_price_cross_under_mal(self, candle_index: int) -> bool:
-        high_series: pd.Series = self.processed_data["high"]
-        high: Decimal = Decimal(high_series.iloc[candle_index])
-
-        close_series: pd.Series = self.processed_data["close"]
-        close: Decimal = Decimal(close_series.iloc[candle_index])
-
-        mal_series: pd.Series = self.processed_data["SMA_10_l"]
-        mal: Decimal = Decimal(mal_series.iloc[candle_index])
-
-        return close < mal < high
-
-    def did_price_cross_over_mah(self, candle_index: int) -> bool:
-        low_series: pd.Series = self.processed_data["low"]
-        low: Decimal = Decimal(low_series.iloc[candle_index])
-
-        close_series: pd.Series = self.processed_data["close"]
-        close: Decimal = Decimal(close_series.iloc[candle_index])
-
-        mah_series: pd.Series = self.processed_data["SMA_10_h"]
-        mah: Decimal = Decimal(mah_series.iloc[candle_index])
-
-        return low < mah < close
 
     def are_candles_fully_below_mal(self, candle_count: int) -> bool:
         candle_start_index: int = -candle_count - 1
@@ -499,62 +458,6 @@ class ExcaliburStrategy(PkStrategy):
         recent_mahs = mah_series.iloc[candle_start_index:-1].reset_index(drop=True)
 
         return all(recent_lows[i] > recent_mahs[i] for i in range(len(recent_lows)))
-
-    def is_recent_rsi_too_low(self, candle_count: int) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI_40"]
-        recent_rsis = rsi_series.iloc[-candle_count:].reset_index(drop=True)
-        bottom_rsi: Decimal = Decimal(recent_rsis.min())
-
-        if bottom_rsi < 40:
-            self.logger().info(f"is_recent_rsi_too_low() | bottom_rsi:{bottom_rsi}")
-
-        return bottom_rsi < 40
-
-    def is_recent_rsi_too_high(self, candle_count: int) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI_40"]
-        recent_rsis = rsi_series.iloc[-candle_count:].reset_index(drop=True)
-        peak_rsi: Decimal = Decimal(recent_rsis.max())
-
-        if peak_rsi > 60:
-            self.logger().info(f"is_recent_rsi_too_high() | peak_rsi:{peak_rsi}")
-
-        return peak_rsi > 60
-
-    def is_price_continuing_down_trend(self) -> bool:
-        current_price: Decimal = self.get_current_close()
-
-        close_series: pd.Series = self.processed_data["close"]
-        last_close = Decimal(close_series.iloc[-2])
-
-        self.logger().info(f"is_price_continuing_down_trend() | current_price:{current_price} | last_close:{last_close}")
-
-        if current_price > last_close:
-            self.trend_continuation_counter = 0
-            self.logger().info("is_price_continuing_down_trend() | resetting self.trend_continuation_counter to 0")
-            return False
-
-        self.trend_continuation_counter += 1
-        self.logger().info(f"is_price_continuing_down_trend() | incremented self.trend_continuation_counter to:{self.trend_continuation_counter}")
-
-        return self.trend_continuation_counter > 9
-
-    def is_price_continuing_up_trend(self) -> bool:
-        current_price: Decimal = self.get_current_close()
-
-        close_series: pd.Series = self.processed_data["close"]
-        last_close = Decimal(close_series.iloc[-2])
-
-        self.logger().info(f"is_price_continuing_up_trend() | current_price:{current_price} | last_close:{last_close}")
-
-        if current_price < last_close:
-            self.trend_continuation_counter = 0
-            self.logger().info("is_price_continuing_up_trend() | resetting self.trend_continuation_counter to 0")
-            return False
-
-        self.trend_continuation_counter += 1
-        self.logger().info(f"is_price_continuing_up_trend() | incremented self.trend_continuation_counter to:{self.trend_continuation_counter}")
-
-        return self.trend_continuation_counter > 9
 
     def save_ma_channel_sell_price_delta_pct(self, candle_count: int):
         high_series: pd.Series = self.processed_data["high"]
