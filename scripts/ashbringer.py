@@ -65,7 +65,7 @@ class ExcaliburStrategy(PkStrategy):
 
         saved_price_spike_or_crash_pct, _ = self.saved_price_spike_or_crash_pct
         take_profit_pct: Decimal = saved_price_spike_or_crash_pct / 2
-        stop_loss_pct: Decimal = take_profit_pct / 3
+        stop_loss_pct: Decimal = take_profit_pct / 2
 
         return TripleBarrier(
             open_order_type=OrderType.MARKET,
