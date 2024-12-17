@@ -15,8 +15,8 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     candles_config: List[CandlesConfig] = Field(default_factory=lambda: [
         CandlesConfig(
             connector="binance_perpetual",
-            interval="1m",
-            max_records=50,
+            interval="3m",
+            max_records=70,
             trading_pair = "GOAT-USDT"
         )
     ])
@@ -37,8 +37,9 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     position_mode: PositionMode = PositionMode.ONEWAY
 
     # Triple Barrier
+    stop_loss_pct: Decimal = 0.25
 
     # Order settings
     amount_quote: int = 30
     entry_price_delta_bps: int = 0
-    ma_reversal_bps: Decimal = 12.5  # 10.0 15.0
+    min_price_delta_pct_to_open: Decimal = 5.0

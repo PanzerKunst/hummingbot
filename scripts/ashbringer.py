@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Dict, List, Tuple
 
 import pandas as pd
-from pandas_ta import sma
+from pandas_ta import stoch
 
 from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
@@ -14,7 +14,6 @@ from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.ashbringer_config import ExcaliburConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
-from scripts.pk.pk_utils import compute_buy_orders_pnl_pct, compute_sell_orders_pnl_pct, was_an_order_recently_opened
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 # Generate config file: create --script-config ashbringer_config
@@ -29,7 +28,8 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 #                start --script ashbringer.py --conf conf_ashbringer_WIF.yml
 # Quickstart script: -p=a -f ashbringer.py -c conf_ashbringer_GOAT.yml
 
-ORDER_REF_MA_CHANNEL = "MaChannel"
+ORDER_REF_TREND_REV: str = "TrendReversal"
+CANDLE_COUNT_FOR_STOCH_REV: int = 5
 
 
 class ExcaliburStrategy(PkStrategy):
@@ -58,6 +58,7 @@ class ExcaliburStrategy(PkStrategy):
     def get_triple_barrier(self) -> TripleBarrier:
         return TripleBarrier(
             open_order_type=OrderType.MARKET,
+            stop_loss=self.config.stop_loss_pct / 100
         )
 
     def update_processed_data(self):
@@ -79,10 +80,17 @@ class ExcaliburStrategy(PkStrategy):
 
         candles_df["RSI_20"] = candles_df.ta.rsi(length=20)
 
-        candles_df["SMA_10_h"] = sma(close=candles_df["high"], length=10)
-        candles_df["SMA_10_l"] = sma(close=candles_df["low"], length=10)
+        # Calling the lower-level function, because the one in core.py has a bug in the argument names
+        stoch_40_df = stoch(
+            high=candles_df["high"],
+            low=candles_df["low"],
+            close=candles_df["close"],
+            k=40,
+            d=1,
+            smooth_k=1
+        )
 
-        candles_df["SMA_19"] = candles_df.ta.sma(length=19)
+        candles_df["STOCH_40_k"] = stoch_40_df["STOCHk_40_1_1"]
 
         candles_df.dropna(inplace=True)
 
@@ -97,8 +105,8 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
-        self.check_context(6)  # `candle_count_for_ma_reversal` + 1
-        self.create_actions_proposal_ma_channel()
+        self.check_context(CANDLE_COUNT_FOR_STOCH_REV + 1)
+        self.create_actions_proposal_trend_reversal()
 
         return []  # Always return []
 
@@ -109,7 +117,7 @@ class ExcaliburStrategy(PkStrategy):
             return []
 
         self.check_orders()
-        self.stop_actions_proposal_ma_channel()
+        self.stop_actions_proposal_trend_reversal()
 
         return []  # Always return []
 
@@ -124,9 +132,7 @@ class ExcaliburStrategy(PkStrategy):
                     "close",
                     "volume",
                     "RSI_20",
-                    "SMA_10_h",
-                    "SMA_10_l",
-                    "SMA_19"
+                    "STOCH_40_k"
                 ]
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display], table_format="psql"))
@@ -134,81 +140,48 @@ class ExcaliburStrategy(PkStrategy):
         return original_status + "\n".join(custom_status)
 
     #
-    # MA Channel start/stop action proposals
+    # Trend Reversal start/stop action proposals
     #
 
-    def create_actions_proposal_ma_channel(self):
-        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_MA_CHANNEL)
+    def create_actions_proposal_trend_reversal(self):
+        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_TREND_REV)
         active_orders = active_sell_orders + active_buy_orders
 
-        if self.can_create_ma_channel_order(TradeType.SELL, active_orders):
-            entry_price: Decimal = self.get_mid_price() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
-            triple_barrier = self.get_triple_barrier()
-
-            asyncio.get_running_loop().create_task(
-                self.create_twap_market_orders(TradeType.SELL, entry_price, triple_barrier, self.config.amount_quote, ORDER_REF_MA_CHANNEL)
-            )
-
-        if self.can_create_ma_channel_order(TradeType.BUY, active_orders):
+        if self.can_create_trend_reversal_order(TradeType.BUY, active_orders):
             entry_price: Decimal = self.get_mid_price() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
             triple_barrier = self.get_triple_barrier()
 
             asyncio.get_running_loop().create_task(
-                self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote, ORDER_REF_MA_CHANNEL)
+                self.create_twap_market_orders(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote, ORDER_REF_TREND_REV)
             )
 
-    def can_create_ma_channel_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_MA_CHANNEL, 5):
+    def can_create_trend_reversal_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
+        if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_TREND_REV, 0):
             return False
 
         if len(active_tracked_orders) > 0:
             return False
 
-        candle_count_for_ma_channel: int = 4
-
-        if side == TradeType.SELL:
-            if (
-                self.are_candles_fully_below_mal(candle_count_for_ma_channel) and
-                self.are_candles_all_red(candle_count_for_ma_channel) and
-                not self.is_recent_rsi_too_low_to_open_sell()
-            ):
-                self.logger().info("can_create_ma_channel_order() > Opening Sell MA-C")
-                return True
-
-            return False
+        history_candle_count: int = 25
 
         if (
-            self.are_candles_fully_above_mah(candle_count_for_ma_channel) and
-            self.are_candles_all_green(candle_count_for_ma_channel) and
-            not self.is_recent_rsi_too_high_to_open_buy()
+            self.is_recent_rsi_low_enough(5) and
+            self.are_last_candles_green(3) and
+            self.is_price_crashing(history_candle_count) and
+            self.is_price_bottom_recent(history_candle_count, 5)
         ):
-            self.logger().info("can_create_ma_channel_order() > Opening Buy MA-C")
+            self.logger().info("can_create_ma_channel_order() > Opening Buy Trend Reversal")
             return True
 
         return False
 
-    def stop_actions_proposal_ma_channel(self):
-        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_MA_CHANNEL)
-
-        candle_count_for_ma_reversal: int = 5
-
-        if len(filled_sell_orders) > 0:
-            if self.has_order_been_open_long_enough(filled_sell_orders):
-                if not self.is_sell_order_profitable(filled_sell_orders):
-                    self.logger().info("stop_actions_proposal_ma_channel() > Closing Sell MA-C: Negative PnL")
-                    self.market_close_orders(filled_sell_orders, CloseType.STOP_LOSS)
-                elif self.has_ma_reversed_for_sell(candle_count_for_ma_reversal):
-                    self.logger().info("stop_actions_proposal_rev() > Closing Sell MA-C")
-                    self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
+    def stop_actions_proposal_trend_reversal(self):
+        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_TREND_REV)
 
         if len(filled_buy_orders) > 0:
-            if self.has_order_been_open_long_enough(filled_buy_orders):
-                if not self.is_buy_order_profitable(filled_buy_orders):
-                    self.logger().info("stop_actions_proposal_ma_channel() > Closing Buy MA-C: Negative PnL")
-                    self.market_close_orders(filled_buy_orders, CloseType.STOP_LOSS)
-                elif self.has_ma_reversed_for_buy(candle_count_for_ma_reversal):
-                    self.logger().info("stop_actions_proposal_rev() > Closing Buy MA-C")
-                    self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
+            if self.has_stoch_reversed_for_buy(CANDLE_COUNT_FOR_STOCH_REV):
+                self.logger().info("stop_actions_proposal_rev() > Closing Buy Trend Reversal")
+                self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
 
     #
     # Getters on `self.processed_data[]`
@@ -224,45 +197,27 @@ class ExcaliburStrategy(PkStrategy):
         close_series: pd.Series = self.processed_data["close"]
         return Decimal(close_series.iloc[index])
 
-    def get_current_rsi(self, length: int) -> Decimal:
-        rsi_series: pd.Series = self.processed_data[f"RSI_{length}"]
-        return Decimal(rsi_series.iloc[-1])
-
-    def get_current_mah(self) -> Decimal:
-        smah_series: pd.Series = self.processed_data["SMA_10_h"]
-        return Decimal(smah_series.iloc[-1])
-
-    def get_current_mal(self) -> Decimal:
-        smal_series: pd.Series = self.processed_data["SMA_10_l"]
-        return Decimal(smal_series.iloc[-1])
-
-    def get_current_ma(self) -> Decimal:
-        sma_series: pd.Series = self.processed_data["SMA_19"]
-        return Decimal(sma_series.iloc[-1])
+    def get_current_stoch(self) -> Decimal:
+        stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
+        return Decimal(stoch_series.iloc[-1])
 
     #
     # Context functions
     #
 
     def reset_context(self):
-        self.save_bottom_ma(Decimal("Infinity"), self.get_market_data_provider_time())
-        self.save_peak_ma(Decimal(0.0), self.get_market_data_provider_time())
+        self.save_peak_stoch(Decimal(50.0), self.get_market_data_provider_time())
 
-        self.ma_reversal_counter: int = 0
+        self.stoch_reversal_counter: int = 0
 
-    def save_bottom_ma(self, bottom_ma: Decimal, timestamp: float):
-        self.saved_bottom_ma: Tuple[Decimal, float] = bottom_ma, timestamp
-
-    def save_peak_ma(self, peak_ma: Decimal, timestamp: float):
-        self.saved_peak_ma: Tuple[Decimal, float] = peak_ma, timestamp
+    def save_peak_stoch(self, peak_stoch: Decimal, timestamp: float):
+        self.saved_peak_stoch: Tuple[Decimal, float] = peak_stoch, timestamp
 
     def check_context(self, lifetime_minutes: int):
-        saved_bottom_ma, saved_bottom_ma_timestamp = self.saved_bottom_ma
-        saved_peak_ma, saved_peak_ma_timestamp = self.saved_peak_ma
+        saved_peak_stoch, saved_peak_stoch_timestamp = self.saved_peak_stoch
 
         all_timestamps: List[float] = [
-            saved_bottom_ma_timestamp,
-            saved_peak_ma_timestamp
+            saved_peak_stoch_timestamp
         ]
 
         last_acceptable_timestamp = self.get_market_data_provider_time() - lifetime_minutes * 60
@@ -274,53 +229,28 @@ class ExcaliburStrategy(PkStrategy):
             self.reset_context()
 
     def is_context_default(self) -> bool:
-        saved_bottom_ma, _ = self.saved_bottom_ma
-        saved_peak_ma, _ = self.saved_peak_ma
+        saved_peak_stoch, _ = self.saved_peak_stoch
 
         return (
-            saved_bottom_ma == Decimal("Infinity") and
-            saved_peak_ma == Decimal(0.0) and
-            self.ma_reversal_counter == 0
+            saved_peak_stoch == Decimal(50.0) and
+            self.stoch_reversal_counter == 0
         )
 
     #
-    # MA Channel functions
+    # Trend Reversal functions
     #
 
-    def are_candles_fully_below_mal(self, candle_count: int) -> bool:
-        candle_start_index: int = -candle_count - 1
+    def is_recent_rsi_low_enough(self, candle_count: int) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI_20"]
+        recent_rsis = rsi_series.iloc[-candle_count:].reset_index(drop=True)
+        bottom_rsi: Decimal = Decimal(recent_rsis.min())
 
-        high_series: pd.Series = self.processed_data["high"]
-        recent_highs = high_series.iloc[candle_start_index:-1].reset_index(drop=True)
+        if bottom_rsi < 29:
+            self.logger().info(f"is_recent_rsi_low_enough() | bottom_rsi:{bottom_rsi}")
 
-        mal_series: pd.Series = self.processed_data["SMA_10_l"]
-        recent_mals = mal_series.iloc[candle_start_index:-1].reset_index(drop=True)
+        return bottom_rsi < 29
 
-        return all(recent_highs[i] < recent_mals[i] for i in range(len(recent_highs)))
-
-    def are_candles_fully_above_mah(self, candle_count: int) -> bool:
-        candle_start_index: int = -candle_count - 1
-
-        low_series: pd.Series = self.processed_data["low"]
-        recent_lows = low_series.iloc[candle_start_index:-1].reset_index(drop=True)
-
-        mah_series: pd.Series = self.processed_data["SMA_10_h"]
-        recent_mahs = mah_series.iloc[candle_start_index:-1].reset_index(drop=True)
-
-        return all(recent_lows[i] > recent_mahs[i] for i in range(len(recent_lows)))
-
-    def are_candles_all_red(self, candle_count: int) -> bool:
-        candle_start_index: int = -candle_count - 1
-
-        open_series: pd.Series = self.processed_data["open"]
-        recent_opens = open_series.iloc[candle_start_index:-1].reset_index(drop=True)
-
-        close_series: pd.Series = self.processed_data["close"]
-        recent_closes = close_series.iloc[candle_start_index:-1].reset_index(drop=True)
-
-        return all(recent_closes[i] < recent_opens[i] for i in range(len(recent_opens)))
-
-    def are_candles_all_green(self, candle_count: int) -> bool:
+    def are_last_candles_green(self, candle_count: int) -> bool:
         candle_start_index: int = -candle_count - 1
 
         open_series: pd.Series = self.processed_data["open"]
@@ -331,109 +261,86 @@ class ExcaliburStrategy(PkStrategy):
 
         return all(recent_closes[i] > recent_opens[i] for i in range(len(recent_opens)))
 
-    def is_recent_rsi_too_low_to_open_sell(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI_20"]
-        recent_rsis = rsi_series.iloc[-4:]
-        bottom_rsi: Decimal = Decimal(recent_rsis.min())
+    def is_price_crashing(self, candle_count: int) -> bool:
+        low_series: pd.Series = self.processed_data["low"]
+        recent_lows = low_series.iloc[-candle_count:].reset_index(drop=True)
 
-        if bottom_rsi < 35:
-            self.logger().info(f"is_recent_rsi_too_low_to_open_sell() | bottom_rsi:{bottom_rsi}")
+        high_series: pd.Series = self.processed_data["high"]
+        recent_highs = high_series.iloc[-candle_count:].reset_index(drop=True)
 
-        return bottom_rsi < 35
+        bottom_price = Decimal(recent_lows.min())
+        bottom_price_index = recent_lows.idxmin()
 
-    def is_recent_rsi_too_high_to_open_buy(self) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI_20"]
-        recent_rsis = rsi_series.iloc[-4:]
-        peak_rsi: Decimal = Decimal(recent_rsis.max())
+        if bottom_price_index == 0:
+            return False
 
-        if peak_rsi > 65:
-            self.logger().info(f"is_recent_rsi_too_high_to_open_buy() | peak_rsi:{peak_rsi}")
+        peak_price = Decimal(recent_highs.iloc[0:bottom_price_index].max())
+        price_delta_pct: Decimal = (peak_price - bottom_price) / bottom_price * 100
+        is_crashing = self.config.min_price_delta_pct_to_open < price_delta_pct
 
-        return peak_rsi > 65
+        if is_crashing:
+            self.logger().info(f"is_price_crashing() | current_price:{self.get_current_close()} | bottom_price_index:{bottom_price_index} | bottom_price:{bottom_price} | peak_price:{peak_price} | price_delta_pct:{price_delta_pct}")
 
-    def has_order_been_open_long_enough(self, filled_orders: List[TrackedOrderDetails]) -> bool:
-        return not was_an_order_recently_opened(filled_orders, 5 * 60, self.get_market_data_provider_time())
+        return is_crashing
 
-    def is_sell_order_profitable(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
-        pnl_pct: Decimal = compute_sell_orders_pnl_pct(filled_sell_orders, self.get_mid_price())
+    def is_price_bottom_recent(self, history_candle_count: int, recent_candle_count: int) -> bool:
+        low_series: pd.Series = self.processed_data["low"]
+        lows = low_series.iloc[-history_candle_count:].reset_index(drop=True)
 
-        self.logger().info(f"is_sell_order_profitable() | pnl_pct:{pnl_pct}")
+        bottom_price_index = lows.idxmin()
 
-        return pnl_pct > 0
+        self.logger().info(f"is_price_bottom_recent() | bottom_price_index:{bottom_price_index}")
 
-    def is_buy_order_profitable(self, filled_buy_orders: List[TrackedOrderDetails]) -> bool:
-        pnl_pct: Decimal = compute_buy_orders_pnl_pct(filled_buy_orders, self.get_mid_price())
+        return bottom_price_index > history_candle_count - recent_candle_count
 
-        self.logger().info(f"is_buy_order_profitable() | pnl_pct:{pnl_pct}")
+    # def is_sell_order_profitable(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
+    #     pnl_pct: Decimal = compute_sell_orders_pnl_pct(filled_sell_orders, self.get_mid_price())
+    #
+    #     self.logger().info(f"is_sell_order_profitable() | pnl_pct:{pnl_pct}")
+    #
+    #     return pnl_pct > 0
+    #
+    # def is_buy_order_profitable(self, filled_buy_orders: List[TrackedOrderDetails]) -> bool:
+    #     pnl_pct: Decimal = compute_buy_orders_pnl_pct(filled_buy_orders, self.get_mid_price())
+    #
+    #     self.logger().info(f"is_buy_order_profitable() | pnl_pct:{pnl_pct}")
+    #
+    #     return pnl_pct > 0
 
-        return pnl_pct > 0
+    def has_stoch_reversed_for_buy(self, candle_count: int) -> bool:
+        stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
+        recent_stochs = stoch_series.iloc[-candle_count:].reset_index(drop=True)
 
-    def has_ma_reversed_for_sell(self, candle_count: int) -> bool:
-        sma_series: pd.Series = self.processed_data["SMA_19"]
-        recent_mas = sma_series.iloc[-candle_count:].reset_index(drop=True)
+        peak_stoch: Decimal = Decimal(recent_stochs.max())
+        peak_stoch_index = recent_stochs.idxmax()
 
-        bottom_ma: Decimal = Decimal(recent_mas.min())
-        bottom_ma_index = recent_mas.idxmin()
+        if peak_stoch_index == 0:
+            return False
 
-        if bottom_ma_index == 0:
+        if peak_stoch < 80:
             return False
 
         timestamp_series: pd.Series = self.processed_data["timestamp"]
         recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
-        saved_bottom_ma, _ = self.saved_bottom_ma
+        saved_peak_stoch, _ = self.saved_peak_stoch
 
-        if bottom_ma < saved_bottom_ma:
-            bottom_ma_timestamp = recent_timestamps.iloc[bottom_ma_index]
-            self.save_bottom_ma(bottom_ma, bottom_ma_timestamp)
+        if peak_stoch > saved_peak_stoch:
+            peak_stoch_timestamp = recent_timestamps.iloc[peak_stoch_index]
+            self.save_peak_stoch(peak_stoch, peak_stoch_timestamp)
 
-        saved_bottom_ma, _ = self.saved_bottom_ma
+        saved_peak_stoch, _ = self.saved_peak_stoch
 
-        ma_threshold: Decimal = saved_bottom_ma * (1 + self.config.ma_reversal_bps / 10000)
-        current_ma = self.get_current_ma()
+        stoch_threshold: Decimal = saved_peak_stoch - 3
+        current_stoch = self.get_current_stoch()
 
-        self.logger().info(f"has_ma_reversed_for_sell() | saved_bottom_ma:{saved_bottom_ma} | current_ma:{current_ma} | ma_threshold:{ma_threshold} | current_price:{self.get_current_close()}")
+        self.logger().info(f"has_stoch_reversed_for_buy() | saved_peak_stoch:{saved_peak_stoch} | current_stoch:{current_stoch} | stoch_threshold:{stoch_threshold} | current_price:{self.get_current_close()}")
 
-        if current_ma < ma_threshold:
-            self.ma_reversal_counter = 0
-            self.logger().info("has_ma_reversed_for_sell() | resetting self.ma_reversal_counter to 0")
+        if current_stoch > stoch_threshold:
+            self.stoch_reversal_counter = 0
+            self.logger().info("has_stoch_reversed_for_buy() | resetting self.stoch_reversal_counter to 0")
             return False
 
-        self.ma_reversal_counter += 1
-        self.logger().info(f"has_ma_reversed_for_sell() | incremented self.ma_reversal_counter to:{self.ma_reversal_counter}")
+        self.stoch_reversal_counter += 1
+        self.logger().info(f"has_stoch_reversed_for_buy() | incremented self.stoch_reversal_counter to:{self.stoch_reversal_counter}")
 
-        return self.ma_reversal_counter > 4
-
-    def has_ma_reversed_for_buy(self, candle_count: int) -> bool:
-        sma_series: pd.Series = self.processed_data["SMA_19"]
-        recent_mas = sma_series.iloc[-candle_count:].reset_index(drop=True)
-
-        peak_ma: Decimal = Decimal(recent_mas.max())
-        peak_ma_index = recent_mas.idxmax()
-
-        if peak_ma_index == 0:
-            return False
-
-        timestamp_series: pd.Series = self.processed_data["timestamp"]
-        recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
-        saved_peak_ma, _ = self.saved_peak_ma
-
-        if peak_ma > saved_peak_ma:
-            peak_ma_timestamp = recent_timestamps.iloc[peak_ma_index]
-            self.save_peak_ma(peak_ma, peak_ma_timestamp)
-
-        saved_peak_ma, _ = self.saved_peak_ma
-
-        ma_threshold: Decimal = saved_peak_ma * (1 - self.config.ma_reversal_bps / 10000)
-        current_ma = self.get_current_ma()
-
-        self.logger().info(f"has_ma_reversed_for_buy() | saved_peak_ma:{saved_peak_ma} | current_ma:{current_ma} | ma_threshold:{ma_threshold} | current_price:{self.get_current_close()}")
-
-        if current_ma > ma_threshold:
-            self.ma_reversal_counter = 0
-            self.logger().info("has_ma_reversed_for_buy() | resetting self.ma_reversal_counter to 0")
-            return False
-
-        self.ma_reversal_counter += 1
-        self.logger().info(f"has_ma_reversed_for_buy() | incremented self.ma_reversal_counter to:{self.ma_reversal_counter}")
-
-        return self.ma_reversal_counter > 4
+        return self.stoch_reversal_counter > 4
