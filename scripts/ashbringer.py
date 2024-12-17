@@ -464,12 +464,7 @@ class ExcaliburStrategy(PkStrategy):
         mal_series: pd.Series = self.processed_data["SMA_10_l"]
         mal: Decimal = Decimal(mal_series.iloc[candle_index])
 
-        did_cross: bool = close < mal < high
-
-        if did_cross:
-            self.logger().info(f"did_price_cross_under_mal() | high:{high} | close:{close} | mal:{mal}")
-
-        return did_cross
+        return close < mal < high
 
     def did_price_cross_over_mah(self, candle_index: int) -> bool:
         low_series: pd.Series = self.processed_data["low"]
@@ -481,12 +476,7 @@ class ExcaliburStrategy(PkStrategy):
         mah_series: pd.Series = self.processed_data["SMA_10_h"]
         mah: Decimal = Decimal(mah_series.iloc[candle_index])
 
-        did_cross: bool = low < mah < close
-
-        if did_cross:
-            self.logger().info(f"did_price_cross_over_mah() | low:{low} | close:{close} | mah:{mah}")
-
-        return did_cross
+        return low < mah < close
 
     def are_candles_fully_below_mal(self, candle_count: int) -> bool:
         candle_start_index: int = -candle_count - 1
