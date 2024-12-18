@@ -492,3 +492,17 @@ class ExcaliburStrategy(PkStrategy):
         self.save_price_spike_or_crash_pct(delta_pct, self.get_market_data_provider_time())
 
         return False
+
+    # def is_sell_order_profitable(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
+    #     pnl_pct: Decimal = compute_sell_orders_pnl_pct(filled_sell_orders, self.get_mid_price())
+    #
+    #     self.logger().info(f"is_sell_order_profitable() | pnl_pct:{pnl_pct}")
+    #
+    #     return pnl_pct > 0
+    #
+    # def is_buy_order_profitable(self, filled_buy_orders: List[TrackedOrderDetails]) -> bool:
+    #     pnl_pct: Decimal = compute_buy_orders_pnl_pct(filled_buy_orders, self.get_mid_price())
+    #
+    #     self.logger().info(f"is_buy_order_profitable() | pnl_pct:{pnl_pct}")
+    #
+    #     return pnl_pct > 0
