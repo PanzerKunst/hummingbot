@@ -29,6 +29,7 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 ORDER_REF_TREND_REVERSAL: str = "TrendReversal"
 ORDER_REF_MEAN_REVERSION: str = "MeanReversion"
 CANDLE_COUNT_FOR_STOCH_REVERSAL_AND_MEAN_REVERSION: int = 5
+CANDLE_DURATION_MINUTES: int = 3
 
 
 class ExcaliburStrategy(PkStrategy):
@@ -118,7 +119,9 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
-        self.check_context(CANDLE_COUNT_FOR_STOCH_REVERSAL_AND_MEAN_REVERSION + 1)
+        context_lifetime_minutes: int = CANDLE_COUNT_FOR_STOCH_REVERSAL_AND_MEAN_REVERSION * CANDLE_DURATION_MINUTES + 1
+        self.check_context(context_lifetime_minutes)
+
         self.create_actions_proposal_trend_reversal()
         self.create_actions_proposal_mean_reversion()
 
