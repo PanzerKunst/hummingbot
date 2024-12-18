@@ -22,6 +22,7 @@ from scripts.thunderfury_config import ExcaliburConfig
 #                start --script thunderfury.py --conf conf_thunderfury_FLOKI.yml
 #                start --script thunderfury.py --conf conf_thunderfury_MOODENG.yml
 #                start --script thunderfury.py --conf conf_thunderfury_NEIRO.yml
+#                start --script thunderfury.py --conf conf_thunderfury_PENGU.yml
 #                start --script thunderfury.py --conf conf_thunderfury_PNUT.yml
 #                start --script thunderfury.py --conf conf_thunderfury_POPCAT.yml
 #                start --script thunderfury.py --conf conf_thunderfury_WIF.yml
@@ -152,14 +153,12 @@ class ExcaliburStrategy(PkStrategy):
         active_orders = active_sell_orders + active_buy_orders
 
         if self.can_create_rev_order(TradeType.SELL, active_orders):
-            entry_price: Decimal = self.get_mid_price() * Decimal(1 - self.config.entry_price_delta_bps / 10000)
             triple_barrier = self.get_triple_barrier()
-            self.create_order(TradeType.SELL, entry_price, triple_barrier, self.config.amount_quote, ORDER_REF_REV)
+            self.create_order(TradeType.SELL, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_REV)
 
         if self.can_create_rev_order(TradeType.BUY, active_orders):
-            entry_price: Decimal = self.get_mid_price() * Decimal(1 + self.config.entry_price_delta_bps / 10000)
             triple_barrier = self.get_triple_barrier()
-            self.create_order(TradeType.BUY, entry_price, triple_barrier, self.config.amount_quote, ORDER_REF_REV)
+            self.create_order(TradeType.BUY, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_REV)
 
     def can_create_rev_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
         if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_REV, 5):
