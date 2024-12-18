@@ -65,13 +65,12 @@ class ExcaliburStrategy(PkStrategy):
 
         saved_price_spike_or_crash_pct, _ = self.saved_price_spike_or_crash_pct
         take_profit_pct: Decimal = saved_price_spike_or_crash_pct / 2
-        stop_loss_pct: Decimal = take_profit_pct * Decimal(1.5)
 
         return TripleBarrier(
             open_order_type=OrderType.MARKET,
             take_profit=take_profit_pct / 100,
-            stop_loss=stop_loss_pct / 100,
-            time_limit=12 * 60
+            stop_loss=take_profit_pct / 100,
+            time_limit=15 * 60
         )
 
     def update_processed_data(self):
@@ -212,17 +211,11 @@ class ExcaliburStrategy(PkStrategy):
 
         if self.can_create_mean_reversion_order(TradeType.SELL, active_orders):
             triple_barrier = self.get_triple_barrier(ORDER_REF_MEAN_REVERSION)
-
-            asyncio.get_running_loop().create_task(
-                self.create_twap_market_orders(TradeType.SELL, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_MEAN_REVERSION)
-            )
+            self.create_order(TradeType.SELL, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_MEAN_REVERSION)
 
         if self.can_create_mean_reversion_order(TradeType.BUY, active_orders):
             triple_barrier = self.get_triple_barrier(ORDER_REF_MEAN_REVERSION)
-
-            asyncio.get_running_loop().create_task(
-                self.create_twap_market_orders(TradeType.BUY, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_MEAN_REVERSION)
-            )
+            self.create_order(TradeType.BUY, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_MEAN_REVERSION)
 
     def can_create_mean_reversion_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
         if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_MEAN_REVERSION, 5):
@@ -234,16 +227,22 @@ class ExcaliburStrategy(PkStrategy):
         candle_count_outside_ma: int = CANDLE_COUNT_FOR_STOCH_REVERSAL_AND_MEAN_REVERSION - 1
 
         if side == TradeType.SELL:
-            if self.are_candles_fully_above_mah(candle_count_outside_ma) and self.are_candles_green(candle_count_outside_ma):
+            if (
+                self.are_candles_fully_above_mah(candle_count_outside_ma) and
+                self.are_candles_green(candle_count_outside_ma) and
+                not self.did_price_increase_too_much_to_open_mean_reversion(CANDLE_COUNT_FOR_STOCH_REVERSAL_AND_MEAN_REVERSION)
+            ):
                 self.logger().info("can_create_mean_reversion_order() > Opening Sell MA-C")
-                self.save_ma_channel_sell_price_delta_pct(CANDLE_COUNT_FOR_STOCH_REVERSAL_AND_MEAN_REVERSION)
                 return True
 
             return False
 
-        if self.are_candles_fully_below_mal(candle_count_outside_ma) and self.are_candles_red(candle_count_outside_ma):
+        if (
+            self.are_candles_fully_below_mal(candle_count_outside_ma) and
+            self.are_candles_red(candle_count_outside_ma) and
+            not self.did_price_drop_too_much_to_open_mean_reversion(CANDLE_COUNT_FOR_STOCH_REVERSAL_AND_MEAN_REVERSION)
+        ):
             self.logger().info("can_create_mean_reversion_order() > Opening Buy MA-C")
-            self.save_ma_channel_buy_price_delta_pct(CANDLE_COUNT_FOR_STOCH_REVERSAL_AND_MEAN_REVERSION)
             return True
 
         return False
@@ -378,7 +377,7 @@ class ExcaliburStrategy(PkStrategy):
 
         peak_price = Decimal(recent_highs.iloc[0:bottom_price_index].max())
         price_delta_pct: Decimal = (peak_price - bottom_price) / bottom_price * 100
-        is_crashing = self.config.min_price_delta_pct_to_open_trend_rev < price_delta_pct
+        is_crashing = self.config.min_price_delta_pct_to_open_trend_reversal < price_delta_pct
 
         if is_crashing:
             self.logger().info(f"is_price_crashing() | current_price:{self.get_current_close()} | bottom_price_index:{bottom_price_index} | bottom_price:{bottom_price} | peak_price:{peak_price} | price_delta_pct:{price_delta_pct}")
@@ -459,7 +458,7 @@ class ExcaliburStrategy(PkStrategy):
 
         return all(recent_lows[i] > recent_mahs[i] for i in range(len(recent_lows)))
 
-    def save_ma_channel_sell_price_delta_pct(self, candle_count: int):
+    def did_price_increase_too_much_to_open_mean_reversion(self, candle_count: int) -> bool:
         low_series: pd.Series = self.processed_data["low"]
         low: Decimal = Decimal(low_series.iloc[-candle_count])
 
@@ -467,11 +466,16 @@ class ExcaliburStrategy(PkStrategy):
 
         delta_pct: Decimal = (current_price - low) / current_price * 100
 
-        self.logger().info(f"save_ma_channel_sell_price_delta_pct() | low:{low} | current_price:{current_price} | delta_pct:{delta_pct}")
+        self.logger().info(f"did_price_increase_too_much_to_open_mean_reversion() | low:{low} | current_price:{current_price} | delta_pct:{delta_pct}")
+
+        if delta_pct > self.config.max_price_delta_pct_to_open_mean_reversion:
+            return True
 
         self.save_price_spike_or_crash_pct(delta_pct, self.get_market_data_provider_time())
 
-    def save_ma_channel_buy_price_delta_pct(self, candle_count: int):
+        return False
+
+    def did_price_drop_too_much_to_open_mean_reversion(self, candle_count: int) -> bool:
         high_series: pd.Series = self.processed_data["high"]
         high: Decimal = Decimal(high_series.iloc[-candle_count])
 
@@ -479,6 +483,11 @@ class ExcaliburStrategy(PkStrategy):
 
         delta_pct: Decimal = (high - current_price) / current_price * 100
 
-        self.logger().info(f"save_ma_channel_buy_price_delta_pct() | high:{high} | current_price:{current_price} | delta_pct:{delta_pct}")
+        self.logger().info(f"did_price_drop_too_much_to_open_mean_reversion() | high:{high} | current_price:{current_price} | delta_pct:{delta_pct}")
+
+        if delta_pct > self.config.max_price_delta_pct_to_open_mean_reversion:
+            return True
 
         self.save_price_spike_or_crash_pct(delta_pct, self.get_market_data_provider_time())
+
+        return False
