@@ -23,6 +23,7 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 #                start --script ashbringer.py --conf conf_ashbringer_FLOKI.yml
 #                start --script ashbringer.py --conf conf_ashbringer_MOODENG.yml
 #                start --script ashbringer.py --conf conf_ashbringer_NEIRO.yml
+#                start --script ashbringer.py --conf conf_ashbringer_PENGU.yml
 #                start --script ashbringer.py --conf conf_ashbringer_PNUT.yml
 #                start --script ashbringer.py --conf conf_ashbringer_POPCAT.yml
 #                start --script ashbringer.py --conf conf_ashbringer_WIF.yml
