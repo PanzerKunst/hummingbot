@@ -29,6 +29,8 @@ from scripts.thunderfury_config import ExcaliburConfig
 # Quickstart script: -p=a -f thunderfury.py -c conf_thunderfury_GOAT.yml
 
 ORDER_REF_REV = "Rev"
+CANDLE_COUNT_FOR_REV: int = 5
+CANDLE_DURATION_MINUTES: int = 1
 
 
 class ExcaliburStrategy(PkStrategy):
@@ -109,7 +111,9 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
-        self.check_context(6)  # `candle_count_for_rev` + 1
+        context_lifetime_minutes: int = CANDLE_COUNT_FOR_REV * CANDLE_DURATION_MINUTES + 1
+        self.check_context(context_lifetime_minutes)
+
         self.create_actions_proposal_rev()
 
         return []  # Always return []
@@ -167,13 +171,12 @@ class ExcaliburStrategy(PkStrategy):
         if len(active_tracked_orders) > 0:
             return False
 
-        candle_count_for_rev: int = 5
-
         if side == TradeType.SELL:
             if (
-                self.is_price_spiking(candle_count_for_rev) and
-                not self.is_price_spike_a_reversal(candle_count_for_rev) and
-                self.is_price_below_last_open()
+                self.is_price_spiking(CANDLE_COUNT_FOR_REV) and
+                not self.is_price_spike_a_reversal(CANDLE_COUNT_FOR_REV) and
+                self.is_price_below_last_open() and
+                self.is_price_rebound_significant_enough_for_sell()
             ):
                 # self.logger().info("can_create_rev_order() > Opening Sell reversion")
                 return False  # Disabled for now
@@ -181,9 +184,10 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         if (
-            self.is_price_crashing(candle_count_for_rev) and
-            not self.is_price_crash_a_reversal(candle_count_for_rev) and
-            self.is_price_above_last_open()
+            self.is_price_crashing(CANDLE_COUNT_FOR_REV) and
+            not self.is_price_crash_a_reversal(CANDLE_COUNT_FOR_REV) and
+            self.is_price_above_last_open() and
+            self.is_price_rebound_significant_enough_for_buy()
         ):
             self.logger().info("can_create_rev_order() > Opening Buy reversion")
             return True
@@ -426,7 +430,7 @@ class ExcaliburStrategy(PkStrategy):
         self.price_reversal_counter += 1
         self.logger().info(f"is_price_below_last_open() | incremented self.price_reversal_counter to:{self.price_reversal_counter}")
 
-        return self.price_reversal_counter > 14
+        return self.price_reversal_counter > 9
 
     def is_price_above_last_open(self) -> bool:
         current_price: Decimal = self.get_current_close()
@@ -444,23 +448,53 @@ class ExcaliburStrategy(PkStrategy):
         self.price_reversal_counter += 1
         self.logger().info(f"is_price_above_last_open() | incremented self.price_reversal_counter to:{self.price_reversal_counter}")
 
-        return self.price_reversal_counter > 14
+        return self.price_reversal_counter > 9
+
+    def is_price_rebound_significant_enough_for_sell(self) -> bool:
+        saved_peak_price, _ = self.saved_peak_price
+        current_price: Decimal = self.get_current_close()
+
+        rebound_pct = (saved_peak_price - current_price) / current_price * 100
+        saved_price_spike_or_crash_pct, _ = self.saved_price_spike_or_crash_pct
+
+        self.logger().info(f"is_price_rebound_significant_enough_for_sell() | saved_peak_price:{saved_peak_price} | current_price:{current_price}")
+        self.logger().info(f"is_price_rebound_significant_enough_for_sell() | saved_price_spike_or_crash_pct:{saved_price_spike_or_crash_pct} | rebound_pct:{rebound_pct}")
+
+        return rebound_pct > saved_price_spike_or_crash_pct / 4
+
+    def is_price_rebound_significant_enough_for_buy(self) -> bool:
+        saved_bottom_price, _ = self.saved_bottom_price
+        current_price: Decimal = self.get_current_close()
+
+        rebound_pct = (current_price - saved_bottom_price) / current_price * 100
+        saved_price_spike_or_crash_pct, _ = self.saved_price_spike_or_crash_pct
+
+        self.logger().info(f"is_price_rebound_significant_enough_for_buy() | saved_bottom_price:{saved_bottom_price} | current_price:{current_price}")
+        self.logger().info(f"is_price_rebound_significant_enough_for_buy() | saved_price_spike_or_crash_pct:{saved_price_spike_or_crash_pct} | rebound_pct:{rebound_pct}")
+
+        return rebound_pct > saved_price_spike_or_crash_pct / 4
 
     def is_price_under_ma(self) -> bool:
         current_price: Decimal = self.get_current_close()
         current_ma: Decimal = self.get_current_ma()
 
-        self.logger().info(f"is_price_under_ma() | current_price:{current_price} | current_ma:{current_ma}")
+        is_under_ma: bool = current_price < current_ma
 
-        return current_price < current_ma
+        if not is_under_ma:
+            self.logger().info(f"is_price_under_ma() FALSE | current_price:{current_price} | current_ma:{current_ma}")
+
+        return is_under_ma
 
     def is_price_over_ma(self) -> bool:
         current_price: Decimal = self.get_current_close()
         current_ma: Decimal = self.get_current_ma()
 
-        self.logger().info(f"is_price_over_ma() | current_price:{current_price} | current_ma:{current_ma}")
+        is_over_ma: bool = current_price > current_ma
 
-        return current_price > current_ma
+        if not is_over_ma:
+            self.logger().info(f"is_price_over_ma() FALSE | current_price:{current_price} | current_ma:{current_ma}")
+
+        return is_over_ma
 
     def has_stoch_reversed_for_sell(self) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_15_k"]
