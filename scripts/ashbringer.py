@@ -175,7 +175,7 @@ class ExcaliburStrategy(PkStrategy):
             )
 
     def can_create_trend_reversal_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_TREND_REVERSAL, 5):
+        if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_TREND_REVERSAL, 20):
             return False
 
         if len(active_tracked_orders) > 0:
@@ -397,7 +397,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_price_bottom_recent() | bottom_price_index:{bottom_price_index}")
 
-        return bottom_price_index >= history_candle_count - recent_candle_count
+        return bottom_price_index >= history_candle_count - recent_candle_count  # >= 25 - 5
 
     def has_stoch_reversed_for_buy(self, candle_count: int) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_k"]
