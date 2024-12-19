@@ -17,11 +17,8 @@ from scripts.thunderfury_config import ExcaliburConfig
 
 # Generate config file: create --script-config thunderfury
 # Start the bot: start --script thunderfury.py --conf conf_thunderfury_GOAT.yml
-#                start --script thunderfury.py --conf conf_thunderfury_BOME.yml
 #                start --script thunderfury.py --conf conf_thunderfury_CHILLGUY.yml
-#                start --script thunderfury.py --conf conf_thunderfury_FLOKI.yml
 #                start --script thunderfury.py --conf conf_thunderfury_MOODENG.yml
-#                start --script thunderfury.py --conf conf_thunderfury_NEIRO.yml
 #                start --script thunderfury.py --conf conf_thunderfury_PENGU.yml
 #                start --script thunderfury.py --conf conf_thunderfury_PNUT.yml
 #                start --script thunderfury.py --conf conf_thunderfury_POPCAT.yml
@@ -428,7 +425,7 @@ class ExcaliburStrategy(PkStrategy):
         self.price_reversal_counter += 1
         self.logger().info(f"is_price_below_last_open() | incremented self.price_reversal_counter to:{self.price_reversal_counter}")
 
-        return self.price_reversal_counter > 14
+        return self.price_reversal_counter > 9
 
     def is_price_above_last_open(self) -> bool:
         current_price: Decimal = self.get_current_close()
@@ -446,7 +443,7 @@ class ExcaliburStrategy(PkStrategy):
         self.price_reversal_counter += 1
         self.logger().info(f"is_price_above_last_open() | incremented self.price_reversal_counter to:{self.price_reversal_counter}")
 
-        return self.price_reversal_counter > 14
+        return self.price_reversal_counter > 9
 
     def is_price_rebound_significant_enough_for_sell(self) -> bool:
         saved_peak_price, _ = self.saved_peak_price
@@ -476,15 +473,21 @@ class ExcaliburStrategy(PkStrategy):
         current_price: Decimal = self.get_current_close()
         current_ma: Decimal = self.get_current_ma()
 
-        self.logger().info(f"is_price_under_ma() | current_price:{current_price} | current_ma:{current_ma}")
+        is_under_ma: bool = current_price < current_ma
 
-        return current_price < current_ma
+        if not is_under_ma:
+            self.logger().info(f"is_price_under_ma() FALSE | current_price:{current_price} | current_ma:{current_ma}")
+
+        return is_under_ma
 
     def is_price_over_ma(self) -> bool:
         current_price: Decimal = self.get_current_close()
         current_ma: Decimal = self.get_current_ma()
 
-        self.logger().info(f"is_price_over_ma() | current_price:{current_price} | current_ma:{current_ma}")
+        is_over_ma: bool = current_price > current_ma
+
+        if not is_over_ma:
+            self.logger().info(f"is_price_over_ma() FALSE | current_price:{current_price} | current_ma:{current_ma}")
 
         return current_price > current_ma
 
