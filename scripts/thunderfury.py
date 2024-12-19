@@ -494,7 +494,7 @@ class ExcaliburStrategy(PkStrategy):
         if not is_over_ma:
             self.logger().info(f"is_price_over_ma() FALSE | current_price:{current_price} | current_ma:{current_ma}")
 
-        return current_price > current_ma
+        return is_over_ma
 
     def has_stoch_reversed_for_sell(self) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_15_k"]
