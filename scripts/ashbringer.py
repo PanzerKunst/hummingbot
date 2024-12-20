@@ -189,7 +189,7 @@ class ExcaliburStrategy(PkStrategy):
             self.is_price_crashing(history_candle_count) and
             self.is_price_bottom_recent(history_candle_count, 5)
         ):
-            self.logger().info("can_create_trend_reversal_order() > Opening Buy Trend Reversal")
+            self.logger().info(f"can_create_trend_reversal_order() > Opening Buy Trend Reversal at {self.get_current_close()}")
             return True
 
         return False
@@ -199,7 +199,7 @@ class ExcaliburStrategy(PkStrategy):
 
         if len(filled_buy_orders) > 0:
             if self.has_stoch_reversed_for_buy(CANDLE_COUNT_FOR_STOCH_REVERSAL_AND_MEAN_REVERSION):
-                self.logger().info("stop_actions_proposal_rev() > Closing Buy Trend Reversal")
+                self.logger().info(f"stop_actions_proposal_rev() > Closing Buy Trend Reversal at {self.get_current_close()}")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
 
     #
@@ -233,7 +233,7 @@ class ExcaliburStrategy(PkStrategy):
                 self.are_candles_green(candle_count_outside_ma) and
                 self.is_price_below_last_open()
             ):
-                self.logger().info("can_create_mean_reversion_order() > Opening Sell MA-C")
+                self.logger().info(f"can_create_mean_reversion_order() > Opening Sell MA-C at {self.get_current_close()}")
                 self.save_mean_reversion_price_delta_pct_for_sell(CANDLE_COUNT_FOR_STOCH_REVERSAL_AND_MEAN_REVERSION)
                 return True
 
@@ -244,7 +244,7 @@ class ExcaliburStrategy(PkStrategy):
             self.are_candles_red(candle_count_outside_ma) and
             self.is_price_above_last_open()
         ):
-            self.logger().info("can_create_mean_reversion_order() > Opening Buy MA-C")
+            self.logger().info(f"can_create_mean_reversion_order() > Opening Buy MA-C at {self.get_current_close()}")
             self.save_mean_reversion_price_delta_pct_for_buy(CANDLE_COUNT_FOR_STOCH_REVERSAL_AND_MEAN_REVERSION)
             return True
 
