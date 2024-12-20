@@ -479,7 +479,7 @@ class ExcaliburStrategy(PkStrategy):
         self.price_reversal_counter += 1
         self.logger().info(f"is_price_below_last_open() | incremented self.price_reversal_counter to:{self.price_reversal_counter}")
 
-        return self.price_reversal_counter > 9
+        return self.price_reversal_counter > 14
 
     def is_price_above_last_open(self) -> bool:
         current_price: Decimal = self.get_current_close()
@@ -497,7 +497,7 @@ class ExcaliburStrategy(PkStrategy):
         self.price_reversal_counter += 1
         self.logger().info(f"is_price_above_last_open() | incremented self.price_reversal_counter to:{self.price_reversal_counter}")
 
-        return self.price_reversal_counter > 9
+        return self.price_reversal_counter > 14
 
     def save_mean_reversion_price_delta_pct_for_sell(self, candle_count: int):
         high_series: pd.Series = self.processed_data["high"]
