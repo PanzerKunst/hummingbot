@@ -189,7 +189,7 @@ class ExcaliburStrategy(PkStrategy):
             self.is_price_above_last_open() and
             self.is_price_rebound_significant_enough_for_buy()
         ):
-            self.logger().info("can_create_rev_order() > Opening Buy reversion")
+            self.logger().info(f"can_create_rev_order() > Opening Buy reversion at {self.get_current_close()}")
             return True
 
         return False
@@ -199,12 +199,12 @@ class ExcaliburStrategy(PkStrategy):
 
         if len(filled_sell_orders) > 0:
             if self.is_price_under_ma() and self.has_stoch_reversed_for_sell():
-                self.logger().info("stop_actions_proposal_rev() > Closing Sell reversion")
+                self.logger().info(f"stop_actions_proposal_rev() > Closing Sell reversion at {self.get_current_close()}")
                 self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
 
         if len(filled_buy_orders) > 0:
             if self.is_price_over_ma() and self.has_stoch_reversed_for_buy():
-                self.logger().info("stop_actions_proposal_rev() > Closing Buy reversion")
+                self.logger().info(f"stop_actions_proposal_rev() > Closing Buy reversion at {self.get_current_close()}")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
 
     #
@@ -292,7 +292,7 @@ class ExcaliburStrategy(PkStrategy):
         is_any_outdated: bool = any(timestamp < last_acceptable_timestamp for timestamp in all_timestamps)
 
         if is_any_outdated and not self.is_context_default():
-            self.logger().info(f"check_context() | One of the context vars is outdated | {last_acceptable_timestamp} | all_timestamps:{all_timestamps}")
+            self.logger().info("check_context() | One of the context vars is outdated")
             self.reset_context()
 
     def is_context_default(self) -> bool:
@@ -479,9 +479,7 @@ class ExcaliburStrategy(PkStrategy):
         current_ma: Decimal = self.get_current_ma()
 
         is_under_ma: bool = current_price < current_ma
-
-        if not is_under_ma:
-            self.logger().info(f"is_price_under_ma() FALSE | current_price:{current_price} | current_ma:{current_ma}")
+        self.logger().info(f"is_price_under_ma() {is_under_ma} | current_price:{current_price} | current_ma:{current_ma}")
 
         return is_under_ma
 
@@ -490,9 +488,7 @@ class ExcaliburStrategy(PkStrategy):
         current_ma: Decimal = self.get_current_ma()
 
         is_over_ma: bool = current_price > current_ma
-
-        if not is_over_ma:
-            self.logger().info(f"is_price_over_ma() FALSE | current_price:{current_price} | current_ma:{current_ma}")
+        self.logger().info(f"is_price_over_ma() {is_over_ma} | current_price:{current_price} | current_ma:{current_ma}")
 
         return is_over_ma
 
