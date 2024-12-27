@@ -450,10 +450,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"compute_trend_reversal_sl_pct() | dynamic_sl_pct:{dynamic_sl_pct}")
 
-        if dynamic_sl_pct < min_sl_pct:
-            return min_sl_pct
-
-        return dynamic_sl_pct
+        return min_sl_pct if dynamic_sl_pct < min_sl_pct else dynamic_sl_pct
 
     #
     # Mean Reversion functions
