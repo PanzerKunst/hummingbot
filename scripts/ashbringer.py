@@ -59,7 +59,7 @@ class ExcaliburStrategy(PkStrategy):
         if ref == ORDER_REF_TREND_REVERSAL:
             return TripleBarrier(
                 open_order_type=OrderType.MARKET,
-                stop_loss=self.config.trend_rev_stop_loss_pct / 100
+                stop_loss=self.compute_trend_reversal_sl_pct() / 100
             )
 
         saved_price_spike_or_crash_pct, _ = self.saved_price_spike_or_crash_pct
@@ -123,7 +123,7 @@ class ExcaliburStrategy(PkStrategy):
         self.check_context(context_lifetime_minutes)
 
         self.create_actions_proposal_trend_reversal()
-        self.create_actions_proposal_mean_reversion()
+        # self.create_actions_proposal_mean_reversion()
 
         return []  # Always return []
 
@@ -135,7 +135,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.check_orders()
         self.stop_actions_proposal_trend_reversal()
-        self.stop_actions_proposal_mean_reversion()
+        # self.stop_actions_proposal_mean_reversion()
 
         return []  # Always return []
 
@@ -436,6 +436,24 @@ class ExcaliburStrategy(PkStrategy):
         self.logger().info(f"has_stoch_reversed_for_buy() | incremented self.stoch_reversal_counter to:{self.stoch_reversal_counter}")
 
         return self.stoch_reversal_counter > 4
+
+    def compute_trend_reversal_sl_pct(self) -> Decimal:
+        current_price: Decimal = self.get_current_close()
+
+        low_series: pd.Series = self.processed_data["low"]
+        recent_lows = low_series.iloc[-5:].reset_index(drop=True)
+        bottom_price = Decimal(recent_lows.min())
+
+        price_delta_pct: Decimal = (current_price - bottom_price) / current_price * 100
+        dynamic_sl_pct: Decimal = price_delta_pct / 4
+        min_sl_pct = Decimal(0.7)
+
+        self.logger().info(f"compute_trend_reversal_sl_pct() | dynamic_sl_pct:{dynamic_sl_pct}")
+
+        if dynamic_sl_pct < min_sl_pct:
+            return min_sl_pct
+
+        return dynamic_sl_pct
 
     #
     # Mean Reversion functions
