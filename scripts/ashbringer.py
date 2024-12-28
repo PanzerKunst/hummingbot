@@ -184,10 +184,10 @@ class ExcaliburStrategy(PkStrategy):
         history_candle_count: int = 25
 
         if (
-            self.is_recent_rsi_low_enough(5) and
-            self.are_candles_green(3) and
+            self.is_recent_rsi_low_enough(4) and
+            self.are_candles_green(2) and
             self.is_price_crashing(history_candle_count) and
-            self.is_price_bottom_recent(history_candle_count, 5)
+            self.is_price_bottom_recent(history_candle_count, 4)
         ):
             self.logger().info(f"can_create_trend_reversal_order() > Opening Buy Trend Reversal at {self.get_current_close()}")
             return True
@@ -397,7 +397,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_price_bottom_recent() | bottom_price_index:{bottom_price_index}")
 
-        return bottom_price_index >= history_candle_count - recent_candle_count  # >= 25 - 5
+        return bottom_price_index >= history_candle_count - recent_candle_count  # >= 25 - 4
 
     def has_stoch_reversed_for_buy(self, candle_count: int) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_k"]
