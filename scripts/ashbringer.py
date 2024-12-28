@@ -89,7 +89,7 @@ class ExcaliburStrategy(PkStrategy):
 
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
 
-        candles_df["RSI"] = candles_df.ta.rsi(length=20)
+        candles_df["RSI_20"] = candles_df.ta.rsi(length=20)
 
         # Calling the lower-level function, because the one in core.py has a bug in the argument names
         stoch_40_df = stoch(
@@ -101,10 +101,10 @@ class ExcaliburStrategy(PkStrategy):
             smooth_k=1
         )
 
-        candles_df["STOCH_k"] = stoch_40_df["STOCHk_40_1_1"]
+        candles_df["STOCH_40_k"] = stoch_40_df["STOCHk_40_1_1"]
 
-        candles_df["SMA_h"] = sma(close=candles_df["high"], length=10)
-        candles_df["SMA_l"] = sma(close=candles_df["low"], length=10)
+        candles_df["SMA_10_h"] = sma(close=candles_df["high"], length=10)
+        candles_df["SMA_10_l"] = sma(close=candles_df["low"], length=10)
 
         candles_df.dropna(inplace=True)
 
@@ -149,10 +149,10 @@ class ExcaliburStrategy(PkStrategy):
                     "timestamp_iso",
                     "close",
                     "volume",
-                    "RSI",
-                    "SMA_h",
-                    "SMA_l",
-                    "STOCH_k"
+                    "RSI_20",
+                    "SMA_10_h",
+                    "SMA_10_l",
+                    "STOCH_40_k"
                 ]
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display], table_format="psql"))
@@ -268,15 +268,15 @@ class ExcaliburStrategy(PkStrategy):
         return Decimal(close_series.iloc[index])
 
     def get_current_stoch(self) -> Decimal:
-        stoch_series: pd.Series = self.processed_data["STOCH_k"]
+        stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
         return Decimal(stoch_series.iloc[-1])
 
     def get_current_mah(self) -> Decimal:
-        smah_series: pd.Series = self.processed_data["SMA_h"]
+        smah_series: pd.Series = self.processed_data["SMA_10_h"]
         return Decimal(smah_series.iloc[-1])
 
     def get_current_mal(self) -> Decimal:
-        smal_series: pd.Series = self.processed_data["SMA_l"]
+        smal_series: pd.Series = self.processed_data["SMA_10_l"]
         return Decimal(smal_series.iloc[-1])
 
     #
@@ -358,7 +358,7 @@ class ExcaliburStrategy(PkStrategy):
     #
 
     def is_recent_rsi_low_enough(self, candle_count: int) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI"]
+        rsi_series: pd.Series = self.processed_data["RSI_20"]
         recent_rsis = rsi_series.iloc[-candle_count:].reset_index(drop=True)
         bottom_rsi: Decimal = Decimal(recent_rsis.min())
 
@@ -400,7 +400,7 @@ class ExcaliburStrategy(PkStrategy):
         return bottom_price_index >= history_candle_count - recent_candle_count  # >= 25 - 4
 
     def has_stoch_reversed_for_buy(self, candle_count: int) -> bool:
-        stoch_series: pd.Series = self.processed_data["STOCH_k"]
+        stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
         recent_stochs = stoch_series.iloc[-candle_count:].reset_index(drop=True)
 
         peak_stoch: Decimal = Decimal(recent_stochs.max())
@@ -462,7 +462,7 @@ class ExcaliburStrategy(PkStrategy):
         high_series: pd.Series = self.processed_data["high"]
         recent_highs = high_series.iloc[candle_start_index:-1].reset_index(drop=True)
 
-        mal_series: pd.Series = self.processed_data["SMA_l"]
+        mal_series: pd.Series = self.processed_data["SMA_10_l"]
         recent_mals = mal_series.iloc[candle_start_index:-1].reset_index(drop=True)
 
         return all(recent_highs[i] < recent_mals[i] for i in range(len(recent_highs)))
@@ -473,7 +473,7 @@ class ExcaliburStrategy(PkStrategy):
         low_series: pd.Series = self.processed_data["low"]
         recent_lows = low_series.iloc[candle_start_index:-1].reset_index(drop=True)
 
-        mah_series: pd.Series = self.processed_data["SMA_h"]
+        mah_series: pd.Series = self.processed_data["SMA_10_h"]
         recent_mahs = mah_series.iloc[candle_start_index:-1].reset_index(drop=True)
 
         return all(recent_lows[i] > recent_mahs[i] for i in range(len(recent_lows)))
