@@ -241,7 +241,7 @@ class ExcaliburStrategy(PkStrategy):
             if (
                 self.are_candles_fully_above_mah(candle_count_outside_ma) and
                 self.are_candles_green(candle_count_outside_ma) and
-                self.is_price_below_last_open() and
+                self.has_price_reversed_down_enough() and
                 self.is_price_far_enough_from_mah()
             ):
                 self.logger().info(f"can_create_mean_reversion_order() > Opening Mean Reversion Sell at {self.get_current_close()}")
@@ -252,7 +252,7 @@ class ExcaliburStrategy(PkStrategy):
         if (
             self.are_candles_fully_below_mal(candle_count_outside_ma) and
             self.are_candles_red(candle_count_outside_ma) and
-            self.is_price_above_last_open() and
+            self.has_price_reversed_up_enough() and
             self.is_price_far_enough_from_mal()
         ):
             self.logger().info(f"can_create_mean_reversion_order() > Opening Mean Reversion Buy at {self.get_current_close()}")
@@ -493,41 +493,87 @@ class ExcaliburStrategy(PkStrategy):
 
         return all(recent_lows[i] > recent_mahs[i] for i in range(len(recent_lows)))
 
-    def is_price_below_last_open(self) -> bool:
+    def has_price_reversed_down_enough(self) -> bool:
+        price_spike_pct, peak_price = self.compute_mean_reversion_price_spike_pct(4)
+
+        price_threshold_pct: Decimal = price_spike_pct / 5
+        price_threshold: Decimal = peak_price * (1 - price_threshold_pct / 100)
+
         current_price: Decimal = self.get_current_close()
 
-        open_series: pd.Series = self.processed_data["open"]
-        last_open = Decimal(open_series.iloc[-2])
+        self.logger().info(f"has_price_reversed_down_enough() | price_spike_pct:{price_spike_pct} | peak_price:{peak_price}")
+        self.logger().info(f"has_price_reversed_down_enough() | price_threshold_pct:{price_threshold_pct} | price_threshold:{price_threshold} | current_price:{current_price}")
 
-        self.logger().info(f"is_price_below_last_open() | current_price:{current_price} | last_open:{last_open}")
-
-        if current_price > last_open:
+        if current_price > price_threshold:
             self.price_reversal_counter = 0
-            self.logger().info("is_price_below_last_open() | resetting self.price_reversal_counter to 0")
+            self.logger().info("has_price_reversed_down_enough() | resetting self.price_reversal_counter to 0")
             return False
 
         self.price_reversal_counter += 1
-        self.logger().info(f"is_price_below_last_open() | incremented self.price_reversal_counter to:{self.price_reversal_counter}")
+        self.logger().info(f"has_price_reversed_down_enough() | incremented self.price_reversal_counter to:{self.price_reversal_counter}")
 
-        return self.price_reversal_counter > 14
+        return self.price_reversal_counter > 59
 
-    def is_price_above_last_open(self) -> bool:
+    def has_price_reversed_up_enough(self) -> bool:
+        price_crash_pct, bottom_price = self.compute_mean_reversion_price_crash_pct(4)
+
+        price_threshold_pct: Decimal = price_crash_pct / 5
+        price_threshold: Decimal = bottom_price * (1 + price_threshold_pct / 100)
+
         current_price: Decimal = self.get_current_close()
 
-        open_series: pd.Series = self.processed_data["open"]
-        last_open = Decimal(open_series.iloc[-2])
+        self.logger().info(f"has_price_reversed_up_enough() | price_crash_pct:{price_crash_pct} | bottom_price:{bottom_price}")
+        self.logger().info(f"has_price_reversed_up_enough() | price_threshold_pct:{price_threshold_pct} | price_threshold:{price_threshold} | current_price:{current_price}")
 
-        self.logger().info(f"is_price_above_last_open() | current_price:{current_price} | last_open:{last_open}")
-
-        if current_price < last_open:
+        if current_price < price_threshold:
             self.price_reversal_counter = 0
-            self.logger().info("is_price_above_last_open() | resetting self.price_reversal_counter to 0")
+            self.logger().info("has_price_reversed_up_enough() | resetting self.price_reversal_counter to 0")
             return False
 
         self.price_reversal_counter += 1
-        self.logger().info(f"is_price_above_last_open() | incremented self.price_reversal_counter to:{self.price_reversal_counter}")
+        self.logger().info(f"has_price_reversed_up_enough() | incremented self.price_reversal_counter to:{self.price_reversal_counter}")
 
-        return self.price_reversal_counter > 14
+        return self.price_reversal_counter > 59
+
+    def compute_mean_reversion_price_spike_pct(self, candle_count: int) -> Tuple[Decimal, Decimal]:
+        high_series: pd.Series = self.processed_data["high"]
+        recent_highs = high_series.iloc[-candle_count:].reset_index(drop=True)
+
+        low_series: pd.Series = self.processed_data["low"]
+        recent_lows = low_series.iloc[-candle_count:].reset_index(drop=True)
+
+        peak_price = Decimal(recent_highs.max())
+        peak_price_index = recent_highs.idxmax()
+
+        if peak_price_index == 0:
+            return Decimal(0.0), peak_price
+
+        bottom_price = Decimal(recent_lows.iloc[0:peak_price_index].min())
+        price_delta_pct: Decimal = (peak_price - bottom_price) / bottom_price * 100
+
+        self.logger().info(f"compute_mean_reversion_price_spike_pct() | current_price:{self.get_current_close()} | peak_price_index:{peak_price_index} | peak_price:{peak_price} | bottom_price:{bottom_price} | price_delta_pct:{price_delta_pct}")
+
+        return price_delta_pct, peak_price
+
+    def compute_mean_reversion_price_crash_pct(self, candle_count: int) -> Tuple[Decimal, Decimal]:
+        low_series: pd.Series = self.processed_data["low"]
+        recent_lows = low_series.iloc[-candle_count:].reset_index(drop=True)
+
+        high_series: pd.Series = self.processed_data["high"]
+        recent_highs = high_series.iloc[-candle_count:].reset_index(drop=True)
+
+        bottom_price = Decimal(recent_lows.min())
+        bottom_price_index = recent_lows.idxmin()
+
+        if bottom_price_index == 0:
+            return Decimal(0.0), bottom_price
+
+        peak_price = Decimal(recent_highs.iloc[0:bottom_price_index].max())
+        price_delta_pct: Decimal = (peak_price - bottom_price) / bottom_price * 100
+
+        self.logger().info(f"compute_mean_reversion_price_crash_pct() | current_price:{self.get_current_close()} | bottom_price_index:{bottom_price_index} | bottom_price:{bottom_price} | peak_price:{peak_price} | price_delta_pct:{price_delta_pct}")
+
+        return price_delta_pct, bottom_price
 
     def is_price_far_enough_from_mah(self) -> bool:
         current_price: Decimal = self.get_current_close()
