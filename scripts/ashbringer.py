@@ -66,8 +66,7 @@ class ExcaliburStrategy(PkStrategy):
 
         return TripleBarrier(
             open_order_type=OrderType.MARKET,
-            stop_loss=stop_loss_pct / 100,
-            time_limit=15 * 60
+            stop_loss=stop_loss_pct / 100
         )
 
     def update_processed_data(self):
@@ -235,7 +234,7 @@ class ExcaliburStrategy(PkStrategy):
         if len(active_tracked_orders) > 0:
             return False
 
-        candle_count_outside_ma: int = 2
+        candle_count_outside_ma: int = 1
 
         if side == TradeType.SELL:
             if (
