@@ -16,4 +16,4 @@ market_order_twap_interval: 5
 position_mode: ONEWAY
 amount_quote: 30
 min_price_delta_pct_to_open_trend_reversal: 5.0
-min_delta_pct_with_ma_channel_to_open_mean_reversion: 0.5
+min_delta_pct_with_ma_channel_to_open_mean_reversion: 0.75
