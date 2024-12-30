@@ -41,4 +41,4 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     # Order settings
     amount_quote: int = 30
     min_price_delta_pct_to_open_trend_reversal: Decimal = 5.0
-    min_delta_pct_with_ma_channel_to_open_mean_reversion = 1.0  # 5.0 * 0.2
+    min_delta_pct_with_ma_channel_to_open_mean_reversion = 0.75  # 5.0 * 0.15
