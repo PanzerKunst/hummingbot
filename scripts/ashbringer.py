@@ -219,10 +219,6 @@ class ExcaliburStrategy(PkStrategy):
         active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_MEAN_REVERSION)
         active_orders = active_sell_orders + active_buy_orders
 
-        if self.can_create_mean_reversion_order(TradeType.SELL, active_orders):
-            triple_barrier = self.get_triple_barrier(ORDER_REF_MEAN_REVERSION, TradeType.SELL)
-            self.create_order(TradeType.SELL, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_MEAN_REVERSION)
-
         if self.can_create_mean_reversion_order(TradeType.BUY, active_orders):
             triple_barrier = self.get_triple_barrier(ORDER_REF_MEAN_REVERSION, TradeType.BUY)
             self.create_order(TradeType.BUY, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_MEAN_REVERSION)
@@ -234,19 +230,7 @@ class ExcaliburStrategy(PkStrategy):
         if len(active_tracked_orders) > 0:
             return False
 
-        candle_count_outside_ma: int = 1
-
-        if side == TradeType.SELL:
-            if (
-                self.are_candles_fully_above_mah(candle_count_outside_ma) and
-                self.are_candles_green(candle_count_outside_ma) and
-                self.has_price_reversed_down_enough() and
-                self.is_price_far_enough_from_mah()
-            ):
-                self.logger().info(f"can_create_mean_reversion_order() > Opening Mean Reversion Sell at {self.get_current_close()}")
-                return True
-
-            return False
+        candle_count_outside_ma: int = 2
 
         if (
             self.are_candles_fully_below_mal(candle_count_outside_ma) and
@@ -480,17 +464,6 @@ class ExcaliburStrategy(PkStrategy):
         recent_mals = mal_series.iloc[candle_start_index:-1].reset_index(drop=True)
 
         return all(recent_highs[i] < recent_mals[i] for i in range(len(recent_highs)))
-
-    def are_candles_fully_above_mah(self, candle_count: int) -> bool:
-        candle_start_index: int = -candle_count - 1
-
-        low_series: pd.Series = self.processed_data["low"]
-        recent_lows = low_series.iloc[candle_start_index:-1].reset_index(drop=True)
-
-        mah_series: pd.Series = self.processed_data["SMA_10_h"]
-        recent_mahs = mah_series.iloc[candle_start_index:-1].reset_index(drop=True)
-
-        return all(recent_lows[i] > recent_mahs[i] for i in range(len(recent_lows)))
 
     def has_price_reversed_down_enough(self) -> bool:
         price_spike_pct, peak_price = self.compute_mean_reversion_price_spike_pct(4)
