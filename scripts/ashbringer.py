@@ -295,10 +295,10 @@ class ExcaliburStrategy(PkStrategy):
         self.saved_tr_peak_stoch: Tuple[Decimal, float] = peak_stoch, timestamp
 
     def check_tr_context(self, lifetime_minutes: int):
-        saved_tr_peak_stoch, saved_tr_peak_stoch_timestamp = self.saved_tr_peak_stoch
+        saved_peak_stoch, saved_peak_stoch_timestamp = self.saved_tr_peak_stoch
 
         all_timestamps: List[float] = [
-            saved_tr_peak_stoch_timestamp
+            saved_peak_stoch_timestamp
         ]
 
         last_acceptable_timestamp = self.get_market_data_provider_time() - lifetime_minutes * 60
@@ -310,10 +310,10 @@ class ExcaliburStrategy(PkStrategy):
             self.reset_tr_context()
 
     def is_tr_context_default(self) -> bool:
-        saved_tr_peak_stoch, _ = self.saved_tr_peak_stoch
+        saved_peak_stoch, _ = self.saved_tr_peak_stoch
 
         return (
-            saved_tr_peak_stoch == Decimal(50.0) and
+            saved_peak_stoch == Decimal(50.0) and
             self.tr_stoch_reversal_counter == 0
         )
 
@@ -331,10 +331,10 @@ class ExcaliburStrategy(PkStrategy):
         self.saved_mr_peak_stoch: Tuple[Decimal, float] = peak_stoch, timestamp
 
     def check_mr_context(self, lifetime_minutes: int):
-        saved_mr_peak_stoch, saved_mr_peak_stoch_timestamp = self.saved_mr_peak_stoch
+        saved_peak_stoch, saved_peak_stoch_timestamp = self.saved_mr_peak_stoch
 
         all_timestamps: List[float] = [
-            saved_mr_peak_stoch_timestamp
+            saved_peak_stoch_timestamp
         ]
 
         last_acceptable_timestamp = self.get_market_data_provider_time() - lifetime_minutes * 60
@@ -346,10 +346,10 @@ class ExcaliburStrategy(PkStrategy):
             self.reset_mr_context()
 
     def is_mr_context_default(self) -> bool:
-        saved_mr_peak_stoch, _ = self.saved_mr_peak_stoch
+        saved_peak_stoch, _ = self.saved_mr_peak_stoch
 
         return (
-            saved_mr_peak_stoch == Decimal(50.0) and
+            saved_peak_stoch == Decimal(50.0) and
             self.mr_stoch_reversal_counter == 0 and
             self.mr_price_reversal_counter == 0
         )
