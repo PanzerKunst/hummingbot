@@ -28,7 +28,8 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 ORDER_REF_TREND_REVERSAL: str = "TrendReversal"
 ORDER_REF_MEAN_REVERSION: str = "MeanReversion"
-CANDLE_COUNT_FOR_STOCH_REVERSAL: int = 3
+CANDLE_COUNT_FOR_TR_STOCH_REVERSAL: int = 3
+CANDLE_COUNT_FOR_MR_STOCH_REVERSAL: int = 2
 CANDLE_DURATION_MINUTES: int = 3
 
 
@@ -41,7 +42,8 @@ class ExcaliburStrategy(PkStrategy):
         super().__init__(connectors, config)
 
         self.processed_data = pd.DataFrame()
-        self.reset_context()
+        self.reset_tr_context()
+        self.reset_mr_context()
 
     def start(self, clock: Clock, timestamp: float) -> None:
         self._last_timestamp = timestamp
@@ -127,8 +129,11 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
-        context_lifetime_minutes: int = CANDLE_COUNT_FOR_STOCH_REVERSAL * CANDLE_DURATION_MINUTES + 1
-        self.check_context(context_lifetime_minutes)
+        tr_context_lifetime_minutes: int = CANDLE_COUNT_FOR_TR_STOCH_REVERSAL * CANDLE_DURATION_MINUTES + 1
+        self.check_tr_context(tr_context_lifetime_minutes)
+
+        mr_context_lifetime_minutes: int = CANDLE_COUNT_FOR_MR_STOCH_REVERSAL * CANDLE_DURATION_MINUTES + 1
+        self.check_mr_context(mr_context_lifetime_minutes)
 
         self.create_actions_proposal_trend_reversal()
         self.create_actions_proposal_mean_reversion()
@@ -207,7 +212,7 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_TREND_REVERSAL)
 
         if len(filled_buy_orders) > 0:
-            if self.has_stoch_reversed_for_trend_reversal_buy(CANDLE_COUNT_FOR_STOCH_REVERSAL):
+            if self.has_stoch_reversed_for_trend_reversal_buy(CANDLE_COUNT_FOR_TR_STOCH_REVERSAL):
                 self.logger().info(f"stop_actions_proposal_trend_reversal() > Closing Trend Reversal Buy at {self.get_current_close()}")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
 
@@ -247,7 +252,7 @@ class ExcaliburStrategy(PkStrategy):
         _, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_MEAN_REVERSION)
 
         if len(filled_buy_orders) > 0:
-            if self.has_stoch_reversed_for_mean_reversion_buy(CANDLE_COUNT_FOR_STOCH_REVERSAL):
+            if self.has_stoch_reversed_for_mean_reversion_buy(CANDLE_COUNT_FOR_MR_STOCH_REVERSAL):
                 self.logger().info(f"stop_actions_proposal_mean_reversion() > Closing Mean Reversion Buy at {self.get_current_close()}")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
 
@@ -278,48 +283,75 @@ class ExcaliburStrategy(PkStrategy):
         return Decimal(smal_series.iloc[-1])
 
     #
-    # Context functions
+    # Trend Reversal Context
     #
 
-    def reset_context(self):
-        self.save_peak_stoch(Decimal(50.0), self.get_market_data_provider_time())
-        self.save_bottom_stoch(Decimal(50.0), self.get_market_data_provider_time())
+    def reset_tr_context(self):
+        self.save_tr_peak_stoch(Decimal(50.0), self.get_market_data_provider_time())
 
-        self.stoch_reversal_counter: int = 0
-        self.price_reversal_counter: int = 0
+        self.tr_stoch_reversal_counter: int = 0
 
-    def save_peak_stoch(self, peak_stoch: Decimal, timestamp: float):
-        self.saved_peak_stoch: Tuple[Decimal, float] = peak_stoch, timestamp
+    def save_tr_peak_stoch(self, peak_stoch: Decimal, timestamp: float):
+        self.saved_tr_peak_stoch: Tuple[Decimal, float] = peak_stoch, timestamp
 
-    def save_bottom_stoch(self, bottom_stoch: Decimal, timestamp: float):
-        self.saved_bottom_stoch: Tuple[Decimal, float] = bottom_stoch, timestamp
-
-    def check_context(self, lifetime_minutes: int):
-        saved_peak_stoch, saved_peak_stoch_timestamp = self.saved_peak_stoch
-        saved_bottom_stoch, saved_bottom_stoch_timestamp = self.saved_bottom_stoch
+    def check_tr_context(self, lifetime_minutes: int):
+        saved_tr_peak_stoch, saved_tr_peak_stoch_timestamp = self.saved_tr_peak_stoch
 
         all_timestamps: List[float] = [
-            saved_peak_stoch_timestamp,
-            saved_bottom_stoch_timestamp
+            saved_tr_peak_stoch_timestamp
         ]
 
         last_acceptable_timestamp = self.get_market_data_provider_time() - lifetime_minutes * 60
 
         is_any_outdated: bool = any(timestamp < last_acceptable_timestamp for timestamp in all_timestamps)
 
-        if is_any_outdated and not self.is_context_default():
-            self.logger().info("check_context() | One of the context vars is outdated")
-            self.reset_context()
+        if is_any_outdated and not self.is_tr_context_default():
+            self.logger().info("check_tr_context() | One of the context vars is outdated")
+            self.reset_tr_context()
 
-    def is_context_default(self) -> bool:
-        saved_peak_stoch, _ = self.saved_peak_stoch
-        saved_bottom_stoch, _ = self.saved_bottom_stoch
+    def is_tr_context_default(self) -> bool:
+        saved_tr_peak_stoch, _ = self.saved_tr_peak_stoch
 
         return (
-            saved_peak_stoch == Decimal(50.0) and
-            saved_bottom_stoch == Decimal(50.0) and
-            self.stoch_reversal_counter == 0 and
-            self.price_reversal_counter == 0
+            saved_tr_peak_stoch == Decimal(50.0) and
+            self.tr_stoch_reversal_counter == 0
+        )
+
+    #
+    # Mean Reversion Context
+    #
+
+    def reset_mr_context(self):
+        self.save_mr_peak_stoch(Decimal(50.0), self.get_market_data_provider_time())
+
+        self.mr_stoch_reversal_counter: int = 0
+        self.mr_price_reversal_counter: int = 0
+
+    def save_mr_peak_stoch(self, peak_stoch: Decimal, timestamp: float):
+        self.saved_mr_peak_stoch: Tuple[Decimal, float] = peak_stoch, timestamp
+
+    def check_mr_context(self, lifetime_minutes: int):
+        saved_mr_peak_stoch, saved_mr_peak_stoch_timestamp = self.saved_mr_peak_stoch
+
+        all_timestamps: List[float] = [
+            saved_mr_peak_stoch_timestamp
+        ]
+
+        last_acceptable_timestamp = self.get_market_data_provider_time() - lifetime_minutes * 60
+
+        is_any_outdated: bool = any(timestamp < last_acceptable_timestamp for timestamp in all_timestamps)
+
+        if is_any_outdated and not self.is_mr_context_default():
+            self.logger().info("check_mr_context() | One of the context vars is outdated")
+            self.reset_mr_context()
+
+    def is_mr_context_default(self) -> bool:
+        saved_mr_peak_stoch, _ = self.saved_mr_peak_stoch
+
+        return (
+            saved_mr_peak_stoch == Decimal(50.0) and
+            self.mr_stoch_reversal_counter == 0 and
+            self.mr_price_reversal_counter == 0
         )
 
     #
@@ -422,13 +454,13 @@ class ExcaliburStrategy(PkStrategy):
 
         timestamp_series: pd.Series = self.processed_data["timestamp"]
         recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
-        saved_peak_stoch, _ = self.saved_peak_stoch
+        saved_peak_stoch, _ = self.saved_tr_peak_stoch
 
         if peak_stoch > saved_peak_stoch:
             peak_stoch_timestamp = recent_timestamps.iloc[peak_stoch_index]
-            self.save_peak_stoch(peak_stoch, peak_stoch_timestamp)
+            self.save_tr_peak_stoch(peak_stoch, peak_stoch_timestamp)
 
-        saved_peak_stoch, _ = self.saved_peak_stoch
+        saved_peak_stoch, _ = self.saved_tr_peak_stoch
 
         stoch_threshold: Decimal = saved_peak_stoch - 3
         current_stoch = self.get_current_stoch(40)
@@ -436,14 +468,14 @@ class ExcaliburStrategy(PkStrategy):
         self.logger().info(f"has_stoch_reversed_for_trend_reversal_buy() | saved_peak_stoch:{saved_peak_stoch} | current_stoch:{current_stoch} | stoch_threshold:{stoch_threshold} | current_price:{self.get_current_close()}")
 
         if current_stoch > stoch_threshold:
-            self.stoch_reversal_counter = 0
-            self.logger().info("has_stoch_reversed_for_trend_reversal_buy() | resetting self.stoch_reversal_counter to 0")
+            self.tr_stoch_reversal_counter = 0
+            self.logger().info("has_stoch_reversed_for_trend_reversal_buy() | resetting self.tr_stoch_reversal_counter to 0")
             return False
 
-        self.stoch_reversal_counter += 1
-        self.logger().info(f"has_stoch_reversed_for_trend_reversal_buy() | incremented self.stoch_reversal_counter to:{self.stoch_reversal_counter}")
+        self.tr_stoch_reversal_counter += 1
+        self.logger().info(f"has_stoch_reversed_for_trend_reversal_buy() | incremented self.tr_stoch_reversal_counter to:{self.tr_stoch_reversal_counter}")
 
-        return self.stoch_reversal_counter > 4
+        return self.tr_stoch_reversal_counter > 4
 
     #
     # Mean Reversion functions
@@ -504,14 +536,14 @@ class ExcaliburStrategy(PkStrategy):
         self.logger().info(f"has_price_reversed_up_enough() | price_threshold_pct:{price_threshold_pct} | price_threshold:{price_threshold} | current_price:{current_price}")
 
         if current_price < price_threshold:
-            self.price_reversal_counter = 0
-            self.logger().info("has_price_reversed_up_enough() | resetting self.price_reversal_counter to 0")
+            self.mr_price_reversal_counter = 0
+            self.logger().info("has_price_reversed_up_enough() | resetting self.mr_price_reversal_counter to 0")
             return False
 
-        self.price_reversal_counter += 1
-        self.logger().info(f"has_price_reversed_up_enough() | incremented self.price_reversal_counter to:{self.price_reversal_counter}")
+        self.mr_price_reversal_counter += 1
+        self.logger().info(f"has_price_reversed_up_enough() | incremented self.mr_price_reversal_counter to:{self.mr_price_reversal_counter}")
 
-        return self.price_reversal_counter > 59
+        return self.mr_price_reversal_counter > 59
 
     # def compute_mean_reversion_price_spike_pct(self, candle_count: int) -> Tuple[Decimal, Decimal]:
     #     high_series: pd.Series = self.processed_data["high"]
@@ -571,7 +603,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_price_far_enough_from_mal() | delta_pct:{delta_pct}")
 
-        return delta_pct > self.config.min_delta_pct_with_ma_channel_to_open_mean_reversion
+        return self.config.min_delta_pct_with_ma_channel_to_open_mean_reversion < delta_pct < self.config.min_delta_pct_with_ma_channel_to_open_mean_reversion * 3
 
     def compute_mean_reversion_sl_pct_for_sell(self) -> Decimal:
         high_series: pd.Series = self.processed_data["high"]
@@ -644,13 +676,13 @@ class ExcaliburStrategy(PkStrategy):
 
         timestamp_series: pd.Series = self.processed_data["timestamp"]
         recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
-        saved_peak_stoch, _ = self.saved_peak_stoch
+        saved_peak_stoch, _ = self.saved_mr_peak_stoch
 
         if peak_stoch > saved_peak_stoch:
             peak_stoch_timestamp = recent_timestamps.iloc[peak_stoch_index]
-            self.save_peak_stoch(peak_stoch, peak_stoch_timestamp)
+            self.save_mr_peak_stoch(peak_stoch, peak_stoch_timestamp)
 
-        saved_peak_stoch, _ = self.saved_peak_stoch
+        saved_peak_stoch, _ = self.saved_mr_peak_stoch
 
         stoch_threshold: Decimal = saved_peak_stoch - 3
         current_stoch = self.get_current_stoch(10)
@@ -658,14 +690,14 @@ class ExcaliburStrategy(PkStrategy):
         self.logger().info(f"has_stoch_reversed_for_mean_reversion_buy() | saved_peak_stoch:{saved_peak_stoch} | current_stoch:{current_stoch} | stoch_threshold:{stoch_threshold} | current_price:{self.get_current_close()}")
 
         if current_stoch > stoch_threshold:
-            self.stoch_reversal_counter = 0
-            self.logger().info("has_stoch_reversed_for_mean_reversion_buy() | resetting self.stoch_reversal_counter to 0")
+            self.mr_stoch_reversal_counter = 0
+            self.logger().info("has_stoch_reversed_for_mean_reversion_buy() | resetting self.mr_stoch_reversal_counter to 0")
             return False
 
-        self.stoch_reversal_counter += 1
-        self.logger().info(f"has_stoch_reversed_for_mean_reversion_buy() | incremented self.stoch_reversal_counter to:{self.stoch_reversal_counter}")
+        self.mr_stoch_reversal_counter += 1
+        self.logger().info(f"has_stoch_reversed_for_mean_reversion_buy() | incremented self.mr_stoch_reversal_counter to:{self.mr_stoch_reversal_counter}")
 
-        return self.stoch_reversal_counter > 2
+        return self.mr_stoch_reversal_counter > 2
 
     # def is_sell_order_profitable(self, filled_sell_orders: List[TrackedOrderDetails]) -> bool:
     #     pnl_pct: Decimal = compute_sell_orders_pnl_pct(filled_sell_orders, self.get_mid_price())
