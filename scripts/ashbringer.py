@@ -136,7 +136,7 @@ class ExcaliburStrategy(PkStrategy):
         self.check_mr_context(mr_context_lifetime_minutes)
 
         self.create_actions_proposal_trend_reversal()
-        self.create_actions_proposal_mean_reversion()
+        # self.create_actions_proposal_mean_reversion()
 
         return []  # Always return []
 
@@ -148,7 +148,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.check_orders()
         self.stop_actions_proposal_trend_reversal()
-        self.stop_actions_proposal_mean_reversion()
+        # self.stop_actions_proposal_mean_reversion()
 
         return []  # Always return []
 
