@@ -595,7 +595,9 @@ class ExcaliburStrategy(PkStrategy):
         saved_bottom_price, _ = self.saved_mr_bottom_price
         current_price: Decimal = self.get_current_close()
 
-        return (current_price - saved_bottom_price) / current_price * 100
+        delta_pct_with_bottom: Decimal = (current_price - saved_bottom_price) / current_price * 100
+
+        return delta_pct_with_bottom * Decimal(1.25)
 
     def has_stoch_reversed_for_mean_reversion_buy(self, candle_count: int) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_10_k"]
