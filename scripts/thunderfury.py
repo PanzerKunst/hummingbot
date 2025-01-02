@@ -556,7 +556,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def is_price_drop_a_reversal(self, candle_count: int) -> bool:
         candle_end_index: int = -candle_count
-        candle_start_index: int = candle_end_index * 2
+        candle_start_index: int = candle_end_index * 5
 
         low_series: pd.Series = self.processed_data["low"]
         previous_lows = low_series.iloc[candle_start_index:candle_end_index]
