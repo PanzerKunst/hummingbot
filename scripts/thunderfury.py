@@ -107,6 +107,17 @@ class ExcaliburStrategy(PkStrategy):
 
         candles_df["STOCH_15_k"] = stoch_15_df["STOCHk_15_1_1"]
 
+        stoch_10_df = stoch(
+            high=candles_df["high"],
+            low=candles_df["low"],
+            close=candles_df["close"],
+            k=10,
+            d=1,
+            smooth_k=1
+        )
+
+        candles_df["STOCH_10_k"] = stoch_10_df["STOCHk_10_1_1"]
+
         candles_df.dropna(inplace=True)
 
         self.processed_data = candles_df
@@ -155,7 +166,8 @@ class ExcaliburStrategy(PkStrategy):
                     "volume",
                     "RSI_40",
                     "SMA_8",
-                    "STOCH_15_k"
+                    "STOCH_15_k",
+                    "STOCH_10_k"
                 ]
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display], table_format="psql"))
@@ -684,7 +696,7 @@ class ExcaliburStrategy(PkStrategy):
 
         delta_pct_with_peak: Decimal = (saved_peak_price - current_price) / current_price * 100
 
-        return delta_pct_with_peak * 2
+        return delta_pct_with_peak * Decimal(1.5)
 
     def compute_mean_reversion_sl_pct_for_buy(self) -> Decimal:
         saved_bottom_price, _ = self.saved_mr_bottom_price
@@ -692,10 +704,10 @@ class ExcaliburStrategy(PkStrategy):
 
         delta_pct_with_bottom: Decimal = (current_price - saved_bottom_price) / current_price * 100
 
-        return delta_pct_with_bottom * 2
+        return delta_pct_with_bottom * Decimal(1.5)
 
     def has_stoch_reversed_for_mean_reversion_sell(self, candle_count: int) -> bool:
-        stoch_series: pd.Series = self.processed_data["STOCH_15_k"]
+        stoch_series: pd.Series = self.processed_data["STOCH_10_k"]
         recent_stochs = stoch_series.iloc[-candle_count:].reset_index(drop=True)
 
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
@@ -718,7 +730,7 @@ class ExcaliburStrategy(PkStrategy):
         saved_bottom_stoch, _ = self.saved_mr_bottom_or_peak_stoch
 
         stoch_threshold: Decimal = saved_bottom_stoch + 3
-        current_stoch = self.get_current_stoch(15)
+        current_stoch = self.get_current_stoch(10)
 
         self.logger().info(f"has_stoch_reversed_for_mean_reversion_sell() | saved_bottom_stoch:{saved_bottom_stoch} | current_stoch:{current_stoch} | stoch_threshold:{stoch_threshold} | current_price:{self.get_current_close()}")
 
@@ -733,7 +745,7 @@ class ExcaliburStrategy(PkStrategy):
         return self.mr_stoch_reversal_counter > 2
 
     def has_stoch_reversed_for_mean_reversion_buy(self, candle_count: int) -> bool:
-        stoch_series: pd.Series = self.processed_data["STOCH_15_k"]
+        stoch_series: pd.Series = self.processed_data["STOCH_10_k"]
         recent_stochs = stoch_series.iloc[-candle_count:].reset_index(drop=True)
 
         peak_stoch: Decimal = Decimal(recent_stochs.max())
@@ -756,7 +768,7 @@ class ExcaliburStrategy(PkStrategy):
         saved_peak_stoch, _ = self.saved_mr_bottom_or_peak_stoch
 
         stoch_threshold: Decimal = saved_peak_stoch - 3
-        current_stoch = self.get_current_stoch(15)
+        current_stoch = self.get_current_stoch(10)
 
         self.logger().info(f"has_stoch_reversed_for_mean_reversion_buy() | saved_peak_stoch:{saved_peak_stoch} | current_stoch:{current_stoch} | stoch_threshold:{stoch_threshold} | current_price:{self.get_current_close()}")
 
