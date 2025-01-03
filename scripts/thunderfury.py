@@ -314,31 +314,31 @@ class ExcaliburStrategy(PkStrategy):
 
     def check_price_crash_context(self, lifetime_minutes: int):
         _, saved_price_crash_pct_timestamp = self.saved_price_crash_pct
-        # _, saved_bottom_price_timestamp = self.saved_price_crash_bottom_price   not this one, as it's updated every tick
+        _, saved_bottom_price_timestamp = self.saved_price_crash_bottom_price
         _, saved_peak_stoch_timestamp = self.saved_price_crash_peak_stoch
 
-        all_timestamps: List[float] = [
+        most_recent_timestamp: float = max([
             saved_price_crash_pct_timestamp,
-            # saved_bottom_price_timestamp,
+            saved_bottom_price_timestamp,
             saved_peak_stoch_timestamp
-        ]
+        ])
 
         last_acceptable_timestamp = self.get_market_data_provider_time() - lifetime_minutes * 60
 
-        is_any_outdated: bool = any(timestamp < last_acceptable_timestamp for timestamp in all_timestamps)
+        is_outdated: bool = most_recent_timestamp < last_acceptable_timestamp
 
-        if is_any_outdated and not self.is_price_crash_context_default():
-            self.logger().info("check_price_crash_context() | One of the context vars is outdated")
+        if is_outdated and not self.is_price_crash_context_default():
+            self.logger().info("check_price_crash_context() | Resetting outdated context")
             self.reset_price_crash_context()
 
     def is_price_crash_context_default(self) -> bool:
         saved_price_crash_pct, _ = self.saved_price_crash_pct
-        # saved_bottom_price, _ = self.saved_price_crash_bottom_price   not this one, as it's updated every tick
+        saved_bottom_price, _ = self.saved_price_crash_bottom_price
         saved_peak_stoch, _ = self.saved_price_crash_peak_stoch
 
         return (
             saved_price_crash_pct == Decimal(0.0) and
-            # saved_bottom_price == Decimal("Infinity") and
+            saved_bottom_price == Decimal("Infinity") and
             saved_peak_stoch == Decimal(50.0) and
             self.price_crash_price_reversal_counter == 0 and
             self.price_crash_stoch_reversal_counter == 0
@@ -371,35 +371,35 @@ class ExcaliburStrategy(PkStrategy):
 
     def check_mr_context(self, lifetime_minutes: int):
         _, saved_price_spike_or_drop_pct_timestamp = self.saved_mr_spike_or_drop_pct
-        # _, saved_peak_price_timestamp = self.saved_mr_peak_price      not this one, as it's updated every tick
-        # _, saved_bottom_price_timestamp = self.saved_mr_bottom_price  not this one, as it's updated every tick
+        _, saved_peak_price_timestamp = self.saved_mr_peak_price
+        _, saved_bottom_price_timestamp = self.saved_mr_bottom_price
         _, saved_bottom_or_peak_stoch_timestamp = self.saved_mr_bottom_or_peak_stoch
 
-        all_timestamps: List[float] = [
+        most_recent_timestamp: float = max([
             saved_price_spike_or_drop_pct_timestamp,
-            # saved_peak_price_timestamp,
-            # saved_bottom_price_timestamp,
+            saved_peak_price_timestamp,
+            saved_bottom_price_timestamp,
             saved_bottom_or_peak_stoch_timestamp
-        ]
+        ])
 
         last_acceptable_timestamp = self.get_market_data_provider_time() - lifetime_minutes * 60
 
-        is_any_outdated: bool = any(timestamp < last_acceptable_timestamp for timestamp in all_timestamps)
+        is_outdated: bool = most_recent_timestamp < last_acceptable_timestamp
 
-        if is_any_outdated and not self.is_mr_context_default():
-            self.logger().info("check_mr_context() | One of the context vars is outdated")
+        if is_outdated and not self.is_mr_context_default():
+            self.logger().info("check_mr_context() | Resetting outdated context")
             self.reset_mr_context()
 
     def is_mr_context_default(self) -> bool:
         saved_price_spike_or_drop_pct, _ = self.saved_mr_spike_or_drop_pct
-        # saved_peak_price, _ = self.saved_mr_peak_price        not this one, as it's updated every tick
-        # saved_bottom_price, _ = self.saved_mr_bottom_price    not this one, as it's updated every tick
+        saved_peak_price, _ = self.saved_mr_peak_price
+        saved_bottom_price, _ = self.saved_mr_bottom_price
         saved_bottom_or_peak_stoch, _ = self.saved_mr_bottom_or_peak_stoch
 
         return (
             saved_price_spike_or_drop_pct == Decimal(0.0) and
-            # saved_peak_price == Decimal(0.0) and
-            # saved_bottom_price == Decimal("Infinity") and
+            saved_peak_price == Decimal(0.0) and
+            saved_bottom_price == Decimal("Infinity") and
             saved_bottom_or_peak_stoch == Decimal(50.0) and
             self.mr_stoch_reversal_counter == 0 and
             self.mr_price_reversal_counter == 0
