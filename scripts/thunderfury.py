@@ -57,7 +57,7 @@ class ExcaliburStrategy(PkStrategy):
                 for trading_pair in self.market_data_provider.get_trading_pairs(connector_name):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
-    def get_triple_barrier(self, ref: str, side: TradeType) -> TripleBarrier:
+    def get_triple_barrier(self, ref: str) -> TripleBarrier:
         if ref == ORDER_REF_PRICE_CRASH:
             saved_price_crash_pct, _ = self.saved_price_crash_pct
             stop_loss_pct: Decimal = saved_price_crash_pct / 2
@@ -180,7 +180,7 @@ class ExcaliburStrategy(PkStrategy):
         active_orders = active_sell_orders + active_buy_orders
 
         if self.can_create_price_crash_order(TradeType.BUY, active_orders):
-            triple_barrier = self.get_triple_barrier(ORDER_REF_PRICE_CRASH, TradeType.BUY)
+            triple_barrier = self.get_triple_barrier(ORDER_REF_PRICE_CRASH)
             self.create_order(TradeType.BUY, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_PRICE_CRASH)
 
     def can_create_price_crash_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
@@ -218,11 +218,11 @@ class ExcaliburStrategy(PkStrategy):
         active_orders = active_sell_orders + active_buy_orders
 
         if self.can_create_mean_reversion_order(TradeType.SELL, active_orders):
-            triple_barrier = self.get_triple_barrier(ORDER_REF_MEAN_REVERSION, TradeType.SELL)
+            triple_barrier = self.get_triple_barrier(ORDER_REF_MEAN_REVERSION)
             self.create_order(TradeType.SELL, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_MEAN_REVERSION)
 
         if self.can_create_mean_reversion_order(TradeType.BUY, active_orders):
-            triple_barrier = self.get_triple_barrier(ORDER_REF_MEAN_REVERSION, TradeType.BUY)
+            triple_barrier = self.get_triple_barrier(ORDER_REF_MEAN_REVERSION)
             self.create_order(TradeType.BUY, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_MEAN_REVERSION)
 
     def can_create_mean_reversion_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
