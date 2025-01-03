@@ -215,18 +215,18 @@ class ExcaliburStrategy(PkStrategy):
         self.saved_tr_peak_stoch: Tuple[Decimal, float] = peak_stoch, timestamp
 
     def check_tr_context(self, lifetime_minutes: int):
-        saved_peak_stoch, saved_peak_stoch_timestamp = self.saved_tr_peak_stoch
+        _, saved_peak_stoch_timestamp = self.saved_tr_peak_stoch
 
-        all_timestamps: List[float] = [
+        most_recent_timestamp: float = max([
             saved_peak_stoch_timestamp
-        ]
+        ])
 
         last_acceptable_timestamp = self.get_market_data_provider_time() - lifetime_minutes * 60
 
-        is_any_outdated: bool = any(timestamp < last_acceptable_timestamp for timestamp in all_timestamps)
+        is_outdated: bool = most_recent_timestamp < last_acceptable_timestamp
 
-        if is_any_outdated and not self.is_tr_context_default():
-            self.logger().info("check_tr_context() | One of the context vars is outdated")
+        if is_outdated and not self.is_tr_context_default():
+            self.logger().info("check_tr_context() | Resetting outdated context")
             self.reset_tr_context()
 
     def is_tr_context_default(self) -> bool:
