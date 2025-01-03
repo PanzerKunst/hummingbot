@@ -67,11 +67,8 @@ class ExcaliburStrategy(PkStrategy):
                 stop_loss=stop_loss_pct / 100
             )
 
-        stop_loss_pct: Decimal = self.compute_mean_reversion_sl_pct_for_sell() if side == TradeType.SELL else self.compute_mean_reversion_sl_pct_for_buy()
-
         return TripleBarrier(
-            open_order_type=OrderType.MARKET,
-            stop_loss=stop_loss_pct / 100
+            open_order_type=OrderType.MARKET
         )
 
     def update_processed_data(self):
@@ -690,21 +687,21 @@ class ExcaliburStrategy(PkStrategy):
 
         return self.mr_price_reversal_counter > 19
 
-    def compute_mean_reversion_sl_pct_for_sell(self) -> Decimal:
-        saved_peak_price, _ = self.saved_mr_peak_price
-        current_price: Decimal = self.get_current_close()
-
-        delta_pct_with_peak: Decimal = (saved_peak_price - current_price) / current_price * 100
-
-        return delta_pct_with_peak * Decimal(1.5)
-
-    def compute_mean_reversion_sl_pct_for_buy(self) -> Decimal:
-        saved_bottom_price, _ = self.saved_mr_bottom_price
-        current_price: Decimal = self.get_current_close()
-
-        delta_pct_with_bottom: Decimal = (current_price - saved_bottom_price) / current_price * 100
-
-        return delta_pct_with_bottom * Decimal(1.5)
+    # def compute_mean_reversion_sl_pct_for_sell(self) -> Decimal:
+    #     saved_peak_price, _ = self.saved_mr_peak_price
+    #     current_price: Decimal = self.get_current_close()
+    #
+    #     delta_pct_with_peak: Decimal = (saved_peak_price - current_price) / current_price * 100
+    #
+    #     return delta_pct_with_peak * Decimal(1.5)
+    #
+    # def compute_mean_reversion_sl_pct_for_buy(self) -> Decimal:
+    #     saved_bottom_price, _ = self.saved_mr_bottom_price
+    #     current_price: Decimal = self.get_current_close()
+    #
+    #     delta_pct_with_bottom: Decimal = (current_price - saved_bottom_price) / current_price * 100
+    #
+    #     return delta_pct_with_bottom * Decimal(1.5)
 
     def has_stoch_reversed_for_mean_reversion_sell(self, candle_count: int) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_10_k"]
