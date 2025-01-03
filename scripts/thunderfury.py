@@ -12,6 +12,7 @@ from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction,
 from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
+from scripts.pk.pk_utils import timestamp_to_iso
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 from scripts.thunderfury_config import ExcaliburConfig
 
@@ -562,9 +563,15 @@ class ExcaliburStrategy(PkStrategy):
 
         timestamp_series: pd.Series = self.processed_data["timestamp"]
         recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
-        saved_peak_price, _ = self.saved_mr_peak_price
+        saved_peak_price, saved_peak_price_timestamp = self.saved_mr_peak_price
 
-        if peak_price > saved_peak_price:
+        first_candle_timestamp: float = recent_timestamps.iloc[0]
+        is_saved_price_valid: bool = saved_peak_price_timestamp > first_candle_timestamp
+
+        # TODO: remove
+        self.logger().info(f"has_price_spiked_for_mr() | saved_peak_price_timestamp:{timestamp_to_iso(saved_peak_price_timestamp)} | first_candle_timestamp:{timestamp_to_iso(first_candle_timestamp)} | is_saved_price_valid:{is_saved_price_valid}")
+
+        if not is_saved_price_valid or peak_price > saved_peak_price:
             peak_price_timestamp = recent_timestamps.iloc[peak_price_index]
             self.save_mr_peak_price(peak_price, peak_price_timestamp)
 
@@ -595,9 +602,15 @@ class ExcaliburStrategy(PkStrategy):
 
         timestamp_series: pd.Series = self.processed_data["timestamp"]
         recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
-        saved_bottom_price, _ = self.saved_mr_bottom_price
+        saved_bottom_price, saved_bottom_price_timestamp = self.saved_mr_bottom_price
 
-        if bottom_price < saved_bottom_price:
+        first_candle_timestamp: float = recent_timestamps.iloc[0]
+        is_saved_price_valid: bool = saved_bottom_price_timestamp > first_candle_timestamp
+
+        # TODO: remove
+        self.logger().info(f"has_price_crashed_for_mr() | saved_bottom_price_timestamp:{timestamp_to_iso(saved_bottom_price_timestamp)} | first_candle_timestamp:{timestamp_to_iso(first_candle_timestamp)} | is_saved_price_valid:{is_saved_price_valid}")
+
+        if not is_saved_price_valid or bottom_price < saved_bottom_price:
             bottom_price_timestamp = recent_timestamps.iloc[bottom_price_index]
             self.save_mr_bottom_price(bottom_price, bottom_price_timestamp)
 
