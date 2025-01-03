@@ -12,6 +12,7 @@ from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction,
 from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
+from scripts.pk.pk_utils import timestamp_to_iso
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 from scripts.thunderfury_config import ExcaliburConfig
 
@@ -367,15 +368,27 @@ class ExcaliburStrategy(PkStrategy):
         self.mr_price_reversal_counter: int = 0
 
     def save_mr_spike_or_drop_pct(self, price_change_pct: Decimal, timestamp: float):
+        # TODO: remove
+        self.logger().info(f"save_mr_spike_or_drop_pct() | timestamp:{timestamp_to_iso(timestamp)} | market_data_provider_time:{timestamp_to_iso(self.get_market_data_provider_time())}")
+
         self.saved_mr_spike_or_drop_pct: Tuple[Decimal, float] = price_change_pct, timestamp
 
     def save_mr_peak_price(self, peak_price: Decimal, timestamp: float):
+        # TODO: remove
+        self.logger().info(f"save_mr_peak_price() | timestamp:{timestamp_to_iso(timestamp)} | market_data_provider_time:{timestamp_to_iso(self.get_market_data_provider_time())}")
+
         self.saved_mr_peak_price: Tuple[Decimal, float] = peak_price, timestamp
 
     def save_mr_bottom_price(self, bottom_price: Decimal, timestamp: float):
+        # TODO: remove
+        self.logger().info(f"save_mr_bottom_price() | timestamp:{timestamp_to_iso(timestamp)} | market_data_provider_time:{timestamp_to_iso(self.get_market_data_provider_time())}")
+
         self.saved_mr_bottom_price: Tuple[Decimal, float] = bottom_price, timestamp
 
     def save_mr_bottom_or_peak_stoch(self, bottom_or_peak_stoch: Decimal, timestamp: float):
+        # TODO: remove
+        self.logger().info(f"save_mr_bottom_or_peak_stoch() | timestamp:{timestamp_to_iso(timestamp)} | market_data_provider_time:{timestamp_to_iso(self.get_market_data_provider_time())}")
+
         self.saved_mr_bottom_or_peak_stoch: Tuple[Decimal, float] = bottom_or_peak_stoch, timestamp
 
     def check_mr_context(self, lifetime_minutes: int):
@@ -392,6 +405,9 @@ class ExcaliburStrategy(PkStrategy):
         ])
 
         last_acceptable_timestamp = self.get_market_data_provider_time() - lifetime_minutes * 60
+
+        # TODO: remove
+        self.logger().info(f"check_mr_context() | most_recent_timestamp:{timestamp_to_iso(most_recent_timestamp)} | last_acceptable_timestamp:{timestamp_to_iso(last_acceptable_timestamp)}")
 
         is_outdated: bool = most_recent_timestamp < last_acceptable_timestamp
 
