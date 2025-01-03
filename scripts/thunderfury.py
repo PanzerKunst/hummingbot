@@ -159,6 +159,8 @@ class ExcaliburStrategy(PkStrategy):
             if not self.processed_data.empty:
                 columns_to_display = [
                     "timestamp_iso",
+                    "high",
+                    "low",
                     "close",
                     "volume",
                     "RSI_40",
