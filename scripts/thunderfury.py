@@ -324,12 +324,12 @@ class ExcaliburStrategy(PkStrategy):
 
     def check_price_crash_context(self, lifetime_minutes: int):
         _, saved_price_crash_pct_timestamp = self.saved_price_crash_pct
-        _, saved_bottom_price_timestamp = self.saved_price_crash_bottom_price
+        # _, saved_bottom_price_timestamp = self.saved_price_crash_bottom_price     not this one, as it's set every tick
         _, saved_peak_stoch_timestamp = self.saved_price_crash_peak_stoch
 
         most_recent_timestamp: float = max([
             saved_price_crash_pct_timestamp,
-            saved_bottom_price_timestamp,
+            # saved_bottom_price_timestamp,
             saved_peak_stoch_timestamp
         ])
 
@@ -393,14 +393,14 @@ class ExcaliburStrategy(PkStrategy):
 
     def check_mr_context(self, lifetime_minutes: int):
         _, saved_price_spike_or_drop_pct_timestamp = self.saved_mr_spike_or_drop_pct
-        _, saved_peak_price_timestamp = self.saved_mr_peak_price
-        _, saved_bottom_price_timestamp = self.saved_mr_bottom_price
+        # _, saved_peak_price_timestamp = self.saved_mr_peak_price      not this one, as it's set every tick
+        # _, saved_bottom_price_timestamp = self.saved_mr_bottom_price  not this one, as it's set every tick
         _, saved_bottom_or_peak_stoch_timestamp = self.saved_mr_bottom_or_peak_stoch
 
         most_recent_timestamp: float = max([
             saved_price_spike_or_drop_pct_timestamp,
-            saved_peak_price_timestamp,
-            saved_bottom_price_timestamp,
+            # saved_peak_price_timestamp,
+            # saved_bottom_price_timestamp,
             saved_bottom_or_peak_stoch_timestamp
         ])
 
