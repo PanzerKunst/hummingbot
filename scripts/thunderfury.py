@@ -546,7 +546,7 @@ class ExcaliburStrategy(PkStrategy):
 
         peak_price = Decimal(recent_highs.iloc[0:bottom_price_index].max())
         price_delta_pct: Decimal = (peak_price - saved_bottom_price) / saved_bottom_price * 100
-        is_crashing = self.config.min_price_delta_pct_to_open_mean_reversion < price_delta_pct < self.config.min_price_delta_pct_to_open_mean_reversion * 3
+        is_crashing = self.config.min_price_delta_pct_to_open_mean_reversion < price_delta_pct < self.config.min_price_delta_pct_to_open_mean_reversion * 2
 
         if is_crashing:
             self.logger().info(f"has_price_crashed_for_mr() | current_price:{self.get_current_close()} | bottom_price_index:{bottom_price_index} | saved_bottom_price:{saved_bottom_price} | peak_price:{peak_price} | price_delta_pct:{price_delta_pct}")
