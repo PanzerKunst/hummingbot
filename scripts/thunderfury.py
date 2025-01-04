@@ -538,21 +538,24 @@ class ExcaliburStrategy(PkStrategy):
         low_series: pd.Series = self.processed_data["low"]
         recent_lows = low_series.iloc[-candle_count:].reset_index(drop=True)
 
+        bottom_price = Decimal(recent_lows.min())
+        bottom_price_index = recent_lows.idxmin()
+
         high_series: pd.Series = self.processed_data["high"]
         recent_highs = high_series.iloc[-candle_count:].reset_index(drop=True)
 
         peak_price = Decimal(recent_highs.max())
         peak_price_index = recent_highs.idxmax()
 
-        if peak_price_index == 0:
+        if bottom_price_index > peak_price_index:
             return False
 
-        bottom_price = Decimal(recent_lows.iloc[0:peak_price_index].min())
         price_delta_pct: Decimal = (peak_price - bottom_price) / bottom_price * 100
         is_spiking = self.config.min_price_delta_pct_to_open_mean_reversion < price_delta_pct
 
         if is_spiking:
-            self.logger().info(f"has_price_spiked_for_mr() | current_price:{self.get_current_close()} | peak_price_index:{peak_price_index} | peak_price:{peak_price} | bottom_price:{bottom_price} | price_delta_pct:{price_delta_pct}")
+            self.logger().info(f"has_price_spiked_for_mr() | bottom_price_index:{bottom_price_index} | bottom_price:{bottom_price} | peak_price_index:{peak_price_index} | peak_price:{peak_price}")
+            self.logger().info(f"has_price_spiked_for_mr() | current_price:{self.get_current_close()} | price_delta_pct:{price_delta_pct}")
             self.save_mr_spike_or_drop_pct(price_delta_pct, self.get_market_data_provider_time())
 
         return is_spiking
@@ -561,21 +564,24 @@ class ExcaliburStrategy(PkStrategy):
         low_series: pd.Series = self.processed_data["low"]
         recent_lows = low_series.iloc[-candle_count:].reset_index(drop=True)
 
-        high_series: pd.Series = self.processed_data["high"]
-        recent_highs = high_series.iloc[-candle_count:].reset_index(drop=True)
-
         bottom_price = Decimal(recent_lows.min())
         bottom_price_index = recent_lows.idxmin()
 
-        if bottom_price_index == 0:
+        high_series: pd.Series = self.processed_data["high"]
+        recent_highs = high_series.iloc[-candle_count:].reset_index(drop=True)
+
+        peak_price = Decimal(recent_highs.max())
+        peak_price_index = recent_highs.idxmax()
+
+        if peak_price_index > bottom_price_index:
             return False
 
-        peak_price = Decimal(recent_highs.iloc[0:bottom_price_index].max())
         price_delta_pct: Decimal = (peak_price - bottom_price) / bottom_price * 100
         is_crashing = self.config.min_price_delta_pct_to_open_mean_reversion < price_delta_pct
 
         if is_crashing:
-            self.logger().info(f"has_price_crashed_for_mr() | current_price:{self.get_current_close()} | bottom_price_index:{bottom_price_index} | bottom_price:{bottom_price} | peak_price:{peak_price} | price_delta_pct:{price_delta_pct}")
+            self.logger().info(f"has_price_crashed_for_mr() | bottom_price_index:{bottom_price_index} | bottom_price:{bottom_price} | peak_price_index:{peak_price_index} | peak_price:{peak_price}")
+            self.logger().info(f"has_price_crashed_for_mr() | current_price:{self.get_current_close()} | price_delta_pct:{price_delta_pct}")
             self.save_mr_spike_or_drop_pct(price_delta_pct, self.get_market_data_provider_time())
 
         return is_crashing
