@@ -12,6 +12,7 @@ from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction,
 from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
+from scripts.pk.pk_utils import timestamp_to_iso
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 from scripts.thunderfury_config import ExcaliburConfig
 
@@ -683,10 +684,7 @@ class ExcaliburStrategy(PkStrategy):
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
         bottom_stoch_index = recent_stochs.idxmin()
 
-        if bottom_stoch_index == 0:
-            return False
-
-        if bottom_stoch > 52:
+        if bottom_stoch > 50:
             return False
 
         timestamp_series: pd.Series = self.processed_data["timestamp"]
@@ -695,6 +693,7 @@ class ExcaliburStrategy(PkStrategy):
 
         if bottom_stoch < saved_bottom_stoch:
             bottom_stoch_timestamp = recent_timestamps.iloc[bottom_stoch_index]
+            self.logger().info(f"has_stoch_reversed_for_mean_reversion_sell() | bottom_stoch_index:{bottom_stoch_index} | bottom_stoch_timestamp:{timestamp_to_iso(bottom_stoch_timestamp)}")
             self.save_mr_bottom_or_peak_stoch(bottom_stoch, bottom_stoch_timestamp)
 
         saved_bottom_stoch, _ = self.saved_mr_bottom_or_peak_stoch
@@ -721,10 +720,7 @@ class ExcaliburStrategy(PkStrategy):
         peak_stoch: Decimal = Decimal(recent_stochs.max())
         peak_stoch_index = recent_stochs.idxmax()
 
-        if peak_stoch_index == 0:
-            return False
-
-        if peak_stoch < 48:
+        if peak_stoch < 50:
             return False
 
         timestamp_series: pd.Series = self.processed_data["timestamp"]
@@ -733,6 +729,7 @@ class ExcaliburStrategy(PkStrategy):
 
         if peak_stoch > saved_peak_stoch:
             peak_stoch_timestamp = recent_timestamps.iloc[peak_stoch_index]
+            self.logger().info(f"has_stoch_reversed_for_mean_reversion_buy() | peak_stoch_index:{peak_stoch_index} | peak_stoch_timestamp:{timestamp_to_iso(peak_stoch_timestamp)}")
             self.save_mr_bottom_or_peak_stoch(peak_stoch, peak_stoch_timestamp)
 
         saved_peak_stoch, _ = self.saved_mr_bottom_or_peak_stoch
