@@ -365,7 +365,8 @@ class ExcaliburStrategy(PkStrategy):
 
     def reset_mr_context(self):
         self.save_mr_spike_or_drop_pct(Decimal(0.0), self.get_market_data_provider_time())
-        self.save_mr_bottom_or_peak_stoch(Decimal(50.0), self.get_market_data_provider_time())
+        self.save_mr_bottom_stoch(Decimal(52.0), self.get_market_data_provider_time())
+        self.save_mr_peak_stoch(Decimal(48.0), self.get_market_data_provider_time())
 
         self.mr_stoch_reversal_counter: int = 0
         self.mr_price_reversal_counter: int = 0
@@ -373,16 +374,21 @@ class ExcaliburStrategy(PkStrategy):
     def save_mr_spike_or_drop_pct(self, price_change_pct: Decimal, timestamp: float):
         self.saved_mr_spike_or_drop_pct: Tuple[Decimal, float] = price_change_pct, timestamp
 
-    def save_mr_bottom_or_peak_stoch(self, bottom_or_peak_stoch: Decimal, timestamp: float):
-        self.saved_mr_bottom_or_peak_stoch: Tuple[Decimal, float] = bottom_or_peak_stoch, timestamp
+    def save_mr_bottom_stoch(self, bottom_stoch: Decimal, timestamp: float):
+        self.saved_mr_bottom_stoch: Tuple[Decimal, float] = bottom_stoch, timestamp
+
+    def save_mr_peak_stoch(self, peak_stoch: Decimal, timestamp: float):
+        self.saved_mr_peak_stoch: Tuple[Decimal, float] = peak_stoch, timestamp
 
     def check_mr_context(self, lifetime_minutes: int):
         _, saved_price_spike_or_drop_pct_timestamp = self.saved_mr_spike_or_drop_pct
-        _, saved_bottom_or_peak_stoch_timestamp = self.saved_mr_bottom_or_peak_stoch
+        _, saved_bottom_stoch_timestamp = self.saved_mr_bottom_stoch
+        _, saved_peak_stoch_timestamp = self.saved_mr_peak_stoch
 
         most_recent_timestamp: float = max([
             saved_price_spike_or_drop_pct_timestamp,
-            saved_bottom_or_peak_stoch_timestamp
+            saved_bottom_stoch_timestamp,
+            saved_peak_stoch_timestamp
         ])
 
         last_acceptable_timestamp = self.get_market_data_provider_time() - lifetime_minutes * 60
@@ -395,11 +401,13 @@ class ExcaliburStrategy(PkStrategy):
 
     def is_mr_context_default(self) -> bool:
         saved_price_spike_or_drop_pct, _ = self.saved_mr_spike_or_drop_pct
-        saved_bottom_or_peak_stoch, _ = self.saved_mr_bottom_or_peak_stoch
+        saved_bottom_stoch, _ = self.saved_mr_bottom_stoch
+        saved_peak_stoch, _ = self.saved_mr_peak_stoch
 
         return (
             saved_price_spike_or_drop_pct == Decimal(0.0) and
-            saved_bottom_or_peak_stoch == Decimal(50.0) and
+            saved_bottom_stoch == Decimal(52.0) and
+            saved_peak_stoch == Decimal(48.0) and
             self.mr_stoch_reversal_counter == 0 and
             self.mr_price_reversal_counter == 0
         )
@@ -493,6 +501,7 @@ class ExcaliburStrategy(PkStrategy):
 
         return is_over_ma
 
+    # TODO: update like MR
     def has_stoch_reversed_for_price_crash_buy(self) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_15_k"]
         recent_stochs = stoch_series.iloc[-5:].reset_index(drop=True)
@@ -682,10 +691,7 @@ class ExcaliburStrategy(PkStrategy):
         recent_stochs = stoch_series.iloc[-candle_count:].reset_index(drop=True)
 
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
-        saved_bottom_stoch, _ = self.saved_mr_bottom_or_peak_stoch
-
-        if min([bottom_stoch, saved_bottom_stoch]) >= 50:
-            return False
+        saved_bottom_stoch, _ = self.saved_mr_bottom_stoch
 
         if bottom_stoch < saved_bottom_stoch:
             timestamp_series: pd.Series = self.processed_data["timestamp"]
@@ -695,9 +701,9 @@ class ExcaliburStrategy(PkStrategy):
             bottom_stoch_timestamp = recent_timestamps.iloc[bottom_stoch_index]
 
             self.logger().info(f"has_stoch_reversed_for_mean_reversion_sell() | bottom_stoch_index:{bottom_stoch_index} | bottom_stoch_timestamp:{timestamp_to_iso(bottom_stoch_timestamp)}")
-            self.save_mr_bottom_or_peak_stoch(bottom_stoch, bottom_stoch_timestamp)
+            self.save_mr_bottom_stoch(bottom_stoch, bottom_stoch_timestamp)
 
-        saved_bottom_stoch, _ = self.saved_mr_bottom_or_peak_stoch
+        saved_bottom_stoch, _ = self.saved_mr_bottom_stoch
 
         stoch_threshold: Decimal = saved_bottom_stoch + 3
         current_stoch = self.get_current_stoch(10)
@@ -719,10 +725,7 @@ class ExcaliburStrategy(PkStrategy):
         recent_stochs = stoch_series.iloc[-candle_count:].reset_index(drop=True)
 
         peak_stoch: Decimal = Decimal(recent_stochs.max())
-        saved_peak_stoch, _ = self.saved_mr_bottom_or_peak_stoch
-
-        if max([peak_stoch, saved_peak_stoch]) <= 50:
-            return False
+        saved_peak_stoch, _ = self.saved_mr_peak_stoch
 
         if peak_stoch > saved_peak_stoch:
             timestamp_series: pd.Series = self.processed_data["timestamp"]
@@ -732,9 +735,9 @@ class ExcaliburStrategy(PkStrategy):
             peak_stoch_timestamp = recent_timestamps.iloc[peak_stoch_index]
 
             self.logger().info(f"has_stoch_reversed_for_mean_reversion_buy() | peak_stoch_index:{peak_stoch_index} | peak_stoch_timestamp:{timestamp_to_iso(peak_stoch_timestamp)}")
-            self.save_mr_bottom_or_peak_stoch(peak_stoch, peak_stoch_timestamp)
+            self.save_mr_peak_stoch(peak_stoch, peak_stoch_timestamp)
 
-        saved_peak_stoch, _ = self.saved_mr_bottom_or_peak_stoch
+        saved_peak_stoch, _ = self.saved_mr_peak_stoch
 
         stoch_threshold: Decimal = saved_peak_stoch - 3
         current_stoch = self.get_current_stoch(10)
