@@ -600,7 +600,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_price_spike_a_reversal() | current_peak:{current_peak} | previous_peak:{previous_peak} | delta_pct:{delta_pct}")
 
-        return delta_pct < self.config.min_price_delta_pct_to_open_mean_reversion * Decimal(0.75)
+        return delta_pct < self.config.min_price_delta_pct_to_open_mean_reversion * Decimal(0.67)
 
     def is_price_drop_a_reversal(self, candle_count: int) -> bool:
         candle_end_index: int = -candle_count
@@ -615,7 +615,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_price_drop_a_reversal() | current_bottom:{current_bottom} | previous_bottom:{previous_bottom} | delta_pct:{delta_pct}")
 
-        return delta_pct < self.config.min_price_delta_pct_to_open_mean_reversion * Decimal(0.75)
+        return delta_pct < self.config.min_price_delta_pct_to_open_mean_reversion * Decimal(0.67)
 
     def did_price_rebound_enough_for_sell(self) -> bool:
         saved_price_change_pct, _ = self.saved_mr_spike_or_drop_pct
