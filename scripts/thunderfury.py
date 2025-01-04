@@ -682,17 +682,18 @@ class ExcaliburStrategy(PkStrategy):
         recent_stochs = stoch_series.iloc[-candle_count:].reset_index(drop=True)
 
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
-        bottom_stoch_index = recent_stochs.idxmin()
-
-        if bottom_stoch > 50:
-            return False
-
-        timestamp_series: pd.Series = self.processed_data["timestamp"]
-        recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
         saved_bottom_stoch, _ = self.saved_mr_bottom_or_peak_stoch
 
+        if min([bottom_stoch, saved_bottom_stoch]) >= 50:
+            return False
+
         if bottom_stoch < saved_bottom_stoch:
+            timestamp_series: pd.Series = self.processed_data["timestamp"]
+            recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
+            bottom_stoch_index = recent_stochs.idxmin()
+
             bottom_stoch_timestamp = recent_timestamps.iloc[bottom_stoch_index]
+
             self.logger().info(f"has_stoch_reversed_for_mean_reversion_sell() | bottom_stoch_index:{bottom_stoch_index} | bottom_stoch_timestamp:{timestamp_to_iso(bottom_stoch_timestamp)}")
             self.save_mr_bottom_or_peak_stoch(bottom_stoch, bottom_stoch_timestamp)
 
@@ -718,17 +719,18 @@ class ExcaliburStrategy(PkStrategy):
         recent_stochs = stoch_series.iloc[-candle_count:].reset_index(drop=True)
 
         peak_stoch: Decimal = Decimal(recent_stochs.max())
-        peak_stoch_index = recent_stochs.idxmax()
-
-        if peak_stoch < 50:
-            return False
-
-        timestamp_series: pd.Series = self.processed_data["timestamp"]
-        recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
         saved_peak_stoch, _ = self.saved_mr_bottom_or_peak_stoch
 
+        if max([peak_stoch, saved_peak_stoch]) <= 50:
+            return False
+
         if peak_stoch > saved_peak_stoch:
+            timestamp_series: pd.Series = self.processed_data["timestamp"]
+            recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
+            peak_stoch_index = recent_stochs.idxmax()
+
             peak_stoch_timestamp = recent_timestamps.iloc[peak_stoch_index]
+
             self.logger().info(f"has_stoch_reversed_for_mean_reversion_buy() | peak_stoch_index:{peak_stoch_index} | peak_stoch_timestamp:{timestamp_to_iso(peak_stoch_timestamp)}")
             self.save_mr_bottom_or_peak_stoch(peak_stoch, peak_stoch_timestamp)
 
