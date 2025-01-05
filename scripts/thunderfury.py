@@ -320,7 +320,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def reset_price_crash_context(self):
         self.save_price_crash_pct(Decimal(0.0), self.get_market_data_provider_time())
-        self.save_price_crash_peak_stoch(Decimal(50.0), self.get_market_data_provider_time())
+        self.save_price_crash_peak_stoch(Decimal(60.0), self.get_market_data_provider_time())
 
         self.price_crash_price_reversal_counter: int = 0
         self.price_crash_stoch_reversal_counter: int = 0
@@ -354,7 +354,7 @@ class ExcaliburStrategy(PkStrategy):
 
         return (
             saved_price_crash_pct == Decimal(0.0) and
-            saved_peak_stoch == Decimal(50.0) and
+            saved_peak_stoch == Decimal(60.0) and
             self.price_crash_price_reversal_counter == 0 and
             self.price_crash_stoch_reversal_counter == 0
         )
@@ -501,26 +501,24 @@ class ExcaliburStrategy(PkStrategy):
 
         return is_over_ma
 
-    # TODO: update like MR
     def has_stoch_reversed_for_price_crash_buy(self) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_15_k"]
         recent_stochs = stoch_series.iloc[-5:].reset_index(drop=True)
 
         peak_stoch: Decimal = Decimal(recent_stochs.max())
-        peak_stoch_index = recent_stochs.idxmax()
-
-        if peak_stoch_index == 0:
-            return False
-
-        if peak_stoch < 60:
-            return False
-
-        timestamp_series: pd.Series = self.processed_data["timestamp"]
-        recent_timestamps = timestamp_series.iloc[-5:].reset_index(drop=True)
         saved_peak_stoch, _ = self.saved_price_crash_peak_stoch
 
+        if max([peak_stoch, saved_peak_stoch]) <= 60:
+            return False
+
         if peak_stoch > saved_peak_stoch:
+            timestamp_series: pd.Series = self.processed_data["timestamp"]
+            recent_timestamps = timestamp_series.iloc[-5:].reset_index(drop=True)
+            peak_stoch_index = recent_stochs.idxmax()
+
             peak_stoch_timestamp = recent_timestamps.iloc[peak_stoch_index]
+
+            self.logger().info(f"has_stoch_reversed_for_price_crash_buy() | peak_stoch_index:{peak_stoch_index} | peak_stoch_timestamp:{timestamp_to_iso(peak_stoch_timestamp)}")
             self.save_price_crash_peak_stoch(peak_stoch, peak_stoch_timestamp)
 
         saved_peak_stoch, _ = self.saved_price_crash_peak_stoch
