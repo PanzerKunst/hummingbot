@@ -693,6 +693,9 @@ class ExcaliburStrategy(PkStrategy):
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
         saved_bottom_stoch, _ = self.saved_mr_bottom_stoch
 
+        if min([bottom_stoch, saved_bottom_stoch]) >= 52:
+            return False
+
         if bottom_stoch < saved_bottom_stoch:
             timestamp_series: pd.Series = self.processed_data["timestamp"]
             recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
@@ -726,6 +729,9 @@ class ExcaliburStrategy(PkStrategy):
 
         peak_stoch: Decimal = Decimal(recent_stochs.max())
         saved_peak_stoch, _ = self.saved_mr_peak_stoch
+
+        if max([peak_stoch, saved_peak_stoch]) <= 48:
+            return False
 
         if peak_stoch > saved_peak_stoch:
             timestamp_series: pd.Series = self.processed_data["timestamp"]
