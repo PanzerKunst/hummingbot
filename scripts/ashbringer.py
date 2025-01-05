@@ -14,6 +14,7 @@ from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.ashbringer_config import ExcaliburConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
+from scripts.pk.pk_utils import timestamp_to_iso
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 # Generate config file: create --script-config ashbringer_config
@@ -207,7 +208,7 @@ class ExcaliburStrategy(PkStrategy):
     #
 
     def reset_tr_context(self):
-        self.save_tr_peak_stoch(Decimal(50.0), self.get_market_data_provider_time())
+        self.save_tr_peak_stoch(Decimal(75.0), self.get_market_data_provider_time())
 
         self.tr_stoch_reversal_counter: int = 0
 
@@ -233,7 +234,7 @@ class ExcaliburStrategy(PkStrategy):
         saved_peak_stoch, _ = self.saved_tr_peak_stoch
 
         return (
-            saved_peak_stoch == Decimal(50.0) and
+            saved_peak_stoch == Decimal(75.0) and
             self.tr_stoch_reversal_counter == 0
         )
 
@@ -312,20 +313,19 @@ class ExcaliburStrategy(PkStrategy):
         recent_stochs = stoch_series.iloc[-candle_count:].reset_index(drop=True)
 
         peak_stoch: Decimal = Decimal(recent_stochs.max())
-        peak_stoch_index = recent_stochs.idxmax()
-
-        if peak_stoch_index == 0:
-            return False
-
-        if peak_stoch < 75:
-            return False
-
-        timestamp_series: pd.Series = self.processed_data["timestamp"]
-        recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
         saved_peak_stoch, _ = self.saved_tr_peak_stoch
 
+        if max([peak_stoch, saved_peak_stoch]) <= 75:
+            return False
+
         if peak_stoch > saved_peak_stoch:
+            timestamp_series: pd.Series = self.processed_data["timestamp"]
+            recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
+            peak_stoch_index = recent_stochs.idxmax()
+
             peak_stoch_timestamp = recent_timestamps.iloc[peak_stoch_index]
+
+            self.logger().info(f"has_stoch_reversed_for_trend_reversal_buy() | peak_stoch_index:{peak_stoch_index} | peak_stoch_timestamp:{timestamp_to_iso(peak_stoch_timestamp)}")
             self.save_tr_peak_stoch(peak_stoch, peak_stoch_timestamp)
 
         saved_peak_stoch, _ = self.saved_tr_peak_stoch
