@@ -12,6 +12,7 @@ from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction,
 from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
+from scripts.pk.pk_utils import timestamp_to_iso
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 from scripts.thunderfury_config import ExcaliburConfig
 
@@ -29,7 +30,8 @@ from scripts.thunderfury_config import ExcaliburConfig
 ORDER_REF_PRICE_CRASH: str = "PriceCrash"
 ORDER_REF_MEAN_REVERSION: str = "MeanReversion"
 CANDLE_COUNT_FOR_PRICE_CRASH: int = 5
-CANDLE_COUNT_FOR_MR_CONTEXT: int = 3  # Price drop & STOCH reversal
+CANDLE_COUNT_FOR_MR_PRICE_CHANGE: int = 2
+CANDLE_COUNT_FOR_MR_CONTEXT: int = CANDLE_COUNT_FOR_MR_PRICE_CHANGE  # Price change & STOCH reversal
 CANDLE_DURATION_MINUTES: int = 1
 
 
@@ -57,7 +59,7 @@ class ExcaliburStrategy(PkStrategy):
                 for trading_pair in self.market_data_provider.get_trading_pairs(connector_name):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
-    def get_triple_barrier(self, ref: str) -> TripleBarrier:
+    def get_triple_barrier(self, ref: str, side: TradeType) -> TripleBarrier:
         if ref == ORDER_REF_PRICE_CRASH:
             saved_price_crash_pct, _ = self.saved_price_crash_pct
             stop_loss_pct: Decimal = saved_price_crash_pct / 2
@@ -67,8 +69,14 @@ class ExcaliburStrategy(PkStrategy):
                 stop_loss=stop_loss_pct / 100
             )
 
+        stop_loss_pct: Decimal = (
+            self.compute_mean_reversion_sl_pct_for_sell(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) if side == TradeType.SELL
+            else self.compute_mean_reversion_sl_pct_for_buy(CANDLE_COUNT_FOR_MR_PRICE_CHANGE)
+        )
+
         return TripleBarrier(
-            open_order_type=OrderType.MARKET
+            open_order_type=OrderType.MARKET,
+            stop_loss=stop_loss_pct / 100
         )
 
     def update_processed_data(self):
@@ -182,7 +190,7 @@ class ExcaliburStrategy(PkStrategy):
         active_orders = active_sell_orders + active_buy_orders
 
         if self.can_create_price_crash_order(TradeType.BUY, active_orders):
-            triple_barrier = self.get_triple_barrier(ORDER_REF_PRICE_CRASH)
+            triple_barrier = self.get_triple_barrier(ORDER_REF_PRICE_CRASH, TradeType.BUY)
             self.create_order(TradeType.BUY, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_PRICE_CRASH)
 
     def can_create_price_crash_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
@@ -220,11 +228,11 @@ class ExcaliburStrategy(PkStrategy):
         active_orders = active_sell_orders + active_buy_orders
 
         if self.can_create_mean_reversion_order(TradeType.SELL, active_orders):
-            triple_barrier = self.get_triple_barrier(ORDER_REF_MEAN_REVERSION)
+            triple_barrier = self.get_triple_barrier(ORDER_REF_MEAN_REVERSION, TradeType.SELL)
             self.create_order(TradeType.SELL, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_MEAN_REVERSION)
 
         if self.can_create_mean_reversion_order(TradeType.BUY, active_orders):
-            triple_barrier = self.get_triple_barrier(ORDER_REF_MEAN_REVERSION)
+            triple_barrier = self.get_triple_barrier(ORDER_REF_MEAN_REVERSION, TradeType.BUY)
             self.create_order(TradeType.BUY, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_MEAN_REVERSION)
 
     def can_create_mean_reversion_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
@@ -234,13 +242,11 @@ class ExcaliburStrategy(PkStrategy):
         if len(active_tracked_orders) > 0:
             return False
 
-        candle_count_for_price_change: int = 2
-
         if side == TradeType.SELL:
             if (
-                self.has_price_spiked_for_mr(candle_count_for_price_change) and
-                not self.is_price_spike_a_reversal(candle_count_for_price_change) and
-                self.did_price_rebound_enough_for_sell(candle_count_for_price_change)
+                self.has_price_spiked_for_mr(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
+                not self.is_price_spike_a_reversal(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
+                self.did_price_rebound_enough_for_sell(CANDLE_COUNT_FOR_MR_PRICE_CHANGE)
             ):
                 self.logger().info(f"can_create_mean_reversion_order() > Opening Mean Reversion Sell at {self.get_current_close()}")
                 return True
@@ -248,9 +254,9 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         if (
-            self.has_price_crashed_for_mr(candle_count_for_price_change) and
-            not self.is_price_drop_a_reversal(candle_count_for_price_change) and
-            self.did_price_rebound_enough_for_buy(candle_count_for_price_change)
+            self.has_price_crashed_for_mr(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
+            not self.is_price_drop_a_reversal(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
+            self.did_price_rebound_enough_for_buy(CANDLE_COUNT_FOR_MR_PRICE_CHANGE)
         ):
             self.logger().info(f"can_create_mean_reversion_order() > Opening Mean Reversion Buy at {self.get_current_close()}")
             return True
@@ -261,12 +267,12 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_MEAN_REVERSION)
 
         if len(filled_sell_orders) > 0:
-            if self.has_stoch_reversed_for_mean_reversion_sell(2):
+            if self.has_stoch_reversed_for_mean_reversion_sell(CANDLE_COUNT_FOR_MR_CONTEXT):
                 self.logger().info(f"stop_actions_proposal_mean_reversion() > Closing Mean Reversion Sell at {self.get_current_close()}")
                 self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
 
         if len(filled_buy_orders) > 0:
-            if self.has_stoch_reversed_for_mean_reversion_buy(2):
+            if self.has_stoch_reversed_for_mean_reversion_buy(CANDLE_COUNT_FOR_MR_CONTEXT):
                 self.logger().info(f"stop_actions_proposal_mean_reversion() > Closing Mean Reversion Buy at {self.get_current_close()}")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
 
@@ -308,7 +314,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def reset_price_crash_context(self):
         self.save_price_crash_pct(Decimal(0.0), self.get_market_data_provider_time())
-        self.save_price_crash_peak_stoch(Decimal(50.0), self.get_market_data_provider_time())
+        self.save_price_crash_peak_stoch(Decimal(60.0), self.get_market_data_provider_time())
 
         self.price_crash_price_reversal_counter: int = 0
         self.price_crash_stoch_reversal_counter: int = 0
@@ -342,7 +348,7 @@ class ExcaliburStrategy(PkStrategy):
 
         return (
             saved_price_crash_pct == Decimal(0.0) and
-            saved_peak_stoch == Decimal(50.0) and
+            saved_peak_stoch == Decimal(60.0) and
             self.price_crash_price_reversal_counter == 0 and
             self.price_crash_stoch_reversal_counter == 0
         )
@@ -353,7 +359,8 @@ class ExcaliburStrategy(PkStrategy):
 
     def reset_mr_context(self):
         self.save_mr_spike_or_drop_pct(Decimal(0.0), self.get_market_data_provider_time())
-        self.save_mr_bottom_or_peak_stoch(Decimal(50.0), self.get_market_data_provider_time())
+        self.save_mr_bottom_stoch(Decimal(52.0), self.get_market_data_provider_time())
+        self.save_mr_peak_stoch(Decimal(48.0), self.get_market_data_provider_time())
 
         self.mr_stoch_reversal_counter: int = 0
         self.mr_price_reversal_counter: int = 0
@@ -361,16 +368,21 @@ class ExcaliburStrategy(PkStrategy):
     def save_mr_spike_or_drop_pct(self, price_change_pct: Decimal, timestamp: float):
         self.saved_mr_spike_or_drop_pct: Tuple[Decimal, float] = price_change_pct, timestamp
 
-    def save_mr_bottom_or_peak_stoch(self, bottom_or_peak_stoch: Decimal, timestamp: float):
-        self.saved_mr_bottom_or_peak_stoch: Tuple[Decimal, float] = bottom_or_peak_stoch, timestamp
+    def save_mr_bottom_stoch(self, bottom_stoch: Decimal, timestamp: float):
+        self.saved_mr_bottom_stoch: Tuple[Decimal, float] = bottom_stoch, timestamp
+
+    def save_mr_peak_stoch(self, peak_stoch: Decimal, timestamp: float):
+        self.saved_mr_peak_stoch: Tuple[Decimal, float] = peak_stoch, timestamp
 
     def check_mr_context(self, lifetime_minutes: int):
         _, saved_price_spike_or_drop_pct_timestamp = self.saved_mr_spike_or_drop_pct
-        _, saved_bottom_or_peak_stoch_timestamp = self.saved_mr_bottom_or_peak_stoch
+        _, saved_bottom_stoch_timestamp = self.saved_mr_bottom_stoch
+        _, saved_peak_stoch_timestamp = self.saved_mr_peak_stoch
 
         most_recent_timestamp: float = max([
             saved_price_spike_or_drop_pct_timestamp,
-            saved_bottom_or_peak_stoch_timestamp
+            saved_bottom_stoch_timestamp,
+            saved_peak_stoch_timestamp
         ])
 
         last_acceptable_timestamp = self.get_market_data_provider_time() - lifetime_minutes * 60
@@ -383,11 +395,13 @@ class ExcaliburStrategy(PkStrategy):
 
     def is_mr_context_default(self) -> bool:
         saved_price_spike_or_drop_pct, _ = self.saved_mr_spike_or_drop_pct
-        saved_bottom_or_peak_stoch, _ = self.saved_mr_bottom_or_peak_stoch
+        saved_bottom_stoch, _ = self.saved_mr_bottom_stoch
+        saved_peak_stoch, _ = self.saved_mr_peak_stoch
 
         return (
             saved_price_spike_or_drop_pct == Decimal(0.0) and
-            saved_bottom_or_peak_stoch == Decimal(50.0) and
+            saved_bottom_stoch == Decimal(52.0) and
+            saved_peak_stoch == Decimal(48.0) and
             self.mr_stoch_reversal_counter == 0 and
             self.mr_price_reversal_counter == 0
         )
@@ -486,20 +500,19 @@ class ExcaliburStrategy(PkStrategy):
         recent_stochs = stoch_series.iloc[-5:].reset_index(drop=True)
 
         peak_stoch: Decimal = Decimal(recent_stochs.max())
-        peak_stoch_index = recent_stochs.idxmax()
-
-        if peak_stoch_index == 0:
-            return False
-
-        if peak_stoch < 60:
-            return False
-
-        timestamp_series: pd.Series = self.processed_data["timestamp"]
-        recent_timestamps = timestamp_series.iloc[-5:].reset_index(drop=True)
         saved_peak_stoch, _ = self.saved_price_crash_peak_stoch
 
+        if max([peak_stoch, saved_peak_stoch]) <= 60:
+            return False
+
         if peak_stoch > saved_peak_stoch:
+            timestamp_series: pd.Series = self.processed_data["timestamp"]
+            recent_timestamps = timestamp_series.iloc[-5:].reset_index(drop=True)
+            peak_stoch_index = recent_stochs.idxmax()
+
             peak_stoch_timestamp = recent_timestamps.iloc[peak_stoch_index]
+
+            self.logger().info(f"has_stoch_reversed_for_price_crash_buy() | peak_stoch_index:{peak_stoch_index} | peak_stoch_timestamp:{timestamp_to_iso(peak_stoch_timestamp)}")
             self.save_price_crash_peak_stoch(peak_stoch, peak_stoch_timestamp)
 
         saved_peak_stoch, _ = self.saved_price_crash_peak_stoch
@@ -523,9 +536,24 @@ class ExcaliburStrategy(PkStrategy):
     # Mean Reversion functions
     #
 
+    def get_current_peak(self, candle_count: int) -> Decimal:
+        high_series: pd.Series = self.processed_data["high"]
+        recent_highs = high_series.iloc[-candle_count:].reset_index(drop=True)
+
+        return Decimal(recent_highs.max())
+
+    def get_current_bottom(self, candle_count: int) -> Decimal:
+        low_series: pd.Series = self.processed_data["low"]
+        recent_lows = low_series.iloc[-candle_count:].reset_index(drop=True)
+
+        return Decimal(recent_lows.min())
+
     def has_price_spiked_for_mr(self, candle_count: int) -> bool:
         low_series: pd.Series = self.processed_data["low"]
         recent_lows = low_series.iloc[-candle_count:].reset_index(drop=True)
+
+        bottom_price = Decimal(recent_lows.min())
+        bottom_price_index = recent_lows.idxmin()
 
         high_series: pd.Series = self.processed_data["high"]
         recent_highs = high_series.iloc[-candle_count:].reset_index(drop=True)
@@ -533,15 +561,15 @@ class ExcaliburStrategy(PkStrategy):
         peak_price = Decimal(recent_highs.max())
         peak_price_index = recent_highs.idxmax()
 
-        if peak_price_index == 0:
+        if bottom_price_index > peak_price_index:
             return False
 
-        bottom_price = Decimal(recent_lows.iloc[0:peak_price_index].min())
         price_delta_pct: Decimal = (peak_price - bottom_price) / bottom_price * 100
-        is_spiking = self.config.min_price_delta_pct_to_open_mean_reversion < price_delta_pct < self.config.min_price_delta_pct_to_open_mean_reversion * 2
+        is_spiking = self.config.min_price_delta_pct_to_open_mean_reversion < price_delta_pct
 
         if is_spiking:
-            self.logger().info(f"has_price_spiked_for_mr() | current_price:{self.get_current_close()} | peak_price_index:{peak_price_index} | peak_price:{peak_price} | bottom_price:{bottom_price} | price_delta_pct:{price_delta_pct}")
+            self.logger().info(f"has_price_spiked_for_mr() | bottom_price_index:{bottom_price_index} | bottom_price:{bottom_price} | peak_price_index:{peak_price_index} | peak_price:{peak_price}")
+            self.logger().info(f"has_price_spiked_for_mr() | current_price:{self.get_current_close()} | price_delta_pct:{price_delta_pct}")
             self.save_mr_spike_or_drop_pct(price_delta_pct, self.get_market_data_provider_time())
 
         return is_spiking
@@ -550,70 +578,63 @@ class ExcaliburStrategy(PkStrategy):
         low_series: pd.Series = self.processed_data["low"]
         recent_lows = low_series.iloc[-candle_count:].reset_index(drop=True)
 
-        high_series: pd.Series = self.processed_data["high"]
-        recent_highs = high_series.iloc[-candle_count:].reset_index(drop=True)
-
         bottom_price = Decimal(recent_lows.min())
         bottom_price_index = recent_lows.idxmin()
 
-        if bottom_price_index == 0:
+        high_series: pd.Series = self.processed_data["high"]
+        recent_highs = high_series.iloc[-candle_count:].reset_index(drop=True)
+
+        peak_price = Decimal(recent_highs.max())
+        peak_price_index = recent_highs.idxmax()
+
+        if peak_price_index > bottom_price_index:
             return False
 
-        peak_price = Decimal(recent_highs.iloc[0:bottom_price_index].max())
         price_delta_pct: Decimal = (peak_price - bottom_price) / bottom_price * 100
-        is_crashing = self.config.min_price_delta_pct_to_open_mean_reversion < price_delta_pct < self.config.min_price_delta_pct_to_open_mean_reversion * 2
+        is_crashing = self.config.min_price_delta_pct_to_open_mean_reversion < price_delta_pct
 
         if is_crashing:
-            self.logger().info(f"has_price_crashed_for_mr() | current_price:{self.get_current_close()} | bottom_price_index:{bottom_price_index} | bottom_price:{bottom_price} | peak_price:{peak_price} | price_delta_pct:{price_delta_pct}")
+            self.logger().info(f"has_price_crashed_for_mr() | bottom_price_index:{bottom_price_index} | bottom_price:{bottom_price} | peak_price_index:{peak_price_index} | peak_price:{peak_price}")
+            self.logger().info(f"has_price_crashed_for_mr() | current_price:{self.get_current_close()} | price_delta_pct:{price_delta_pct}")
             self.save_mr_spike_or_drop_pct(price_delta_pct, self.get_market_data_provider_time())
 
         return is_crashing
 
     def is_price_spike_a_reversal(self, candle_count: int) -> bool:
-        high_series: pd.Series = self.processed_data["high"]
-        recent_highs = high_series.iloc[-candle_count:].reset_index(drop=True)
-
-        peak_price = Decimal(recent_highs.max())
-
         candle_end_index: int = -candle_count
         candle_start_index: int = candle_end_index * 5
 
+        high_series: pd.Series = self.processed_data["high"]
         previous_highs = high_series.iloc[candle_start_index:candle_end_index].reset_index(drop=True)
 
         previous_peak = Decimal(previous_highs.max())
-        delta_pct: Decimal = (peak_price - previous_peak) / previous_peak * 100
+        current_peak = self.get_current_peak(candle_count)
+        delta_pct: Decimal = (current_peak - previous_peak) / previous_peak * 100
 
-        self.logger().info(f"is_price_spike_a_reversal() | peak_price:{peak_price} | previous_peak:{previous_peak} | delta_pct:{delta_pct}")
+        self.logger().info(f"is_price_spike_a_reversal() | current_peak:{current_peak} | previous_peak:{previous_peak} | delta_pct:{delta_pct}")
 
-        return delta_pct < self.config.min_price_delta_pct_to_open_mean_reversion * Decimal(0.75)
+        return delta_pct < self.config.min_price_delta_pct_to_open_mean_reversion * Decimal(0.67)
 
     def is_price_drop_a_reversal(self, candle_count: int) -> bool:
-        low_series: pd.Series = self.processed_data["low"]
-        recent_lows = low_series.iloc[-candle_count:].reset_index(drop=True)
-
-        bottom_price = Decimal(recent_lows.min())
-
         candle_end_index: int = -candle_count
         candle_start_index: int = candle_end_index * 5
 
+        low_series: pd.Series = self.processed_data["low"]
         previous_lows = low_series.iloc[candle_start_index:candle_end_index].reset_index(drop=True)
 
         previous_bottom = Decimal(previous_lows.min())
-        delta_pct: Decimal = (previous_bottom - bottom_price) / bottom_price * 100
+        current_bottom = self.get_current_bottom(candle_count)
+        delta_pct: Decimal = (previous_bottom - current_bottom) / current_bottom * 100
 
-        self.logger().info(f"is_price_drop_a_reversal() | bottom_price:{bottom_price} | previous_bottom:{previous_bottom} | delta_pct:{delta_pct}")
+        self.logger().info(f"is_price_drop_a_reversal() | current_bottom:{current_bottom} | previous_bottom:{previous_bottom} | delta_pct:{delta_pct}")
 
-        return delta_pct < self.config.min_price_delta_pct_to_open_mean_reversion * Decimal(0.75)
+        return delta_pct < self.config.min_price_delta_pct_to_open_mean_reversion * Decimal(0.67)
 
     def did_price_rebound_enough_for_sell(self, candle_count: int) -> bool:
-        high_series: pd.Series = self.processed_data["high"]
-        recent_highs = high_series.iloc[-candle_count:].reset_index(drop=True)
-
-        peak_price = Decimal(recent_highs.max())
-
         saved_price_change_pct, _ = self.saved_mr_spike_or_drop_pct
-
         price_threshold_pct: Decimal = saved_price_change_pct / 5
+
+        peak_price = self.get_current_peak(candle_count)
         price_threshold: Decimal = peak_price * (1 - price_threshold_pct / 100)
 
         current_price: Decimal = self.get_current_close()
@@ -632,14 +653,10 @@ class ExcaliburStrategy(PkStrategy):
         return self.mr_price_reversal_counter > 19
 
     def did_price_rebound_enough_for_buy(self, candle_count: int) -> bool:
-        low_series: pd.Series = self.processed_data["low"]
-        recent_lows = low_series.iloc[-candle_count:].reset_index(drop=True)
-
-        bottom_price = Decimal(recent_lows.min())
-
         saved_price_change_pct, _ = self.saved_mr_spike_or_drop_pct
-
         price_threshold_pct: Decimal = saved_price_change_pct / 5
+
+        bottom_price = self.get_current_bottom(candle_count)
         price_threshold: Decimal = bottom_price * (1 + price_threshold_pct / 100)
 
         current_price: Decimal = self.get_current_close()
@@ -657,44 +674,43 @@ class ExcaliburStrategy(PkStrategy):
 
         return self.mr_price_reversal_counter > 19
 
-    # def compute_mean_reversion_sl_pct_for_sell(self) -> Decimal:
-    #     saved_peak_price, _ = self.saved_mr_peak_price
-    #     current_price: Decimal = self.get_current_close()
-    #
-    #     delta_pct_with_peak: Decimal = (saved_peak_price - current_price) / current_price * 100
-    #
-    #     return delta_pct_with_peak * Decimal(1.5)
-    #
-    # def compute_mean_reversion_sl_pct_for_buy(self) -> Decimal:
-    #     saved_bottom_price, _ = self.saved_mr_bottom_price
-    #     current_price: Decimal = self.get_current_close()
-    #
-    #     delta_pct_with_bottom: Decimal = (current_price - saved_bottom_price) / current_price * 100
-    #
-    #     return delta_pct_with_bottom * Decimal(1.5)
+    def compute_mean_reversion_sl_pct_for_sell(self, candle_count: int) -> Decimal:
+        peak_price = self.get_current_peak(candle_count)
+        current_price: Decimal = self.get_current_close()
+
+        delta_pct_with_peak: Decimal = (peak_price - current_price) / current_price * 100
+
+        return delta_pct_with_peak * Decimal(0.8)
+
+    def compute_mean_reversion_sl_pct_for_buy(self, candle_count: int) -> Decimal:
+        bottom_price = self.get_current_bottom(candle_count)
+        current_price: Decimal = self.get_current_close()
+
+        delta_pct_with_bottom: Decimal = (current_price - bottom_price) / current_price * 100
+
+        return delta_pct_with_bottom * Decimal(0.8)
 
     def has_stoch_reversed_for_mean_reversion_sell(self, candle_count: int) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_10_k"]
         recent_stochs = stoch_series.iloc[-candle_count:].reset_index(drop=True)
 
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
-        bottom_stoch_index = recent_stochs.idxmin()
+        saved_bottom_stoch, _ = self.saved_mr_bottom_stoch
 
-        if bottom_stoch_index == 0:
+        if min([bottom_stoch, saved_bottom_stoch]) >= 52:
             return False
-
-        if bottom_stoch > 52:
-            return False
-
-        timestamp_series: pd.Series = self.processed_data["timestamp"]
-        recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
-        saved_bottom_stoch, _ = self.saved_mr_bottom_or_peak_stoch
 
         if bottom_stoch < saved_bottom_stoch:
-            bottom_stoch_timestamp = recent_timestamps.iloc[bottom_stoch_index]
-            self.save_mr_bottom_or_peak_stoch(bottom_stoch, bottom_stoch_timestamp)
+            timestamp_series: pd.Series = self.processed_data["timestamp"]
+            recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
+            bottom_stoch_index = recent_stochs.idxmin()
 
-        saved_bottom_stoch, _ = self.saved_mr_bottom_or_peak_stoch
+            bottom_stoch_timestamp = recent_timestamps.iloc[bottom_stoch_index]
+
+            self.logger().info(f"has_stoch_reversed_for_mean_reversion_sell() | bottom_stoch_index:{bottom_stoch_index} | bottom_stoch_timestamp:{timestamp_to_iso(bottom_stoch_timestamp)}")
+            self.save_mr_bottom_stoch(bottom_stoch, bottom_stoch_timestamp)
+
+        saved_bottom_stoch, _ = self.saved_mr_bottom_stoch
 
         stoch_threshold: Decimal = saved_bottom_stoch + 3
         current_stoch = self.get_current_stoch(10)
@@ -716,23 +732,22 @@ class ExcaliburStrategy(PkStrategy):
         recent_stochs = stoch_series.iloc[-candle_count:].reset_index(drop=True)
 
         peak_stoch: Decimal = Decimal(recent_stochs.max())
-        peak_stoch_index = recent_stochs.idxmax()
+        saved_peak_stoch, _ = self.saved_mr_peak_stoch
 
-        if peak_stoch_index == 0:
+        if max([peak_stoch, saved_peak_stoch]) <= 48:
             return False
-
-        if peak_stoch < 48:
-            return False
-
-        timestamp_series: pd.Series = self.processed_data["timestamp"]
-        recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
-        saved_peak_stoch, _ = self.saved_mr_bottom_or_peak_stoch
 
         if peak_stoch > saved_peak_stoch:
-            peak_stoch_timestamp = recent_timestamps.iloc[peak_stoch_index]
-            self.save_mr_bottom_or_peak_stoch(peak_stoch, peak_stoch_timestamp)
+            timestamp_series: pd.Series = self.processed_data["timestamp"]
+            recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
+            peak_stoch_index = recent_stochs.idxmax()
 
-        saved_peak_stoch, _ = self.saved_mr_bottom_or_peak_stoch
+            peak_stoch_timestamp = recent_timestamps.iloc[peak_stoch_index]
+
+            self.logger().info(f"has_stoch_reversed_for_mean_reversion_buy() | peak_stoch_index:{peak_stoch_index} | peak_stoch_timestamp:{timestamp_to_iso(peak_stoch_timestamp)}")
+            self.save_mr_peak_stoch(peak_stoch, peak_stoch_timestamp)
+
+        saved_peak_stoch, _ = self.saved_mr_peak_stoch
 
         stoch_threshold: Decimal = saved_peak_stoch - 3
         current_stoch = self.get_current_stoch(10)
