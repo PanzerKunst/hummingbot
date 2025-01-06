@@ -29,8 +29,6 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 # Quickstart script: -p=a -f ashbringer.py -c conf_ashbringer_GOAT.yml
 
 ORDER_REF_TREND_REVERSAL: str = "TrendReversal"
-CANDLE_COUNT_FOR_TR_STOCH_REVERSAL: int = 3
-CANDLE_DURATION_MINUTES: int = 3
 
 
 class ExcaliburStrategy(PkStrategy):
@@ -106,9 +104,6 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
-        tr_context_lifetime_minutes: int = CANDLE_COUNT_FOR_TR_STOCH_REVERSAL * CANDLE_DURATION_MINUTES + 1
-        self.check_tr_context(tr_context_lifetime_minutes)
-
         self.create_actions_proposal_trend_reversal()
 
         return []  # Always return []
@@ -172,6 +167,7 @@ class ExcaliburStrategy(PkStrategy):
             self.is_price_crashing(history_candle_count) and
             self.is_price_bottom_recent(history_candle_count, 4)
         ):
+            self.reset_tr_context(self.compute_tr_bottom_stoch(4))
             self.logger().info(f"can_create_trend_reversal_order() > Opening Trend Reversal Buy at {self.get_current_close()}")
             return True
 
@@ -181,7 +177,7 @@ class ExcaliburStrategy(PkStrategy):
         _, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_TREND_REVERSAL)
 
         if len(filled_buy_orders) > 0:
-            if self.has_stoch_reversed_for_trend_reversal_buy(CANDLE_COUNT_FOR_TR_STOCH_REVERSAL):
+            if self.has_stoch_reversed_for_trend_reversal_buy(3):
                 self.logger().info(f"stop_actions_proposal_trend_reversal() > Closing Trend Reversal Buy at {self.get_current_close()}")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
 
@@ -207,36 +203,18 @@ class ExcaliburStrategy(PkStrategy):
     # Trend Reversal Context
     #
 
-    def reset_tr_context(self):
-        self.save_tr_peak_stoch(Decimal(75.0), self.get_market_data_provider_time())
+    def reset_tr_context(self, bottom_stoch: Decimal):
+        self.save_tr_bottom_stoch(bottom_stoch, self.get_market_data_provider_time())
+        self.save_tr_peak_stoch(bottom_stoch + 68, self.get_market_data_provider_time())
 
         self.tr_stoch_reversal_counter: int = 0
+        self.logger().info("Context is reset")
+
+    def save_tr_bottom_stoch(self, bottom_stoch: Decimal, timestamp: float):
+        self.saved_tr_bottom_stoch: Tuple[Decimal, float] = bottom_stoch, timestamp
 
     def save_tr_peak_stoch(self, peak_stoch: Decimal, timestamp: float):
         self.saved_tr_peak_stoch: Tuple[Decimal, float] = peak_stoch, timestamp
-
-    def check_tr_context(self, lifetime_minutes: int):
-        _, saved_peak_stoch_timestamp = self.saved_tr_peak_stoch
-
-        most_recent_timestamp: float = max([
-            saved_peak_stoch_timestamp
-        ])
-
-        last_acceptable_timestamp = self.get_market_data_provider_time() - lifetime_minutes * 60
-
-        is_outdated: bool = most_recent_timestamp < last_acceptable_timestamp
-
-        if is_outdated and not self.is_tr_context_default():
-            self.logger().info("check_tr_context() | Resetting outdated context")
-            self.reset_tr_context()
-
-    def is_tr_context_default(self) -> bool:
-        saved_peak_stoch, _ = self.saved_tr_peak_stoch
-
-        return (
-            saved_peak_stoch == Decimal(75.0) and
-            self.tr_stoch_reversal_counter == 0
-        )
 
     #
     # Trend Reversal functions
@@ -307,14 +285,25 @@ class ExcaliburStrategy(PkStrategy):
 
         return self.config.min_sl_pct if dynamic_sl_pct < self.config.min_sl_pct else dynamic_sl_pct
 
+    def compute_tr_bottom_stoch(self, candle_count: int):
+        stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
+        recent_stochs = stoch_series.iloc[-candle_count:].reset_index(drop=True)
+
+        bottom_stoch: Decimal = recent_stochs.min()
+
+        self.logger().info(f"compute_tr_bottom_stoch() | bottom_stoch:{bottom_stoch}")
+
+        return bottom_stoch
+
     def has_stoch_reversed_for_trend_reversal_buy(self, candle_count: int) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_40_k"]
         recent_stochs = stoch_series.iloc[-candle_count:].reset_index(drop=True)
 
         peak_stoch: Decimal = Decimal(recent_stochs.max())
         saved_peak_stoch, _ = self.saved_tr_peak_stoch
+        saved_bottom_stoch, _ = self.saved_tr_bottom_stoch
 
-        if max([peak_stoch, saved_peak_stoch]) <= 75:
+        if max([peak_stoch, saved_peak_stoch]) <= saved_bottom_stoch + 68:
             return False
 
         if peak_stoch > saved_peak_stoch:
