@@ -301,12 +301,11 @@ class ExcaliburStrategy(PkStrategy):
         bottom_price = Decimal(recent_lows.min())
 
         price_delta_pct: Decimal = (current_price - bottom_price) / current_price * 100
-        dynamic_sl_pct: Decimal = price_delta_pct / 3
-        min_sl_pct = Decimal(0.7)
+        dynamic_sl_pct: Decimal = price_delta_pct / 2
 
         self.logger().info(f"compute_trend_reversal_sl_pct() | dynamic_sl_pct:{dynamic_sl_pct}")
 
-        return min_sl_pct if dynamic_sl_pct < min_sl_pct else dynamic_sl_pct
+        return self.config.min_sl_pct if dynamic_sl_pct < self.config.min_sl_pct else dynamic_sl_pct
 
     def has_stoch_reversed_for_trend_reversal_buy(self, candle_count: int) -> bool:
         stoch_series: pd.Series = self.processed_data["STOCH_40_k"]

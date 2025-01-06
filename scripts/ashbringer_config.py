@@ -37,6 +37,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     position_mode: PositionMode = PositionMode.ONEWAY
 
     # Triple Barrier
+    min_sl_pct: Decimal = 0.75  # min_price_delta_pct_to_open_trend_reversal * 0.15
 
     # Order settings
     amount_quote: int = 30
