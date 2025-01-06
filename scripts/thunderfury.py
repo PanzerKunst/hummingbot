@@ -644,7 +644,7 @@ class ExcaliburStrategy(PkStrategy):
         self.mr_price_reversal_counter += 1
         self.logger().info(f"did_price_rebound_enough_for_sell() | incremented self.mr_price_reversal_counter to:{self.mr_price_reversal_counter}")
 
-        return self.mr_price_reversal_counter > 14
+        return self.mr_price_reversal_counter > 19
 
     def did_price_rebound_enough_for_buy(self) -> bool:
         saved_price_change_pct, _ = self.saved_mr_spike_or_drop_pct
@@ -666,7 +666,7 @@ class ExcaliburStrategy(PkStrategy):
         self.mr_price_reversal_counter += 1
         self.logger().info(f"did_price_rebound_enough_for_buy() | incremented self.mr_price_reversal_counter to:{self.mr_price_reversal_counter}")
 
-        return self.mr_price_reversal_counter > 14
+        return self.mr_price_reversal_counter > 19
 
     def compute_mean_reversion_sl_pct_for_sell(self) -> Decimal:
         peak_price = self.get_current_high()
