@@ -246,7 +246,7 @@ class ExcaliburStrategy(PkStrategy):
             if (
                 self.has_price_spiked_for_mr(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
                 not self.is_price_spike_a_reversal(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
-                self.did_price_rebound_enough_for_sell(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
+                self.did_price_rebound_for_sell(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
                 self.is_current_price_below_open()
             ):
                 self.logger().info(f"can_create_mean_reversion_order() > Opening Mean Reversion Sell at {self.get_current_close()} | Current Stoch 10:{self.get_current_stoch(10)}")
@@ -257,7 +257,7 @@ class ExcaliburStrategy(PkStrategy):
         if (
             self.has_price_crashed_for_mr(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
             not self.is_price_drop_a_reversal(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
-            self.did_price_rebound_enough_for_buy(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
+            self.did_price_rebound_for_buy(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
             self.is_current_price_above_open()
         ):
             self.logger().info(f"can_create_mean_reversion_order() > Opening Mean Reversion Buy at {self.get_current_close()} | Current Stoch 10:{self.get_current_stoch(10)}")
@@ -630,49 +630,55 @@ class ExcaliburStrategy(PkStrategy):
 
         return delta_pct < self.config.min_price_delta_pct_to_open_mean_reversion * Decimal(0.67)
 
-    def did_price_rebound_enough_for_sell(self, candle_count: int) -> bool:
+    def did_price_rebound_for_sell(self, candle_count: int) -> bool:
         saved_price_change_pct, _ = self.saved_mr_spike_or_drop_pct
         price_threshold_pct: Decimal = saved_price_change_pct / 5
+        price_bottom_limit_pct: Decimal = saved_price_change_pct / 3
 
         peak_price = self.get_current_peak(candle_count)
         price_threshold: Decimal = peak_price * (1 - price_threshold_pct / 100)
+        price_bottom_limit: Decimal = peak_price * (1 - price_bottom_limit_pct / 100)
 
         current_price: Decimal = self.get_current_close()
 
-        self.logger().info(f"did_price_rebound_enough_for_sell() | saved_price_change_pct:{saved_price_change_pct} | peak_price:{peak_price}")
-        self.logger().info(f"did_price_rebound_enough_for_sell() | price_threshold_pct:{price_threshold_pct} | price_threshold:{price_threshold} | current_price:{current_price}")
+        self.logger().info(f"did_price_rebound_for_sell() | saved_price_change_pct:{saved_price_change_pct} | peak_price:{peak_price} | current_price:{current_price}")
+        self.logger().info(f"did_price_rebound_for_sell() | price_threshold_pct:{price_threshold_pct} | price_threshold:{price_threshold}")
+        self.logger().info(f"did_price_rebound_for_sell() | price_bottom_limit_pct:{price_bottom_limit_pct} | price_bottom_limit:{price_bottom_limit}")
 
-        if current_price > price_threshold:
+        if not price_bottom_limit < current_price < price_threshold:
             self.mr_price_reversal_counter = 0
-            self.logger().info("did_price_rebound_enough_for_sell() | resetting self.mr_price_reversal_counter to 0")
+            self.logger().info("did_price_rebound_for_sell() | resetting self.mr_price_reversal_counter to 0")
             return False
 
         self.mr_price_reversal_counter += 1
-        self.logger().info(f"did_price_rebound_enough_for_sell() | incremented self.mr_price_reversal_counter to:{self.mr_price_reversal_counter}")
+        self.logger().info(f"did_price_rebound_for_sell() | incremented self.mr_price_reversal_counter to:{self.mr_price_reversal_counter}")
 
-        return self.mr_price_reversal_counter > 19
+        return self.mr_price_reversal_counter > 14
 
-    def did_price_rebound_enough_for_buy(self, candle_count: int) -> bool:
+    def did_price_rebound_for_buy(self, candle_count: int) -> bool:
         saved_price_change_pct, _ = self.saved_mr_spike_or_drop_pct
         price_threshold_pct: Decimal = saved_price_change_pct / 5
+        price_top_limit_pct: Decimal = saved_price_change_pct / 3
 
         bottom_price = self.get_current_bottom(candle_count)
         price_threshold: Decimal = bottom_price * (1 + price_threshold_pct / 100)
+        price_top_limit: Decimal = bottom_price * (1 + price_top_limit_pct / 100)
 
         current_price: Decimal = self.get_current_close()
 
-        self.logger().info(f"did_price_rebound_enough_for_buy() | saved_price_change_pct:{saved_price_change_pct} | bottom_price:{bottom_price}")
-        self.logger().info(f"did_price_rebound_enough_for_buy() | price_threshold_pct:{price_threshold_pct} | price_threshold:{price_threshold} | current_price:{current_price}")
+        self.logger().info(f"did_price_rebound_for_buy() | saved_price_change_pct:{saved_price_change_pct} | bottom_price:{bottom_price} | current_price:{current_price}")
+        self.logger().info(f"did_price_rebound_for_buy() | price_threshold_pct:{price_threshold_pct} | price_threshold:{price_threshold}")
+        self.logger().info(f"did_price_rebound_for_buy() | price_top_limit_pct:{price_top_limit_pct} | price_top_limit:{price_top_limit}")
 
-        if current_price < price_threshold:
+        if not price_threshold < current_price < price_top_limit:
             self.mr_price_reversal_counter = 0
-            self.logger().info("did_price_rebound_enough_for_buy() | resetting self.mr_price_reversal_counter to 0")
+            self.logger().info("did_price_rebound_for_buy() | resetting self.mr_price_reversal_counter to 0")
             return False
 
         self.mr_price_reversal_counter += 1
-        self.logger().info(f"did_price_rebound_enough_for_buy() | incremented self.mr_price_reversal_counter to:{self.mr_price_reversal_counter}")
+        self.logger().info(f"did_price_rebound_for_buy() | incremented self.mr_price_reversal_counter to:{self.mr_price_reversal_counter}")
 
-        return self.mr_price_reversal_counter > 19
+        return self.mr_price_reversal_counter > 14
 
     def is_current_price_below_open(self) -> bool:
         current_price = self.get_current_close()
