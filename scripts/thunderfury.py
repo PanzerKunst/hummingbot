@@ -218,6 +218,7 @@ class ExcaliburStrategy(PkStrategy):
             if self.is_price_over_ma() and self.has_stoch_reversed_for_price_crash_buy():
                 self.logger().info(f"stop_actions_proposal_price_crash() > Closing Price Crash Buy at {self.get_current_close()}")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
+                self.reset_price_crash_context()
 
     #
     # Mean Reversion start/stop action proposals
@@ -272,11 +273,13 @@ class ExcaliburStrategy(PkStrategy):
             if self.has_stoch_reversed_for_mean_reversion_sell(CANDLE_COUNT_FOR_MR_CONTEXT):
                 self.logger().info(f"stop_actions_proposal_mean_reversion() > Closing Mean Reversion Sell at {self.get_current_close()}")
                 self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
+                self.reset_mr_context()
 
         if len(filled_buy_orders) > 0:
             if self.has_stoch_reversed_for_mean_reversion_buy(CANDLE_COUNT_FOR_MR_CONTEXT):
                 self.logger().info(f"stop_actions_proposal_mean_reversion() > Closing Mean Reversion Buy at {self.get_current_close()}")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
+                self.reset_mr_context()
 
     #
     # Getters on `self.processed_data[]`
@@ -318,6 +321,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.price_crash_price_reversal_counter: int = 0
         self.price_crash_stoch_reversal_counter: int = 0
+        self.logger().info("Price Crash context is reset")
 
     def save_price_crash_pct(self, price_crash_pct: Decimal, timestamp: float):
         self.saved_price_crash_pct: Tuple[Decimal, float] = price_crash_pct, timestamp
@@ -364,6 +368,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.mr_stoch_reversal_counter: int = 0
         self.mr_price_reversal_counter: int = 0
+        self.logger().info("Mean Reversion context is reset")
 
     def save_mr_spike_or_drop_pct(self, price_change_pct: Decimal, timestamp: float):
         self.saved_mr_spike_or_drop_pct: Tuple[Decimal, float] = price_change_pct, timestamp
