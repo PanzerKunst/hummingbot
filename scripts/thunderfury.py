@@ -246,9 +246,10 @@ class ExcaliburStrategy(PkStrategy):
             if (
                 self.has_price_spiked_for_mr(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
                 not self.is_price_spike_a_reversal(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
-                self.did_price_rebound_enough_for_sell(CANDLE_COUNT_FOR_MR_PRICE_CHANGE)
+                self.did_price_rebound_enough_for_sell(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
+                self.is_current_price_below_open()
             ):
-                self.logger().info(f"can_create_mean_reversion_order() > Opening Mean Reversion Sell at {self.get_current_close()}")
+                self.logger().info(f"can_create_mean_reversion_order() > Opening Mean Reversion Sell at {self.get_current_close()} | Current Stoch 10:{self.get_current_stoch(10)}")
                 return True
 
             return False
@@ -256,9 +257,10 @@ class ExcaliburStrategy(PkStrategy):
         if (
             self.has_price_crashed_for_mr(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
             not self.is_price_drop_a_reversal(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
-            self.did_price_rebound_enough_for_buy(CANDLE_COUNT_FOR_MR_PRICE_CHANGE)
+            self.did_price_rebound_enough_for_buy(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
+            self.is_current_price_above_open()
         ):
-            self.logger().info(f"can_create_mean_reversion_order() > Opening Mean Reversion Buy at {self.get_current_close()}")
+            self.logger().info(f"can_create_mean_reversion_order() > Opening Mean Reversion Buy at {self.get_current_close()} | Current Stoch 10:{self.get_current_stoch(10)}")
             return True
 
         return False
@@ -290,6 +292,10 @@ class ExcaliburStrategy(PkStrategy):
         close_series: pd.Series = self.processed_data["close"]
         return Decimal(close_series.iloc[index])
 
+    def get_current_open(self) -> Decimal:
+        open_series: pd.Series = self.processed_data["open"]
+        return Decimal(open_series.iloc[-1])
+
     def get_current_rsi(self, length: int) -> Decimal:
         rsi_series: pd.Series = self.processed_data[f"RSI_{length}"]
         return Decimal(rsi_series.iloc[-1])
@@ -299,14 +305,8 @@ class ExcaliburStrategy(PkStrategy):
         return Decimal(sma_series.iloc[-1])
 
     def get_current_stoch(self, length: int) -> Decimal:
-        return self._get_stoch_at_index(length, -1)
-
-    def get_latest_stoch(self, length: int) -> Decimal:
-        return self._get_stoch_at_index(length, -2)
-
-    def _get_stoch_at_index(self, length: int, index: int) -> Decimal:
         stoch_series: pd.Series = self.processed_data[f"STOCH_{length}_k"]
-        return Decimal(stoch_series.iloc[index])
+        return Decimal(stoch_series.iloc[-1])
 
     #
     # Price Crash context
@@ -673,6 +673,22 @@ class ExcaliburStrategy(PkStrategy):
         self.logger().info(f"did_price_rebound_enough_for_buy() | incremented self.mr_price_reversal_counter to:{self.mr_price_reversal_counter}")
 
         return self.mr_price_reversal_counter > 19
+
+    def is_current_price_below_open(self) -> bool:
+        current_price = self.get_current_close()
+        open_price = self.get_current_open()
+
+        self.logger().info(f"is_current_price_below_open() | open_price:{open_price} | current_price:{current_price}")
+
+        return current_price < open_price
+
+    def is_current_price_above_open(self) -> bool:
+        current_price = self.get_current_close()
+        open_price = self.get_current_open()
+
+        self.logger().info(f"is_current_price_above_open() | open_price:{open_price} | current_price:{current_price}")
+
+        return current_price > open_price
 
     def compute_mean_reversion_sl_pct_for_sell(self, candle_count: int) -> Decimal:
         peak_price = self.get_current_peak(candle_count)
