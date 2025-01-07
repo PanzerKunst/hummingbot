@@ -210,7 +210,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def reset_tr_context(self, bottom_stoch: Decimal):
         self.save_tr_bottom_stoch(bottom_stoch, self.get_market_data_provider_time())
-        self.save_tr_peak_stoch(bottom_stoch + 68, self.get_market_data_provider_time())
+        self.save_tr_peak_stoch(bottom_stoch + 60, self.get_market_data_provider_time())
 
         self.tr_stoch_reversal_counter: int = 0
         self.logger().info("Context is reset")
@@ -320,7 +320,7 @@ class ExcaliburStrategy(PkStrategy):
         saved_peak_stoch, _ = self.saved_tr_peak_stoch
         saved_bottom_stoch, _ = self.saved_tr_bottom_stoch
 
-        if max([peak_stoch, saved_peak_stoch]) <= saved_bottom_stoch + 68:
+        if max([peak_stoch, saved_peak_stoch]) <= saved_bottom_stoch + 60:
             return False
 
         if peak_stoch > saved_peak_stoch:
