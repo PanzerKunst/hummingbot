@@ -17,3 +17,4 @@ position_mode: ONEWAY
 min_sl_pct: 0.6
 amount_quote: 30
 min_price_delta_pct_to_open_trend_reversal: 4.0
+min_price_rebound_pct: 0.24

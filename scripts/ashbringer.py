@@ -158,11 +158,13 @@ class ExcaliburStrategy(PkStrategy):
         if len(active_tracked_orders) > 0:
             return False
 
+        price_rebound_candle_count: int = 2
         history_candle_count: int = 25
 
         if (
             self.is_recent_rsi_low_enough(4) and
-            self.are_candles_green(2) and
+            self.are_candles_green(price_rebound_candle_count) and
+            self.is_price_rebound_significant(price_rebound_candle_count) and
             self.is_price_crashing(history_candle_count) and
             self.is_price_bottom_recent(history_candle_count, 4)
         ):
@@ -194,6 +196,10 @@ class ExcaliburStrategy(PkStrategy):
         close_series: pd.Series = self.processed_data["close"]
         return Decimal(close_series.iloc[index])
 
+    def get_open_at_index(self, index: int) -> Decimal:
+        open_series: pd.Series = self.processed_data["open"]
+        return Decimal(open_series.iloc[index])
+
     def get_current_stoch(self, length: int) -> Decimal:
         stoch_series: pd.Series = self.processed_data[f"STOCH_{length}_k"]
         return Decimal(stoch_series.iloc[-1])
@@ -219,6 +225,16 @@ class ExcaliburStrategy(PkStrategy):
     # Trend Reversal functions
     #
 
+    def is_recent_rsi_low_enough(self, candle_count: int) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI_20"]
+        recent_rsis = rsi_series.iloc[-candle_count:].reset_index(drop=True)
+        bottom_rsi: Decimal = Decimal(recent_rsis.min())
+
+        if bottom_rsi < 30:
+            self.logger().info(f"is_recent_rsi_low_enough() | bottom_rsi:{bottom_rsi}")
+
+        return bottom_rsi < 30
+
     def are_candles_green(self, candle_count: int) -> bool:
         candle_start_index: int = -candle_count - 1
 
@@ -230,15 +246,17 @@ class ExcaliburStrategy(PkStrategy):
 
         return all(recent_closes[i] > recent_opens[i] for i in range(len(recent_opens)))
 
-    def is_recent_rsi_low_enough(self, candle_count: int) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI_20"]
-        recent_rsis = rsi_series.iloc[-candle_count:].reset_index(drop=True)
-        bottom_rsi: Decimal = Decimal(recent_rsis.min())
+    def is_price_rebound_significant(self, candle_count: int) -> bool:
+        candle_index: int = -candle_count - 1
+        open_price = self.get_open_at_index(candle_index)
 
-        if bottom_rsi < 29:
-            self.logger().info(f"is_recent_rsi_low_enough() | bottom_rsi:{bottom_rsi}")
+        current_price: Decimal = self.get_current_close()
 
-        return bottom_rsi < 29
+        rebound_pct = (current_price - open_price) / current_price * 100
+
+        self.logger().info(f"is_price_rebound_significant() | open_price:{open_price} | current_price:{current_price} | rebound_pct:{rebound_pct}")
+
+        return rebound_pct > self.config.min_price_rebound_pct
 
     def is_price_crashing(self, candle_count: int) -> bool:
         low_series: pd.Series = self.processed_data["low"]
