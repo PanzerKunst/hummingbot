@@ -248,7 +248,7 @@ class ExcaliburStrategy(PkStrategy):
                 self.has_price_spiked_for_mr(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
                 not self.is_price_spike_a_reversal(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
                 self.did_price_rebound_for_sell(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
-                self.is_current_price_below_open()
+                (self.is_peak_on_current_candle(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) or self.is_current_price_below_open())
             ):
                 self.logger().info(f"can_create_mean_reversion_order() > Opening Mean Reversion Sell at {self.get_current_close()} | Current Stoch 10:{self.get_current_stoch(10)}")
                 return True
@@ -259,7 +259,7 @@ class ExcaliburStrategy(PkStrategy):
             self.has_price_crashed_for_mr(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
             not self.is_price_drop_a_reversal(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
             self.did_price_rebound_for_buy(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
-            self.is_current_price_above_open()
+            (self.is_bottom_on_current_candle(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) or self.is_current_price_above_open())
         ):
             self.logger().info(f"can_create_mean_reversion_order() > Opening Mean Reversion Buy at {self.get_current_close()} | Current Stoch 10:{self.get_current_stoch(10)}")
             return True
@@ -298,6 +298,14 @@ class ExcaliburStrategy(PkStrategy):
     def get_current_open(self) -> Decimal:
         open_series: pd.Series = self.processed_data["open"]
         return Decimal(open_series.iloc[-1])
+
+    def get_current_low(self) -> Decimal:
+        low_series: pd.Series = self.processed_data["low"]
+        return Decimal(low_series.iloc[-1])
+
+    def get_current_high(self) -> Decimal:
+        high_series: pd.Series = self.processed_data["high"]
+        return Decimal(high_series.iloc[-1])
 
     def get_current_rsi(self, length: int) -> Decimal:
         rsi_series: pd.Series = self.processed_data[f"RSI_{length}"]
@@ -684,6 +692,22 @@ class ExcaliburStrategy(PkStrategy):
         self.logger().info(f"did_price_rebound_for_buy() | incremented self.mr_price_reversal_counter to:{self.mr_price_reversal_counter}")
 
         return self.mr_price_reversal_counter > 14
+
+    def is_peak_on_current_candle(self, candle_count: int) -> bool:
+        current_peak = self.get_current_peak(candle_count)
+        current_high = self.get_current_high()
+
+        self.logger().info(f"is_peak_on_current_candle() | current_peak:{current_peak} | current_high:{current_high}")
+
+        return current_peak == current_high
+
+    def is_bottom_on_current_candle(self, candle_count: int) -> bool:
+        current_bottom = self.get_current_bottom(candle_count)
+        current_low = self.get_current_low()
+
+        self.logger().info(f"is_bottom_on_current_candle() | current_bottom:{current_bottom} | current_low:{current_low}")
+
+        return current_bottom == current_low
 
     def is_current_price_below_open(self) -> bool:
         current_price = self.get_current_close()
