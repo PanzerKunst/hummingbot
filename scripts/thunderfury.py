@@ -590,13 +590,11 @@ class ExcaliburStrategy(PkStrategy):
     def has_price_crashed_for_mr(self, candle_count: int) -> bool:
         low_series: pd.Series = self.processed_data["low"]
         recent_lows = low_series.iloc[-candle_count:].reset_index(drop=True)
-
         bottom_price = Decimal(recent_lows.min())
         bottom_price_index = recent_lows.idxmin()
 
         high_series: pd.Series = self.processed_data["high"]
         recent_highs = high_series.iloc[-candle_count:].reset_index(drop=True)
-
         peak_price = Decimal(recent_highs.max())
         peak_price_index = recent_highs.idxmax()
 
