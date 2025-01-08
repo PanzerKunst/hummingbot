@@ -294,7 +294,7 @@ class ExcaliburStrategy(PkStrategy):
         return is_significant
 
     def compute_trend_reversal_sl_pct(self) -> Decimal:
-        saved_tr_bottom_price, _ = self.save_tr_bottom_price
+        saved_tr_bottom_price, _ = self.saved_tr_bottom_price
         current_price: Decimal = self.get_current_close()
 
         price_rebound_pct = (current_price - saved_tr_bottom_price) / current_price * 100
