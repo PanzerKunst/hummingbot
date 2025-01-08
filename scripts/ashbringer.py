@@ -151,6 +151,8 @@ class ExcaliburStrategy(PkStrategy):
                 self.create_twap_market_orders(TradeType.BUY, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_TREND_REVERSAL)
             )
 
+            self.reset_tr_context(self.compute_tr_bottom_stoch(4))
+
     def can_create_trend_reversal_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
         if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_TREND_REVERSAL, 20):
             return False
@@ -166,7 +168,6 @@ class ExcaliburStrategy(PkStrategy):
             self.is_price_bottom_recent(history_candle_count, 4) and
             self.did_price_rebound(history_candle_count)
         ):
-            self.reset_tr_context(self.compute_tr_bottom_stoch(4))
             self.logger().info(f"can_create_trend_reversal_order() > Opening Trend Reversal Buy at {self.get_current_close()}")
             return True
 
