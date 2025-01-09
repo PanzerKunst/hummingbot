@@ -61,7 +61,7 @@ class ExcaliburStrategy(PkStrategy):
     def get_triple_barrier(self) -> TripleBarrier:
         return TripleBarrier(
             open_order_type=OrderType.MARKET,
-            stop_loss=self.compute_tr_sl_pct() / 100
+            stop_loss=self.compute_tr_sl_pct(5) / 100
         )
 
     def update_processed_data(self):
@@ -223,7 +223,6 @@ class ExcaliburStrategy(PkStrategy):
 
     def reset_tr_context(self):
         self.save_tr_price_change_pct(Decimal(0.0), self.get_market_data_provider_time())
-        self.save_tr_bottom_price(Decimal(0.0), self.get_market_data_provider_time())
         self.save_tr_peak_stoch(Decimal(80.0), self.get_market_data_provider_time())
 
         self.tr_price_reversal_counter: int = 0
@@ -233,20 +232,15 @@ class ExcaliburStrategy(PkStrategy):
     def save_tr_price_change_pct(self, price_change_pct: Decimal, timestamp: float):
         self.saved_tr_price_change_pct: Tuple[Decimal, float] = price_change_pct, timestamp
 
-    def save_tr_bottom_price(self, bottom_price: Decimal, timestamp: float):
-        self.saved_tr_bottom_price: Tuple[Decimal, float] = bottom_price, timestamp
-
     def save_tr_peak_stoch(self, peak_stoch: Decimal, timestamp: float):
         self.saved_tr_peak_stoch: Tuple[Decimal, float] = peak_stoch, timestamp
 
     def check_tr_context(self, lifetime_minutes: int):
         _, saved_price_change_pct_timestamp = self.saved_tr_price_change_pct
-        _, saved_bottom_price = self.saved_tr_bottom_price
         _, saved_peak_stoch_timestamp = self.saved_tr_peak_stoch
 
         most_recent_timestamp: float = max([
             saved_price_change_pct_timestamp,
-            saved_bottom_price,
             saved_peak_stoch_timestamp
         ])
 
@@ -260,12 +254,10 @@ class ExcaliburStrategy(PkStrategy):
 
     def is_tr_context_default(self) -> bool:
         saved_price_change_pct, _ = self.saved_tr_price_change_pct
-        saved_bottom_price, _ = self.saved_tr_bottom_price
         saved_peak_stoch, _ = self.saved_tr_peak_stoch
 
         return (
             saved_price_change_pct == Decimal(0.0) and
-            saved_bottom_price == Decimal(0.0) and
             saved_peak_stoch == Decimal(80.0) and
             self.tr_price_reversal_counter == 0 and
             self.tr_stoch_reversal_counter == 0
@@ -350,15 +342,15 @@ class ExcaliburStrategy(PkStrategy):
 
         return self.tr_price_reversal_counter > 59
 
-    def compute_tr_sl_pct(self) -> Decimal:
-        saved_tr_bottom_price, _ = self.saved_tr_bottom_price
+    def compute_tr_sl_pct(self, candle_count: int) -> Decimal:
+        bottom_price = self.get_current_bottom(candle_count)
         current_price: Decimal = self.get_current_close()
 
-        price_rebound_pct = (current_price - saved_tr_bottom_price) / current_price * 100
+        delta_pct_with_bottom: Decimal = (current_price - bottom_price) / current_price * 100
 
-        self.logger().info(f"compute_tr_sl_pct() | price_rebound_pct:{price_rebound_pct}")
+        self.logger().info(f"compute_tr_sl_pct() | delta_pct_with_bottom:{delta_pct_with_bottom}")
 
-        return price_rebound_pct
+        return delta_pct_with_bottom
 
     def is_price_over_ma(self, length: int) -> bool:
         current_price: Decimal = self.get_current_close()
