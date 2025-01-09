@@ -298,7 +298,7 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         price_delta_pct: Decimal = (peak_price - bottom_price) / bottom_price * 100
-        is_crashing = self.config.min_price_delta_pct_to_open_trend_reversal < price_delta_pct
+        is_crashing = self.config.min_price_delta_pct_to_open_tr < price_delta_pct
 
         if is_crashing:
             self.logger().info(f"is_price_crashing() | bottom_price_index:{bottom_price_index} | bottom_price:{bottom_price} | peak_price_index:{peak_price_index} | peak_price:{peak_price}")
