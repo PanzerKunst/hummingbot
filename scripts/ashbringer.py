@@ -328,7 +328,7 @@ class ExcaliburStrategy(PkStrategy):
     def did_price_rebound(self, candle_count: int) -> bool:
         saved_price_change_pct, _ = self.saved_tr_price_change_pct
         price_threshold_pct: Decimal = saved_price_change_pct / 10
-        price_top_limit_pct: Decimal = saved_price_change_pct / 7
+        price_top_limit_pct: Decimal = saved_price_change_pct / 4
 
         bottom_price = self.get_current_bottom(candle_count)
         price_threshold: Decimal = bottom_price * (1 + price_threshold_pct / 100)
