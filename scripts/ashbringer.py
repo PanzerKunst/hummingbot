@@ -29,7 +29,7 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 # Quickstart script: -p=a -f ashbringer.py -c conf_ashbringer_GOAT.yml
 
 ORDER_REF_TREND_REVERSAL: str = "TrendReversal"
-CANDLE_COUNT_FOR_TR_CONTEXT: int = 3  # Stoch reversal
+CANDLE_COUNT_FOR_TR_CONTEXT: int = 3  # Price rebound & Stoch reversal
 CANDLE_DURATION_MINUTES: int = 3
 
 
