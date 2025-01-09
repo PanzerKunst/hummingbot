@@ -15,5 +15,4 @@ market_order_twap_count: 1
 market_order_twap_interval: 5
 position_mode: ONEWAY
 amount_quote: 30
-min_price_delta_pct_to_open_price_crash_rev: 5.5
-min_price_delta_pct_to_open_mean_reversion: 1.0
+min_price_delta_pct_to_open_mr: 1.0

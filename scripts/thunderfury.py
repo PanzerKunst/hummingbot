@@ -27,10 +27,7 @@ from scripts.thunderfury_config import ExcaliburConfig
 #                start --script thunderfury.py --conf conf_thunderfury_WIF.yml
 # Quickstart script: -p=a -f thunderfury.py -c conf_thunderfury_GOAT.yml
 
-ORDER_REF_KNIFE_CATCHER: str = "KnifeCatcher"
 ORDER_REF_MEAN_REVERSION: str = "MeanReversion"
-CANDLE_COUNT_FOR_KC_PRICE_CRASH: int = 5
-CANDLE_COUNT_FOR_KC_CONTEXT: int = CANDLE_COUNT_FOR_KC_PRICE_CRASH  # Price change & STOCH reversal
 CANDLE_COUNT_FOR_MR_PRICE_CHANGE: int = 2
 CANDLE_COUNT_FOR_MR_CONTEXT: int = CANDLE_COUNT_FOR_MR_PRICE_CHANGE  # Price change & STOCH reversal
 CANDLE_DURATION_MINUTES: int = 1
@@ -45,7 +42,6 @@ class ExcaliburStrategy(PkStrategy):
         super().__init__(connectors, config)
 
         self.processed_data = pd.DataFrame()
-        self.reset_kc_context()
         self.reset_mr_context()
 
     def start(self, clock: Clock, timestamp: float) -> None:
@@ -61,22 +57,19 @@ class ExcaliburStrategy(PkStrategy):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
     def get_triple_barrier(self, ref: str, side: TradeType) -> TripleBarrier:
-        if ref == ORDER_REF_KNIFE_CATCHER:
-            stop_loss_pct: Decimal = self.compute_sl_pct_for_buy(CANDLE_COUNT_FOR_KC_PRICE_CRASH)
+        if ref == ORDER_REF_MEAN_REVERSION:
+            stop_loss_pct: Decimal = (
+                self.compute_sl_pct_for_sell(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) if side == TradeType.SELL
+                else self.compute_sl_pct_for_buy(CANDLE_COUNT_FOR_MR_PRICE_CHANGE)
+            )
 
             return TripleBarrier(
                 open_order_type=OrderType.MARKET,
                 stop_loss=stop_loss_pct / 100
             )
 
-        stop_loss_pct: Decimal = (
-            self.compute_sl_pct_for_sell(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) if side == TradeType.SELL
-            else self.compute_sl_pct_for_buy(CANDLE_COUNT_FOR_MR_PRICE_CHANGE)
-        )
-
         return TripleBarrier(
-            open_order_type=OrderType.MARKET,
-            stop_loss=stop_loss_pct / 100
+            open_order_type=OrderType.MARKET
         )
 
     def update_processed_data(self):
@@ -98,21 +91,9 @@ class ExcaliburStrategy(PkStrategy):
 
         candles_df["RSI_40"] = candles_df.ta.rsi(length=40)
 
-        candles_df["SMA_8"] = candles_df.ta.sma(length=8)
         candles_df["SMA_7"] = candles_df.ta.sma(length=7)
 
         # Calling the lower-level function, because the one in core.py has a bug in the argument names
-        stoch_15_df = stoch(
-            high=candles_df["high"],
-            low=candles_df["low"],
-            close=candles_df["close"],
-            k=15,
-            d=1,
-            smooth_k=1
-        )
-
-        candles_df["STOCH_15_k"] = stoch_15_df["STOCHk_15_1_1"]
-
         stoch_10_df = stoch(
             high=candles_df["high"],
             low=candles_df["low"],
@@ -137,13 +118,9 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
-        kc_context_lifetime_minutes: int = CANDLE_COUNT_FOR_KC_CONTEXT * CANDLE_DURATION_MINUTES + 1
-        self.check_kc_context(kc_context_lifetime_minutes)
-
         mr_context_lifetime_minutes: int = CANDLE_COUNT_FOR_MR_CONTEXT * CANDLE_DURATION_MINUTES + 1
         self.check_mr_context(mr_context_lifetime_minutes)
 
-        self.create_actions_proposal_knife_catcher()
         self.create_actions_proposal_mean_reversion()
 
         return []  # Always return []
@@ -155,7 +132,6 @@ class ExcaliburStrategy(PkStrategy):
             return []
 
         self.check_orders()
-        self.stop_actions_proposal_knife_catcher()
         self.stop_actions_proposal_mean_reversion()
 
         return []  # Always return []
@@ -173,54 +149,13 @@ class ExcaliburStrategy(PkStrategy):
                     "close",
                     "volume",
                     "RSI_40",
-                    "SMA_8",
                     "SMA_7",
-                    "STOCH_15_k",
                     "STOCH_10_k"
                 ]
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display], table_format="psql"))
 
         return original_status + "\n".join(custom_status)
-
-    #
-    # Knife Catcher start/stop action proposals
-    #
-
-    def create_actions_proposal_knife_catcher(self):
-        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_KNIFE_CATCHER)
-        active_orders = active_sell_orders + active_buy_orders
-
-        if self.can_create_knife_catcher_order(TradeType.BUY, active_orders):
-            triple_barrier = self.get_triple_barrier(ORDER_REF_KNIFE_CATCHER, TradeType.BUY)
-            self.create_order(TradeType.BUY, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_KNIFE_CATCHER)
-
-    def can_create_knife_catcher_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_KNIFE_CATCHER, 5):
-            return False
-
-        if len(active_tracked_orders) > 0:
-            return False
-
-        if (
-            self.is_price_crashing(CANDLE_COUNT_FOR_KC_PRICE_CRASH) and
-            not self.is_crash_a_reversal(CANDLE_COUNT_FOR_KC_PRICE_CRASH) and
-            self.did_price_rebound(CANDLE_COUNT_FOR_KC_PRICE_CRASH) and
-            (self.is_bottom_on_current_candle(CANDLE_COUNT_FOR_KC_PRICE_CRASH) or self.is_current_price_above_open())
-        ):
-            self.logger().info(f"can_create_knife_catcher_order() > Catching knife at {self.get_current_close()}")
-            return True
-
-        return False
-
-    def stop_actions_proposal_knife_catcher(self):
-        _, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_KNIFE_CATCHER)
-
-        if len(filled_buy_orders) > 0:
-            if self.is_price_over_ma(8) and self.has_stoch_reversed_for_kc_buy(CANDLE_COUNT_FOR_KC_CONTEXT):
-                self.logger().info(f"stop_actions_proposal_knife_catcher() > Caught Knife at {self.get_current_close()}")
-                self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
-                self.reset_kc_context()
 
     #
     # Mean Reversion start/stop action proposals
@@ -248,7 +183,7 @@ class ExcaliburStrategy(PkStrategy):
         if side == TradeType.SELL:
             if (
                 self.has_price_spiked_for_mr(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
-                not self.is_price_spike_a_reversal(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
+                not self.is_price_spike_a_reversal(CANDLE_COUNT_FOR_MR_PRICE_CHANGE, 5, self.config.min_price_delta_pct_to_open_mr) and
                 self.did_price_rebound_for_mr_sell(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
                 (self.is_peak_on_current_candle(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) or self.is_current_price_below_open())
             ):
@@ -259,7 +194,7 @@ class ExcaliburStrategy(PkStrategy):
 
         if (
             self.has_price_crashed_for_mr(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
-            not self.is_price_crash_a_reversal(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
+            not self.is_price_crash_a_reversal(CANDLE_COUNT_FOR_MR_PRICE_CHANGE, 5, self.config.min_price_delta_pct_to_open_mr) and
             self.did_price_rebound_for_mr_buy(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
             (self.is_bottom_on_current_candle(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) or self.is_current_price_above_open())
         ):
@@ -272,13 +207,13 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_MEAN_REVERSION)
 
         if len(filled_sell_orders) > 0:
-            if self.is_price_over_ma(7) and self.has_stoch_reversed_for_mr_sell(CANDLE_COUNT_FOR_MR_CONTEXT):
+            if self.is_price_over_ma(7) and self.has_stoch_reversed_for_mr_sell(CANDLE_COUNT_FOR_MR_CONTEXT, 10):
                 self.logger().info(f"stop_actions_proposal_mean_reversion() > Closing Mean Reversion Sell at {self.get_current_close()}")
                 self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
                 self.reset_mr_context()
 
         if len(filled_buy_orders) > 0:
-            if self.is_price_over_ma(7) and self.has_stoch_reversed_for_mr_buy(CANDLE_COUNT_FOR_MR_CONTEXT):
+            if self.is_price_over_ma(7) and self.has_stoch_reversed_for_mr_buy(CANDLE_COUNT_FOR_MR_CONTEXT, 10):
                 self.logger().info(f"stop_actions_proposal_mean_reversion() > Closing Mean Reversion Buy at {self.get_current_close()}")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
                 self.reset_mr_context()
@@ -320,52 +255,6 @@ class ExcaliburStrategy(PkStrategy):
     def get_current_stoch(self, length: int) -> Decimal:
         stoch_series: pd.Series = self.processed_data[f"STOCH_{length}_k"]
         return Decimal(stoch_series.iloc[-1])
-
-    #
-    # Knife Catcher context
-    #
-
-    def reset_kc_context(self):
-        self.save_kc_price_crash_pct(Decimal(0.0), self.get_market_data_provider_time())
-        self.save_kc_peak_stoch(Decimal(60.0), self.get_market_data_provider_time())
-
-        self.kc_price_reversal_counter: int = 0
-        self.kc_stoch_reversal_counter: int = 0
-        self.logger().info("Knife Catcher context is reset")
-
-    def save_kc_price_crash_pct(self, price_crash_pct: Decimal, timestamp: float):
-        self.saved_kc_price_crash_pct: Tuple[Decimal, float] = price_crash_pct, timestamp
-
-    def save_kc_peak_stoch(self, peak_stoch: Decimal, timestamp: float):
-        self.saved_kc_peak_stoch: Tuple[Decimal, float] = peak_stoch, timestamp
-
-    def check_kc_context(self, lifetime_minutes: int):
-        _, saved_price_crash_pct_timestamp = self.saved_kc_price_crash_pct
-        _, saved_peak_stoch_timestamp = self.saved_kc_peak_stoch
-
-        most_recent_timestamp: float = max([
-            saved_price_crash_pct_timestamp,
-            saved_peak_stoch_timestamp
-        ])
-
-        last_acceptable_timestamp = self.get_market_data_provider_time() - lifetime_minutes * 60
-
-        is_outdated: bool = most_recent_timestamp < last_acceptable_timestamp
-
-        if is_outdated and not self.is_kc_context_default():
-            self.logger().info("check_kc_context() | Resetting outdated context")
-            self.reset_kc_context()
-
-    def is_kc_context_default(self) -> bool:
-        saved_price_crash_pct, _ = self.saved_kc_price_crash_pct
-        saved_peak_stoch, _ = self.saved_kc_peak_stoch
-
-        return (
-            saved_price_crash_pct == Decimal(0.0) and
-            saved_peak_stoch == Decimal(60.0) and
-            self.kc_price_reversal_counter == 0 and
-            self.kc_stoch_reversal_counter == 0
-        )
 
     #
     # Mean Reversion context
@@ -422,7 +311,7 @@ class ExcaliburStrategy(PkStrategy):
         )
 
     #
-    # Strategy functions
+    # Mean Reversion functions
     #
 
     def get_current_peak(self, candle_count: int) -> Decimal:
@@ -533,75 +422,6 @@ class ExcaliburStrategy(PkStrategy):
 
         return is_over
 
-    #
-    # Knife Catcher functions
-    #
-
-    def has_price_crashed_for_kc(self, candle_count: int) -> bool:
-        low_series: pd.Series = self.processed_data["low"]
-        recent_lows = low_series.iloc[-candle_count:].reset_index(drop=True)
-        bottom_price = Decimal(recent_lows.min())
-        bottom_price_index = recent_lows.idxmin()
-
-        high_series: pd.Series = self.processed_data["high"]
-        recent_highs = high_series.iloc[-candle_count:].reset_index(drop=True)
-        peak_price = Decimal(recent_highs.max())
-        peak_price_index = recent_highs.idxmax()
-
-        if peak_price_index > bottom_price_index:
-            return False
-
-        price_delta_pct: Decimal = (peak_price - bottom_price) / bottom_price * 100
-        is_crashing = self.config.min_price_delta_pct_to_catch_knife < price_delta_pct
-
-        if is_crashing:
-            self.logger().info(f"has_price_crashed_for_kc() | bottom_price_index:{bottom_price_index} | bottom_price:{bottom_price} | peak_price_index:{peak_price_index} | peak_price:{peak_price}")
-            self.logger().info(f"has_price_crashed_for_kc() | current_price:{self.get_current_close()} | price_delta_pct:{price_delta_pct}")
-            self.save_kc_price_crash_pct(price_delta_pct, self.get_market_data_provider_time())
-
-        return is_crashing
-
-    def has_stoch_reversed_for_kc(self, candle_count: int) -> bool:
-        stoch_series: pd.Series = self.processed_data["STOCH_15_k"]
-        recent_stochs = stoch_series.iloc[-candle_count:].reset_index(drop=True)
-
-        peak_stoch: Decimal = Decimal(recent_stochs.max())
-        saved_peak_stoch, _ = self.saved_kc_peak_stoch
-
-        if max([peak_stoch, saved_peak_stoch]) <= 60:
-            return False
-
-        if peak_stoch > saved_peak_stoch:
-            timestamp_series: pd.Series = self.processed_data["timestamp"]
-            recent_timestamps = timestamp_series.iloc[-candle_count:].reset_index(drop=True)
-            peak_stoch_index = recent_stochs.idxmax()
-
-            peak_stoch_timestamp = recent_timestamps.iloc[peak_stoch_index]
-
-            self.logger().info(f"has_stoch_reversed_for_kc() | peak_stoch_index:{peak_stoch_index} | peak_stoch_timestamp:{timestamp_to_iso(peak_stoch_timestamp)}")
-            self.save_kc_peak_stoch(peak_stoch, peak_stoch_timestamp)
-
-        saved_peak_stoch, _ = self.saved_kc_peak_stoch
-
-        stoch_threshold: Decimal = saved_peak_stoch - 3
-        current_stoch = self.get_current_stoch(15)
-
-        self.logger().info(f"has_stoch_reversed_for_kc() | saved_peak_stoch:{saved_peak_stoch} | current_stoch:{current_stoch} | stoch_threshold:{stoch_threshold} | current_price:{self.get_current_close()}")
-
-        if current_stoch > stoch_threshold:
-            self.kc_stoch_reversal_counter = 0
-            self.logger().info("has_stoch_reversed_for_kc() | resetting self.kc_stoch_reversal_counter to 0")
-            return False
-
-        self.kc_stoch_reversal_counter += 1
-        self.logger().info(f"has_stoch_reversed_for_kc() | incremented self.kc_stoch_reversal_counter to:{self.kc_stoch_reversal_counter}")
-
-        return self.kc_stoch_reversal_counter > 4
-
-    #
-    # Mean Reversion functions
-    #
-
     def has_price_spiked_for_mr(self, candle_count: int) -> bool:
         low_series: pd.Series = self.processed_data["low"]
         recent_lows = low_series.iloc[-candle_count:].reset_index(drop=True)
@@ -619,7 +439,7 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         price_delta_pct: Decimal = (peak_price - bottom_price) / bottom_price * 100
-        is_spiking = self.config.min_price_delta_pct_to_open_mean_reversion < price_delta_pct
+        is_spiking = self.config.min_price_delta_pct_to_open_mr < price_delta_pct
 
         if is_spiking:
             self.logger().info(f"has_price_spiked_for_mr() | bottom_price_index:{bottom_price_index} | bottom_price:{bottom_price} | peak_price_index:{peak_price_index} | peak_price:{peak_price}")
@@ -643,7 +463,7 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         price_delta_pct: Decimal = (peak_price - bottom_price) / bottom_price * 100
-        is_crashing = self.config.min_price_delta_pct_to_open_mean_reversion < price_delta_pct
+        is_crashing = self.config.min_price_delta_pct_to_open_mr < price_delta_pct
 
         if is_crashing:
             self.logger().info(f"has_price_crashed_for_mr() | bottom_price_index:{bottom_price_index} | bottom_price:{bottom_price} | peak_price_index:{peak_price_index} | peak_price:{peak_price}")
@@ -702,8 +522,8 @@ class ExcaliburStrategy(PkStrategy):
 
         return self.mr_price_reversal_counter > 14
 
-    def has_stoch_reversed_for_mr_sell(self, candle_count: int) -> bool:
-        stoch_series: pd.Series = self.processed_data["STOCH_10_k"]
+    def has_stoch_reversed_for_mr_sell(self, candle_count: int, stoch_length: int) -> bool:
+        stoch_series: pd.Series = self.processed_data[f"STOCH_{stoch_length}_k"]
         recent_stochs = stoch_series.iloc[-candle_count:].reset_index(drop=True)
 
         bottom_stoch: Decimal = Decimal(recent_stochs.min())
@@ -725,7 +545,7 @@ class ExcaliburStrategy(PkStrategy):
         saved_bottom_stoch, _ = self.saved_mr_bottom_stoch
 
         stoch_threshold: Decimal = saved_bottom_stoch + 3
-        current_stoch = self.get_current_stoch(10)
+        current_stoch = self.get_current_stoch(stoch_length)
 
         self.logger().info(f"has_stoch_reversed_for_mr_sell() | saved_bottom_stoch:{saved_bottom_stoch} | current_stoch:{current_stoch} | stoch_threshold:{stoch_threshold} | current_price:{self.get_current_close()}")
 
@@ -739,8 +559,8 @@ class ExcaliburStrategy(PkStrategy):
 
         return self.mr_stoch_reversal_counter > 2
 
-    def has_stoch_reversed_for_mr_buy(self, candle_count: int) -> bool:
-        stoch_series: pd.Series = self.processed_data["STOCH_10_k"]
+    def has_stoch_reversed_for_mr_buy(self, candle_count: int, stoch_length: int) -> bool:
+        stoch_series: pd.Series = self.processed_data[f"STOCH_{stoch_length}_k"]
         recent_stochs = stoch_series.iloc[-candle_count:].reset_index(drop=True)
 
         peak_stoch: Decimal = Decimal(recent_stochs.max())
@@ -762,7 +582,7 @@ class ExcaliburStrategy(PkStrategy):
         saved_peak_stoch, _ = self.saved_mr_peak_stoch
 
         stoch_threshold: Decimal = saved_peak_stoch - 3
-        current_stoch = self.get_current_stoch(10)
+        current_stoch = self.get_current_stoch(stoch_length)
 
         self.logger().info(f"has_stoch_reversed_for_mr_buy() | saved_peak_stoch:{saved_peak_stoch} | current_stoch:{current_stoch} | stoch_threshold:{stoch_threshold} | current_price:{self.get_current_close()}")
 
