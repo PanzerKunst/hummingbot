@@ -170,9 +170,9 @@ class ExcaliburStrategy(PkStrategy):
         history_candle_count: int = 25
 
         if (
-            self.is_recent_rsi_low_enough(4) and
+            self.is_recent_rsi_low_enough(3) and
             self.is_price_crashing(history_candle_count) and
-            self.is_price_bottom_recent(history_candle_count, 4) and
+            self.is_price_bottom_recent(history_candle_count, 3) and
             self.did_price_rebound(history_candle_count)
         ):
             self.logger().info(f"can_create_trend_reversal_order() > Opening Trend Reversal Buy at {self.get_current_close()}")
@@ -315,7 +315,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_price_bottom_recent() | bottom_price_index:{bottom_price_index}")
 
-        return bottom_price_index >= history_candle_count - recent_candle_count  # >= 25 - 4
+        return bottom_price_index >= history_candle_count - recent_candle_count  # >= 25 - 3
 
     def did_price_rebound(self, history_candle_count: int) -> bool:
         low_series: pd.Series = self.processed_data["low"]
