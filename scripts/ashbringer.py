@@ -175,7 +175,7 @@ class ExcaliburStrategy(PkStrategy):
             self.is_price_bottom_recent(history_candle_count, 3) and
             self.did_price_rebound(history_candle_count)
         ):
-            self.logger().info(f"can_create_trend_reversal_order() > Opening Trend Reversal Buy at {self.get_current_close()}")
+            self.logger().info(f"can_create_trend_reversal_order() > Opening Trend Reversal Buy at {self.get_current_close()} | Current Stoch 15:{self.get_current_stoch(15)}")
             return True
 
         return False
