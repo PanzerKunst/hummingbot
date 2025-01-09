@@ -273,6 +273,12 @@ class ExcaliburStrategy(PkStrategy):
     # Trend Reversal functions
     #
 
+    def get_current_bottom(self, candle_count: int) -> Decimal:
+        low_series: pd.Series = self.processed_data["low"]
+        recent_lows = low_series.iloc[-candle_count:].reset_index(drop=True)
+
+        return Decimal(recent_lows.min())
+
     def is_recent_rsi_low_enough(self, candle_count: int) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI_20"]
         recent_rsis = rsi_series.iloc[-candle_count:].reset_index(drop=True)
@@ -317,32 +323,30 @@ class ExcaliburStrategy(PkStrategy):
 
         return bottom_price_index >= history_candle_count - recent_candle_count  # >= 25 - 3
 
-    def did_price_rebound(self, history_candle_count: int) -> bool:
-        low_series: pd.Series = self.processed_data["low"]
-        recent_lows = low_series.iloc[-history_candle_count:].reset_index(drop=True)
-        bottom_price = Decimal(recent_lows.min())
+    def did_price_rebound(self, candle_count: int) -> bool:
+        saved_price_change_pct, _ = self.saved_tr_price_change_pct
+        price_threshold_pct: Decimal = saved_price_change_pct / 10
+        price_top_limit_pct: Decimal = saved_price_change_pct / 7
+
+        bottom_price = self.get_current_bottom(candle_count)
+        price_threshold: Decimal = bottom_price * (1 + price_threshold_pct / 100)
+        price_top_limit: Decimal = bottom_price * (1 + price_top_limit_pct / 100)
 
         current_price: Decimal = self.get_current_close()
-        saved_price_change_pct, _ = self.saved_tr_price_change_pct
-        price_rebound_pct = (current_price - bottom_price) / current_price * 100
 
-        self.logger().info(f"did_price_rebound() | current_price:{current_price} | saved_price_change_pct:{saved_price_change_pct} | price_rebound_pct:{price_rebound_pct}")
+        self.logger().info(f"did_price_rebound() | saved_price_change_pct:{saved_price_change_pct} | bottom_price:{bottom_price} | current_price:{current_price}")
+        self.logger().info(f"did_price_rebound() | price_threshold_pct:{price_threshold_pct} | price_threshold:{price_threshold}")
+        self.logger().info(f"did_price_rebound() | price_top_limit_pct:{price_top_limit_pct} | price_top_limit:{price_top_limit}")
 
-        is_significant: bool = price_rebound_pct > saved_price_change_pct / 10
-
-        if not is_significant:
-            self.tr_price_reversal_counter = 0
-            self.logger().info("did_price_rebound() | resetting self.tr_price_reversal_counter to 0")
+        if not price_threshold < current_price < price_top_limit:
+            self.mr_price_reversal_counter = 0
+            self.logger().info("did_price_rebound() | resetting self.mr_price_reversal_counter to 0")
             return False
 
         self.tr_price_reversal_counter += 1
         self.logger().info(f"did_price_rebound() | incremented self.tr_price_reversal_counter to:{self.tr_price_reversal_counter}")
 
-        if self.tr_price_reversal_counter > 59:
-            self.save_tr_bottom_price(bottom_price, self.get_market_data_provider_time())
-            return True
-
-        return False
+        return self.tr_price_reversal_counter > 59
 
     def compute_tr_sl_pct(self) -> Decimal:
         saved_tr_bottom_price, _ = self.saved_tr_bottom_price
