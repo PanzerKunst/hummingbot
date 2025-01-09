@@ -341,8 +341,8 @@ class ExcaliburStrategy(PkStrategy):
         self.logger().info(f"did_price_rebound() | price_top_limit_pct:{price_top_limit_pct} | price_top_limit:{price_top_limit}")
 
         if not price_threshold < current_price < price_top_limit:
-            self.mr_price_reversal_counter = 0
-            self.logger().info("did_price_rebound() | resetting self.mr_price_reversal_counter to 0")
+            self.tr_price_reversal_counter = 0
+            self.logger().info("did_price_rebound() | resetting self.tr_price_reversal_counter to 0")
             return False
 
         self.tr_price_reversal_counter += 1
