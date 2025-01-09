@@ -163,7 +163,7 @@ class ExcaliburStrategy(PkStrategy):
             )
 
     def can_create_trend_reversal_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_TREND_REVERSAL, 20):
+        if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_TREND_REVERSAL, 5):
             return False
 
         if len(active_tracked_orders) > 0:
@@ -319,7 +319,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def did_price_rebound(self, candle_count: int) -> bool:
         saved_price_change_pct, _ = self.saved_tr_price_change_pct
-        price_threshold_pct: Decimal = saved_price_change_pct / 10
+        price_threshold_pct: Decimal = saved_price_change_pct / 8
         price_top_limit_pct: Decimal = saved_price_change_pct / 4
 
         bottom_price = self.get_current_bottom(candle_count)
@@ -340,7 +340,7 @@ class ExcaliburStrategy(PkStrategy):
         self.tr_price_reversal_counter += 1
         self.logger().info(f"did_price_rebound() | incremented self.tr_price_reversal_counter to:{self.tr_price_reversal_counter}")
 
-        return self.tr_price_reversal_counter > 59
+        return self.tr_price_reversal_counter > 119
 
     def compute_tr_sl_pct(self, candle_count: int) -> Decimal:
         bottom_price = self.get_current_bottom(candle_count)
