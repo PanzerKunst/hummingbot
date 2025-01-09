@@ -223,7 +223,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def reset_tr_context(self):
         self.save_tr_price_change_pct(Decimal(0.0), self.get_market_data_provider_time())
-        self.save_tr_peak_stoch(Decimal(80.0), self.get_market_data_provider_time())
+        self.save_tr_peak_stoch(Decimal(70.0), self.get_market_data_provider_time())
 
         self.tr_price_reversal_counter: int = 0
         self.tr_stoch_reversal_counter: int = 0
@@ -258,7 +258,7 @@ class ExcaliburStrategy(PkStrategy):
 
         return (
             saved_price_change_pct == Decimal(0.0) and
-            saved_peak_stoch == Decimal(80.0) and
+            saved_peak_stoch == Decimal(70.0) and
             self.tr_price_reversal_counter == 0 and
             self.tr_stoch_reversal_counter == 0
         )
@@ -368,7 +368,7 @@ class ExcaliburStrategy(PkStrategy):
         peak_stoch: Decimal = Decimal(recent_stochs.max())
         saved_peak_stoch, _ = self.saved_tr_peak_stoch
 
-        if max([peak_stoch, saved_peak_stoch]) <= 80:
+        if max([peak_stoch, saved_peak_stoch]) <= 70:
             return False
 
         if peak_stoch > saved_peak_stoch:
