@@ -61,7 +61,7 @@ class ExcaliburStrategy(PkStrategy):
     def get_triple_barrier(self) -> TripleBarrier:
         return TripleBarrier(
             open_order_type=OrderType.MARKET,
-            stop_loss=self.compute_tr_sl_pct(5) / 100
+            stop_loss=self.compute_tr_sl_pct(4) / 100
         )
 
     def update_processed_data(self):
@@ -349,7 +349,7 @@ class ExcaliburStrategy(PkStrategy):
         delta_pct_with_bottom: Decimal = (current_price - bottom_price) / current_price * 100
         sl_pct: Decimal = delta_pct_with_bottom * Decimal(0.8)
 
-        self.logger().info(f"compute_tr_sl_pct() | sl_pct:{sl_pct}")
+        self.logger().info(f"compute_tr_sl_pct() | bottom_price:{bottom_price} | current_price:{current_price} | sl_pct:{sl_pct}")
 
         return sl_pct
 
