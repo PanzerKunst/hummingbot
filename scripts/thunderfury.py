@@ -30,7 +30,8 @@ from scripts.thunderfury_config import ExcaliburConfig
 
 ORDER_REF_MEAN_REVERSION: str = "MeanReversion"
 CANDLE_COUNT_FOR_MR_PRICE_CHANGE: int = 2
-CANDLE_COUNT_FOR_MR_CONTEXT: int = CANDLE_COUNT_FOR_MR_PRICE_CHANGE  # Price change & STOCH reversal
+CANDLE_COUNT_FOR_MR_STOCH_REVERSAL: int = CANDLE_COUNT_FOR_MR_PRICE_CHANGE
+CANDLE_COUNT_FOR_MR_CONTEXT: int = CANDLE_COUNT_FOR_MR_PRICE_CHANGE
 CANDLE_DURATION_MINUTES: int = 1
 
 
@@ -57,20 +58,15 @@ class ExcaliburStrategy(PkStrategy):
                 for trading_pair in self.market_data_provider.get_trading_pairs(connector_name):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
-    def get_triple_barrier(self, ref: str, side: TradeType) -> TripleBarrier:
-        if ref == ORDER_REF_MEAN_REVERSION:
-            stop_loss_pct: Decimal = (
-                self.compute_sl_pct_for_sell(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) if side == TradeType.SELL
-                else self.compute_sl_pct_for_buy(CANDLE_COUNT_FOR_MR_PRICE_CHANGE)
-            )
-
-            return TripleBarrier(
-                open_order_type=OrderType.MARKET,
-                stop_loss=stop_loss_pct / 100
-            )
+    def get_triple_barrier(self, side: TradeType) -> TripleBarrier:
+        stop_loss_pct: Decimal = (
+            self.compute_sl_pct_for_sell(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) if side == TradeType.SELL
+            else self.compute_sl_pct_for_buy(CANDLE_COUNT_FOR_MR_PRICE_CHANGE)
+        )
 
         return TripleBarrier(
-            open_order_type=OrderType.MARKET
+            open_order_type=OrderType.MARKET,
+            stop_loss=stop_loss_pct / 100
         )
 
     def update_processed_data(self):
@@ -167,11 +163,11 @@ class ExcaliburStrategy(PkStrategy):
         active_orders = active_sell_orders + active_buy_orders
 
         if self.can_create_mean_reversion_order(TradeType.SELL, active_orders):
-            triple_barrier = self.get_triple_barrier(ORDER_REF_MEAN_REVERSION, TradeType.SELL)
+            triple_barrier = self.get_triple_barrier(TradeType.SELL)
             self.create_order(TradeType.SELL, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_MEAN_REVERSION)
 
         if self.can_create_mean_reversion_order(TradeType.BUY, active_orders):
-            triple_barrier = self.get_triple_barrier(ORDER_REF_MEAN_REVERSION, TradeType.BUY)
+            triple_barrier = self.get_triple_barrier(TradeType.BUY)
             self.create_order(TradeType.BUY, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_MEAN_REVERSION)
 
     def can_create_mean_reversion_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
@@ -208,13 +204,13 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_MEAN_REVERSION)
 
         if len(filled_sell_orders) > 0:
-            if self.is_price_under_ma(7) and self.has_stoch_reversed_for_mr_sell(CANDLE_COUNT_FOR_MR_CONTEXT, 10):
+            if self.is_price_under_ma(7) and self.has_stoch_reversed_for_mr_sell(CANDLE_COUNT_FOR_MR_STOCH_REVERSAL, 10):
                 self.logger().info(f"stop_actions_proposal_mean_reversion() > Closing Mean Reversion Sell at {self.get_current_close()}")
                 self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
                 self.reset_mr_context()
 
         if len(filled_buy_orders) > 0:
-            if self.is_price_over_ma(7) and self.has_stoch_reversed_for_mr_buy(CANDLE_COUNT_FOR_MR_CONTEXT, 10):
+            if self.is_price_over_ma(7) and self.has_stoch_reversed_for_mr_buy(CANDLE_COUNT_FOR_MR_STOCH_REVERSAL, 10):
                 self.logger().info(f"stop_actions_proposal_mean_reversion() > Closing Mean Reversion Buy at {self.get_current_close()}")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
                 self.reset_mr_context()
@@ -398,16 +394,22 @@ class ExcaliburStrategy(PkStrategy):
         current_price: Decimal = self.get_current_close()
 
         delta_pct_with_peak: Decimal = (peak_price - current_price) / current_price * 100
+        sl_pct: Decimal = delta_pct_with_peak * Decimal(0.8)
 
-        return delta_pct_with_peak * Decimal(0.8)
+        self.logger().info(f"compute_sl_pct_for_sell() | sl_pct:{sl_pct}")
+
+        return sl_pct
 
     def compute_sl_pct_for_buy(self, candle_count: int) -> Decimal:
         bottom_price = self.get_current_bottom(candle_count)
         current_price: Decimal = self.get_current_close()
 
         delta_pct_with_bottom: Decimal = (current_price - bottom_price) / current_price * 100
+        sl_pct: Decimal = delta_pct_with_bottom * Decimal(0.8)
 
-        return delta_pct_with_bottom * Decimal(0.8)
+        self.logger().info(f"compute_sl_pct_for_buy() | sl_pct:{sl_pct}")
+
+        return sl_pct
 
     def is_price_under_ma(self, length: int) -> bool:
         current_price: Decimal = self.get_current_close()
