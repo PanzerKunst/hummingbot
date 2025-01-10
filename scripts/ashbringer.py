@@ -20,7 +20,6 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 # Generate config file: create --script-config ashbringer_config
 # Start the bot: start --script ashbringer.py --conf conf_ashbringer_GOAT.yml
 #                start --script ashbringer.py --conf conf_ashbringer_AI16Z.yml
-#                start --script ashbringer.py --conf conf_ashbringer_AIXBT.yml
 #                start --script ashbringer.py --conf conf_ashbringer_CHILLGUY.yml
 #                start --script ashbringer.py --conf conf_ashbringer_FARTCOIN.yml
 #                start --script ashbringer.py --conf conf_ashbringer_MOODENG.yml
@@ -31,7 +30,8 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 # Quickstart script: -p=a -f ashbringer.py -c conf_ashbringer_GOAT.yml
 
 ORDER_REF_TREND_REVERSAL: str = "TrendReversal"
-CANDLE_COUNT_FOR_TR_CONTEXT: int = 3  # Price rebound & Stoch reversal
+CANDLE_COUNT_FOR_TR_STOCH_REVERSAL: int = 3
+CANDLE_COUNT_FOR_TR_CONTEXT: int = CANDLE_COUNT_FOR_TR_STOCH_REVERSAL
 CANDLE_DURATION_MINUTES: int = 3
 
 
@@ -61,7 +61,7 @@ class ExcaliburStrategy(PkStrategy):
     def get_triple_barrier(self) -> TripleBarrier:
         return TripleBarrier(
             open_order_type=OrderType.MARKET,
-            stop_loss=self.compute_tr_sl_pct(5) / 100
+            stop_loss=self.compute_tr_sl_pct(4) / 100
         )
 
     def update_processed_data(self):
@@ -81,7 +81,7 @@ class ExcaliburStrategy(PkStrategy):
 
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
 
-        candles_df["RSI_20"] = candles_df.ta.rsi(length=20)
+        # candles_df["RSI_20"] = candles_df.ta.rsi(length=20)
 
         candles_df["SMA_8"] = candles_df.ta.sma(length=8)
 
@@ -136,9 +136,11 @@ class ExcaliburStrategy(PkStrategy):
             if not self.processed_data.empty:
                 columns_to_display = [
                     "timestamp_iso",
+                    "low",
+                    "high",
                     "close",
                     "volume",
-                    "RSI_20",
+                    # "RSI_20",
                     "SMA_8",
                     "STOCH_15_k"
                 ]
@@ -172,7 +174,7 @@ class ExcaliburStrategy(PkStrategy):
         history_candle_count: int = 25
 
         if (
-            self.is_recent_rsi_low_enough(3) and
+            # self.is_recent_rsi_low_enough(3) and
             self.is_price_crashing(history_candle_count) and
             self.is_price_bottom_recent(history_candle_count, 3) and
             self.did_price_rebound(history_candle_count)
@@ -186,7 +188,7 @@ class ExcaliburStrategy(PkStrategy):
         _, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_TREND_REVERSAL)
 
         if len(filled_buy_orders) > 0:
-            if self.is_price_over_ma(8) and self.has_stoch_reversed_for_tr_buy(CANDLE_COUNT_FOR_TR_CONTEXT, 15):
+            if self.is_price_over_ma(8) and self.has_stoch_reversed_for_tr_buy(CANDLE_COUNT_FOR_TR_STOCH_REVERSAL, 15):
                 self.logger().info(f"stop_actions_proposal_trend_reversal() > Closing Trend Reversal Buy at {self.get_current_close()}")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
                 self.reset_tr_context()
@@ -273,15 +275,15 @@ class ExcaliburStrategy(PkStrategy):
 
         return Decimal(recent_lows.min())
 
-    def is_recent_rsi_low_enough(self, candle_count: int) -> bool:
-        rsi_series: pd.Series = self.processed_data["RSI_20"]
-        recent_rsis = rsi_series.iloc[-candle_count:].reset_index(drop=True)
-        bottom_rsi: Decimal = Decimal(recent_rsis.min())
-
-        if bottom_rsi < 30:
-            self.logger().info(f"is_recent_rsi_low_enough() | bottom_rsi:{bottom_rsi}")
-
-        return bottom_rsi < 30
+    # def is_recent_rsi_low_enough(self, candle_count: int) -> bool:
+    #     rsi_series: pd.Series = self.processed_data["RSI_20"]
+    #     recent_rsis = rsi_series.iloc[-candle_count:].reset_index(drop=True)
+    #     bottom_rsi: Decimal = Decimal(recent_rsis.min())
+    #
+    #     if bottom_rsi < 30:
+    #         self.logger().info(f"is_recent_rsi_low_enough() | bottom_rsi:{bottom_rsi}")
+    #
+    #     return bottom_rsi < 30
 
     def is_price_crashing(self, candle_count: int) -> bool:
         low_series: pd.Series = self.processed_data["low"]
@@ -347,10 +349,11 @@ class ExcaliburStrategy(PkStrategy):
         current_price: Decimal = self.get_current_close()
 
         delta_pct_with_bottom: Decimal = (current_price - bottom_price) / current_price * 100
+        sl_pct: Decimal = delta_pct_with_bottom * Decimal(0.8)
 
-        self.logger().info(f"compute_tr_sl_pct() | delta_pct_with_bottom:{delta_pct_with_bottom}")
+        self.logger().info(f"compute_tr_sl_pct() | bottom_price:{bottom_price} | current_price:{current_price} | sl_pct:{sl_pct}")
 
-        return delta_pct_with_bottom
+        return sl_pct
 
     def is_price_over_ma(self, length: int) -> bool:
         current_price: Decimal = self.get_current_close()
