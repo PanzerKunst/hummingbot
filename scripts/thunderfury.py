@@ -495,7 +495,7 @@ class ExcaliburStrategy(PkStrategy):
         delta_pct_with_peak: Decimal = (peak_price - current_price) / current_price * 100
         sl_pct: Decimal = delta_pct_with_peak * Decimal(0.8)
 
-        self.logger().info(f"compute_sl_pct_for_sell() | sl_pct:{sl_pct}")
+        self.logger().info(f"compute_sl_pct_for_sell() | peak_price:{peak_price} | current_price:{current_price} | sl_pct:{sl_pct}")
 
         return sl_pct
 
@@ -506,7 +506,7 @@ class ExcaliburStrategy(PkStrategy):
         delta_pct_with_bottom: Decimal = (current_price - bottom_price) / current_price * 100
         sl_pct: Decimal = delta_pct_with_bottom * Decimal(0.8)
 
-        self.logger().info(f"compute_sl_pct_for_buy() | sl_pct:{sl_pct}")
+        self.logger().info(f"compute_sl_pct_for_buy() | bottom_price:{bottom_price} | current_price:{current_price} | sl_pct:{sl_pct}")
 
         return sl_pct
 
