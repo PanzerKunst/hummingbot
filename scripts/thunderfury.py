@@ -29,9 +29,8 @@ from scripts.thunderfury_config import ExcaliburConfig
 # Quickstart script: -p=a -f thunderfury.py -c conf_thunderfury_GOAT.yml
 
 ORDER_REF_MEAN_REVERSION: str = "MeanReversion"
-CANDLE_COUNT_FOR_MR_PRICE_CHANGE: int = 2
-CANDLE_COUNT_FOR_MR_STOCH_REVERSAL: int = CANDLE_COUNT_FOR_MR_PRICE_CHANGE
-CANDLE_COUNT_FOR_MR_CONTEXT: int = CANDLE_COUNT_FOR_MR_PRICE_CHANGE
+CANDLE_COUNT_FOR_MR_STOCH_REVERSAL: int = 2
+CANDLE_COUNT_FOR_MR_CONTEXT: int = CANDLE_COUNT_FOR_MR_STOCH_REVERSAL
 CANDLE_DURATION_MINUTES: int = 1
 
 
@@ -60,8 +59,8 @@ class ExcaliburStrategy(PkStrategy):
 
     def get_triple_barrier(self, side: TradeType) -> TripleBarrier:
         stop_loss_pct: Decimal = (
-            self.compute_sl_pct_for_sell(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) if side == TradeType.SELL
-            else self.compute_sl_pct_for_buy(CANDLE_COUNT_FOR_MR_PRICE_CHANGE)
+            self.compute_sl_pct_for_sell(3) if side == TradeType.SELL
+            else self.compute_sl_pct_for_buy(3)
         )
 
         return TripleBarrier(
@@ -177,12 +176,14 @@ class ExcaliburStrategy(PkStrategy):
         if len(active_tracked_orders) > 0:
             return False
 
+        candle_count_for_price_change: int = 2
+
         if side == TradeType.SELL:
             if (
-                self.has_price_spiked_for_mr(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
-                not self.is_price_spike_a_reversal(CANDLE_COUNT_FOR_MR_PRICE_CHANGE, 4, self.config.min_price_delta_pct_to_open_mr) and
-                self.did_price_rebound_for_mr_sell(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
-                (self.is_peak_on_current_candle(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) or self.is_current_price_below_open())
+                self.has_price_spiked_for_mr(candle_count_for_price_change) and
+                not self.is_price_spike_a_reversal(candle_count_for_price_change, 4, self.config.min_price_delta_pct_to_open_mr) and
+                self.did_price_rebound_for_mr_sell(candle_count_for_price_change) and
+                (self.is_peak_on_current_candle(candle_count_for_price_change) or self.is_current_price_below_open())
             ):
                 self.logger().info(f"can_create_mean_reversion_order() > Opening Mean Reversion Sell at {self.get_current_close()} | Current Stoch 10:{self.get_current_stoch(10)}")
                 return True
@@ -190,10 +191,10 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         if (
-            self.has_price_crashed_for_mr(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
-            not self.is_price_crash_a_reversal(CANDLE_COUNT_FOR_MR_PRICE_CHANGE, 4, self.config.min_price_delta_pct_to_open_mr) and
-            self.did_price_rebound_for_mr_buy(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) and
-            (self.is_bottom_on_current_candle(CANDLE_COUNT_FOR_MR_PRICE_CHANGE) or self.is_current_price_above_open())
+            self.has_price_crashed_for_mr(candle_count_for_price_change) and
+            not self.is_price_crash_a_reversal(candle_count_for_price_change, 4, self.config.min_price_delta_pct_to_open_mr) and
+            self.did_price_rebound_for_mr_buy(candle_count_for_price_change) and
+            (self.is_bottom_on_current_candle(candle_count_for_price_change) or self.is_current_price_above_open())
         ):
             self.logger().info(f"can_create_mean_reversion_order() > Opening Mean Reversion Buy at {self.get_current_close()} | Current Stoch 10:{self.get_current_stoch(10)}")
             return True
@@ -326,13 +327,11 @@ class ExcaliburStrategy(PkStrategy):
     def has_price_spiked_for_mr(self, candle_count: int) -> bool:
         low_series: pd.Series = self.processed_data["low"]
         recent_lows = low_series.iloc[-candle_count:].reset_index(drop=True)
-
         bottom_price = Decimal(recent_lows.min())
         bottom_price_index = recent_lows.idxmin()
 
         high_series: pd.Series = self.processed_data["high"]
         recent_highs = high_series.iloc[-candle_count:].reset_index(drop=True)
-
         peak_price = Decimal(recent_highs.max())
         peak_price_index = recent_highs.idxmax()
 
