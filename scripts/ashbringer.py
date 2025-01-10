@@ -307,7 +307,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"is_price_bottom_recent() | bottom_price_index:{bottom_price_index}")
 
-        return bottom_price_index >= history_candle_count - recent_candle_count  # >= 25 - 3
+        return bottom_price_index >= history_candle_count - recent_candle_count  # >= 20 - 3
 
     def did_price_rebound(self, candle_count: int) -> bool:
         saved_price_change_pct, _ = self.saved_tr_price_change_pct
