@@ -20,7 +20,6 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 # Generate config file: create --script-config ashbringer_config
 # Start the bot: start --script ashbringer.py --conf conf_ashbringer_GOAT.yml
 #                start --script ashbringer.py --conf conf_ashbringer_AI16Z.yml
-#                start --script ashbringer.py --conf conf_ashbringer_AIXBT.yml
 #                start --script ashbringer.py --conf conf_ashbringer_CHILLGUY.yml
 #                start --script ashbringer.py --conf conf_ashbringer_FARTCOIN.yml
 #                start --script ashbringer.py --conf conf_ashbringer_MOODENG.yml
@@ -31,7 +30,9 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 # Quickstart script: -p=a -f ashbringer.py -c conf_ashbringer_GOAT.yml
 
 ORDER_REF_TREND_REVERSAL: str = "TrendReversal"
-CANDLE_COUNT_FOR_TR_CONTEXT: int = 3  # Price rebound & Stoch reversal
+CANDLE_COUNT_FOR_TR_PRICE_REBOUND: int = 3
+CANDLE_COUNT_FOR_TR_STOCH_REVERSAL: int = CANDLE_COUNT_FOR_TR_PRICE_REBOUND
+CANDLE_COUNT_FOR_TR_CONTEXT: int = CANDLE_COUNT_FOR_TR_PRICE_REBOUND
 CANDLE_DURATION_MINUTES: int = 3
 
 
@@ -347,10 +348,11 @@ class ExcaliburStrategy(PkStrategy):
         current_price: Decimal = self.get_current_close()
 
         delta_pct_with_bottom: Decimal = (current_price - bottom_price) / current_price * 100
+        sl_pct: Decimal = delta_pct_with_bottom * Decimal(0.8)
 
-        self.logger().info(f"compute_tr_sl_pct() | delta_pct_with_bottom:{delta_pct_with_bottom}")
+        self.logger().info(f"compute_tr_sl_pct() | sl_pct:{sl_pct}")
 
-        return delta_pct_with_bottom
+        return sl_pct
 
     def is_price_over_ma(self, length: int) -> bool:
         current_price: Decimal = self.get_current_close()
