@@ -198,18 +198,8 @@ class ExcaliburStrategy(PkStrategy):
     #
 
     def get_current_close(self) -> Decimal:
-        return self._get_close_at_index(-1)
-
-    def get_latest_close(self) -> Decimal:
-        return self._get_close_at_index(-2)
-
-    def _get_close_at_index(self, index: int) -> Decimal:
         close_series: pd.Series = self.processed_data["close"]
-        return Decimal(close_series.iloc[index])
-
-    def get_open_at_index(self, index: int) -> Decimal:
-        open_series: pd.Series = self.processed_data["open"]
-        return Decimal(open_series.iloc[index])
+        return Decimal(close_series.iloc[-1])
 
     def get_current_ma(self, length: int) -> Decimal:
         sma_series: pd.Series = self.processed_data[f"SMA_{length}"]
