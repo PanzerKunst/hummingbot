@@ -207,7 +207,7 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_MEAN_REVERSION)
 
         if len(filled_sell_orders) > 0:
-            if self.is_price_over_ma(7) and self.has_stoch_reversed_for_mr_sell(CANDLE_COUNT_FOR_MR_CONTEXT, 10):
+            if self.is_price_under_ma(7) and self.has_stoch_reversed_for_mr_sell(CANDLE_COUNT_FOR_MR_CONTEXT, 10):
                 self.logger().info(f"stop_actions_proposal_mean_reversion() > Closing Mean Reversion Sell at {self.get_current_close()}")
                 self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
                 self.reset_mr_context()
