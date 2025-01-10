@@ -85,8 +85,6 @@ class ExcaliburStrategy(PkStrategy):
 
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
 
-        candles_df["RSI_40"] = candles_df.ta.rsi(length=40)
-
         candles_df["SMA_7"] = candles_df.ta.sma(length=7)
 
         # Calling the lower-level function, because the one in core.py has a bug in the argument names
@@ -144,7 +142,6 @@ class ExcaliburStrategy(PkStrategy):
                     "high",
                     "close",
                     "volume",
-                    "RSI_40",
                     "SMA_7",
                     "STOCH_10_k"
                 ]
@@ -241,10 +238,6 @@ class ExcaliburStrategy(PkStrategy):
     def get_current_high(self) -> Decimal:
         high_series: pd.Series = self.processed_data["high"]
         return Decimal(high_series.iloc[-1])
-
-    def get_current_rsi(self, length: int) -> Decimal:
-        rsi_series: pd.Series = self.processed_data[f"RSI_{length}"]
-        return Decimal(rsi_series.iloc[-1])
 
     def get_current_ma(self, length: int) -> Decimal:
         sma_series: pd.Series = self.processed_data[f"SMA_{length}"]
