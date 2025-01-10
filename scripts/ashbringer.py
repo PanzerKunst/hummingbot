@@ -171,7 +171,7 @@ class ExcaliburStrategy(PkStrategy):
         if len(active_tracked_orders) > 0:
             return False
 
-        history_candle_count: int = 25
+        history_candle_count: int = 20
 
         if (
             # self.is_recent_rsi_low_enough(3) and
