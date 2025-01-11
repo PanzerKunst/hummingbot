@@ -178,7 +178,7 @@ class ExcaliburStrategy(PkStrategy):
         if side == TradeType.SELL:
             if (
                 self.has_price_spiked_for_mr(candle_count_for_price_change) and
-                not self.is_price_spike_a_reversal(candle_count_for_price_change, 4, self.config.min_price_delta_pct_to_open_mr) and
+                not self.is_price_spike_a_reversal(candle_count_for_price_change, 5, self.config.min_price_delta_pct_to_open_mr) and
                 self.did_price_rebound_for_mr_sell(candle_count_for_price_change) and
                 (self.is_peak_on_current_candle(candle_count_for_price_change) or self.is_current_price_below_open())
             ):
@@ -189,7 +189,7 @@ class ExcaliburStrategy(PkStrategy):
 
         if (
             self.has_price_crashed_for_mr(candle_count_for_price_change) and
-            not self.is_price_crash_a_reversal(candle_count_for_price_change, 4, self.config.min_price_delta_pct_to_open_mr) and
+            not self.is_price_crash_a_reversal(candle_count_for_price_change, 5, self.config.min_price_delta_pct_to_open_mr) and
             self.did_price_rebound_for_mr_buy(candle_count_for_price_change) and
             (self.is_bottom_on_current_candle(candle_count_for_price_change) or self.is_current_price_above_open())
         ):
@@ -376,9 +376,9 @@ class ExcaliburStrategy(PkStrategy):
 
         return is_reversal
 
-    def is_price_crash_a_reversal(self, candle_count: int, multiplier_for_previous_high: int, min_delta_to_open: Decimal) -> bool:
+    def is_price_crash_a_reversal(self, candle_count: int, multiplier_for_previous_low: int, min_delta_to_open: Decimal) -> bool:
         candle_end_index: int = -candle_count
-        candle_start_index: int = candle_end_index * multiplier_for_previous_high
+        candle_start_index: int = candle_end_index * multiplier_for_previous_low
 
         low_series: pd.Series = self.processed_data["low"]
         previous_lows = low_series.iloc[candle_start_index:candle_end_index].reset_index(drop=True)
