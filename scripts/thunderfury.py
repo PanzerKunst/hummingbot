@@ -19,7 +19,7 @@ from scripts.thunderfury_config import ExcaliburConfig
 # Generate config file: create --script-config thunderfury
 # Start the bot: start --script thunderfury.py --conf conf_thunderfury_GOAT.yml
 #                start --script thunderfury.py --conf conf_thunderfury_AI16Z.yml
-#                start --script thunderfury.py --conf conf_thunderfury_CHILLGUY.yml
+#                start --script thunderfury.py --conf conf_thunderfury_AIXBT.yml
 #                start --script thunderfury.py --conf conf_thunderfury_FARTCOIN.yml
 #                start --script thunderfury.py --conf conf_thunderfury_MOODENG.yml
 #                start --script thunderfury.py --conf conf_thunderfury_PENGU.yml
