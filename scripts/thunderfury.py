@@ -504,6 +504,10 @@ class ExcaliburStrategy(PkStrategy):
         is_under: bool = current_price < current_ma
         self.logger().info(f"is_price_under_ma(): {is_under} | current_price:{current_price} | current_ma:{current_ma}")
 
+        if not is_under:
+            self.logger().info("is_price_under_ma() | resetting self.mr_stoch_reversal_counter to 0")
+            self.mr_stoch_reversal_counter = 0
+
         return is_under
 
     def is_price_over_ma(self, length: int) -> bool:
@@ -512,6 +516,10 @@ class ExcaliburStrategy(PkStrategy):
 
         is_over: bool = current_price > current_ma
         self.logger().info(f"is_price_over_ma(): {is_over} | current_price:{current_price} | current_ma:{current_ma}")
+
+        if not is_over:
+            self.logger().info("is_price_over_ma() | resetting self.mr_stoch_reversal_counter to 0")
+            self.mr_stoch_reversal_counter = 0
 
         return is_over
 
