@@ -81,7 +81,7 @@ class ExcaliburStrategy(PkStrategy):
 
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
 
-        # candles_df["RSI_20"] = candles_df.ta.rsi(length=20)
+        candles_df["RSI_20"] = candles_df.ta.rsi(length=20)
 
         candles_df["SMA_8"] = candles_df.ta.sma(length=8)
 
@@ -140,7 +140,7 @@ class ExcaliburStrategy(PkStrategy):
                     "high",
                     "close",
                     "volume",
-                    # "RSI_20",
+                    "RSI_20",
                     "SMA_8",
                     "STOCH_10_k"
                 ]
@@ -174,7 +174,7 @@ class ExcaliburStrategy(PkStrategy):
         history_candle_count: int = 20
 
         if (
-            # self.is_recent_rsi_low_enough(3) and
+            self.is_recent_rsi_low_enough(3) and
             self.is_price_crashing(history_candle_count) and
             self.is_price_bottom_recent(history_candle_count, 3) and
             self.did_price_rebound(history_candle_count)
@@ -265,15 +265,15 @@ class ExcaliburStrategy(PkStrategy):
 
         return Decimal(recent_lows.min())
 
-    # def is_recent_rsi_low_enough(self, candle_count: int) -> bool:
-    #     rsi_series: pd.Series = self.processed_data["RSI_20"]
-    #     recent_rsis = rsi_series.iloc[-candle_count:].reset_index(drop=True)
-    #     bottom_rsi: Decimal = Decimal(recent_rsis.min())
-    #
-    #     if bottom_rsi < 30:
-    #         self.logger().info(f"is_recent_rsi_low_enough() | bottom_rsi:{bottom_rsi}")
-    #
-    #     return bottom_rsi < 30
+    def is_recent_rsi_low_enough(self, candle_count: int) -> bool:
+        rsi_series: pd.Series = self.processed_data["RSI_20"]
+        recent_rsis = rsi_series.iloc[-candle_count:].reset_index(drop=True)
+        bottom_rsi: Decimal = Decimal(recent_rsis.min())
+
+        if bottom_rsi < 30:
+            self.logger().info(f"is_recent_rsi_low_enough() | bottom_rsi:{bottom_rsi}")
+
+        return bottom_rsi < 30
 
     def is_price_crashing(self, candle_count: int) -> bool:
         low_series: pd.Series = self.processed_data["low"]
