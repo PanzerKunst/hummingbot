@@ -20,7 +20,7 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 # Generate config file: create --script-config ashbringer_config
 # Start the bot: start --script ashbringer.py --conf conf_ashbringer_GOAT.yml
 #                start --script ashbringer.py --conf conf_ashbringer_AI16Z.yml
-#                start --script ashbringer.py --conf conf_ashbringer_CHILLGUY.yml
+#                start --script ashbringer.py --conf conf_ashbringer_AIXBT.yml
 #                start --script ashbringer.py --conf conf_ashbringer_FARTCOIN.yml
 #                start --script ashbringer.py --conf conf_ashbringer_MOODENG.yml
 #                start --script ashbringer.py --conf conf_ashbringer_PENGU.yml
