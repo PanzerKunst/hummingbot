@@ -444,7 +444,7 @@ class ExcaliburStrategy(PkStrategy):
         self.mr_price_reversal_counter += 1
         self.logger().info(f"did_price_rebound_for_mr_sell() | incremented self.mr_price_reversal_counter to:{self.mr_price_reversal_counter}")
 
-        return self.mr_price_reversal_counter > 19
+        return self.mr_price_reversal_counter > 24
 
     def did_price_rebound_for_mr_buy(self, candle_count: int) -> bool:
         saved_price_change_pct, _ = self.saved_mr_price_change_pct
@@ -469,7 +469,7 @@ class ExcaliburStrategy(PkStrategy):
         self.mr_price_reversal_counter += 1
         self.logger().info(f"did_price_rebound_for_mr_buy() | incremented self.mr_price_reversal_counter to:{self.mr_price_reversal_counter}")
 
-        return self.mr_price_reversal_counter > 19
+        return self.mr_price_reversal_counter > 24
 
     def is_peak_on_current_candle(self, candle_count: int) -> bool:
         current_peak = self.get_current_peak(candle_count)
@@ -508,22 +508,20 @@ class ExcaliburStrategy(PkStrategy):
         current_price: Decimal = self.get_current_close()
 
         delta_pct_with_peak: Decimal = (peak_price - current_price) / current_price * 100
-        sl_pct: Decimal = delta_pct_with_peak * Decimal(0.8)
 
-        self.logger().info(f"compute_sl_pct_for_sell() | peak_price:{peak_price} | current_price:{current_price} | sl_pct:{sl_pct}")
+        self.logger().info(f"compute_sl_pct_for_sell() | peak_price:{peak_price} | current_price:{current_price} | delta_pct_with_peak:{delta_pct_with_peak}")
 
-        return sl_pct
+        return delta_pct_with_peak
 
     def compute_sl_pct_for_buy(self, candle_count: int) -> Decimal:
         bottom_price = self.get_current_bottom(candle_count)
         current_price: Decimal = self.get_current_close()
 
         delta_pct_with_bottom: Decimal = (current_price - bottom_price) / current_price * 100
-        sl_pct: Decimal = delta_pct_with_bottom * Decimal(0.8)
 
-        self.logger().info(f"compute_sl_pct_for_buy() | bottom_price:{bottom_price} | current_price:{current_price} | sl_pct:{sl_pct}")
+        self.logger().info(f"compute_sl_pct_for_buy() | bottom_price:{bottom_price} | current_price:{current_price} | delta_pct_with_bottom:{delta_pct_with_bottom}")
 
-        return sl_pct
+        return delta_pct_with_bottom
 
     def has_price_rebounded_enough_to_close_sell(self, rebound_pct: int) -> bool:
         saved_zoomed_out_price_change_pct, _ = self.saved_mr_zoomed_out_price_change_pct
