@@ -86,16 +86,16 @@ class ExcaliburStrategy(PkStrategy):
         candles_df["SMA_8"] = candles_df.ta.sma(length=8)
 
         # Calling the lower-level function, because the one in core.py has a bug in the argument names
-        stoch_10_df = stoch(
+        stoch_13_df = stoch(
             high=candles_df["high"],
             low=candles_df["low"],
             close=candles_df["close"],
-            k=10,
+            k=13,
             d=1,
             smooth_k=1
         )
 
-        candles_df["STOCH_10_k"] = stoch_10_df["STOCHk_10_1_1"]
+        candles_df["STOCH_13_k"] = stoch_13_df["STOCHk_13_1_1"]
 
         candles_df.dropna(inplace=True)
 
@@ -142,7 +142,7 @@ class ExcaliburStrategy(PkStrategy):
                     "volume",
                     "RSI_20",
                     "SMA_8",
-                    "STOCH_10_k"
+                    "STOCH_13_k"
                 ]
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display], table_format="psql"))
@@ -179,7 +179,7 @@ class ExcaliburStrategy(PkStrategy):
             self.is_price_bottom_recent(history_candle_count, 3) and
             self.did_price_rebound(history_candle_count)
         ):
-            self.logger().info(f"can_create_trend_reversal_order() > Opening Trend Reversal Buy at {self.get_current_close()} | Current Stoch 10:{self.get_current_stoch(10)}")
+            self.logger().info(f"can_create_trend_reversal_order() > Opening Trend Reversal Buy at {self.get_current_close()} | Current Stoch 13:{self.get_current_stoch(13)}")
             return True
 
         return False
@@ -188,7 +188,7 @@ class ExcaliburStrategy(PkStrategy):
         _, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_TREND_REVERSAL)
 
         if len(filled_buy_orders) > 0:
-            if self.is_price_over_ma(8) and self.has_stoch_reversed_for_tr_buy(CANDLE_COUNT_FOR_TR_STOCH_REVERSAL, 10):
+            if self.is_price_over_ma(8) and self.has_stoch_reversed_for_tr_buy(CANDLE_COUNT_FOR_TR_STOCH_REVERSAL, 13):
                 self.logger().info(f"stop_actions_proposal_trend_reversal() > Closing Trend Reversal Buy at {self.get_current_close()}")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
                 self.reset_tr_context()
