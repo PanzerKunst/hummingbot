@@ -326,7 +326,7 @@ class PkStrategy(StrategyV2Base):
 
                     for order in self.tracked_orders:
                         if order.order_id == close_order.tracked_order.order_id:
-                            order.terminated_at = self.get_market_data_provider_time()
+                            order.terminated_at = filled_event.timestamp
                             order.close_type = CloseType.STOP_LOSS
                             break
 
