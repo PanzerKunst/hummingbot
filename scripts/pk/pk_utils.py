@@ -6,7 +6,7 @@ from typing import List
 import pandas as pd
 
 from hummingbot.connector.derivative.position import Position
-from hummingbot.core.data_type.common import TradeType
+from hummingbot.core.data_type.common import OrderType, TradeType
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
@@ -43,19 +43,20 @@ def compute_recent_price_delta_pct(low_series: pd.Series, high_series: pd.Series
 
 
 def compute_sell_orders_pnl_pct(filled_sell_orders: List[TrackedOrderDetails], current_price: Decimal) -> Decimal:
-    worst_filled_price = min(filled_sell_orders, key=lambda order: order.last_filled_price).last_filled_price
+    worst_filled_price = min(filled_sell_orders, key=lambda order: order.filled_price).last_filled_price
     return (worst_filled_price - current_price) / worst_filled_price * 100
 
 
 def compute_buy_orders_pnl_pct(filled_buy_orders: List[TrackedOrderDetails], current_price: Decimal) -> Decimal:
-    worst_filled_price = max(filled_buy_orders, key=lambda order: order.last_filled_price).last_filled_price
+    worst_filled_price = max(filled_buy_orders, key=lambda order: order.filled_price).last_filled_price
     return (current_price - worst_filled_price) / worst_filled_price * 100
 
 
 def has_current_price_reached_stop_loss(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
     stop_loss = tracked_order.triple_barrier.stop_loss
+    sl_order_type = tracked_order.triple_barrier.stop_loss_order_type
 
-    if not stop_loss:
+    if not stop_loss or sl_order_type == OrderType.LIMIT:
         return False
 
     side = tracked_order.side
