@@ -121,6 +121,9 @@ class PkStrategy(StrategyV2Base):
         filled_buy_orders = [order for order in active_buy_orders if order.last_filled_at]
         return filled_sell_orders, filled_buy_orders
 
+    def get_unfilled_close_orders(self, tracked_order: TrackedOrderDetails) -> List[CloseOrder]:
+        return [order for order in self.close_orders if order.tracked_order.order_id == tracked_order.order_id and not order.filled_at]
+
     def create_order(self, side: TradeType, entry_price: Decimal, triple_barrier: TripleBarrier, amount_quote: Decimal, ref: str):
         executor_config = self.get_executor_config(side, entry_price, amount_quote)
         self.create_individual_order(executor_config, triple_barrier, ref)
@@ -218,6 +221,10 @@ class PkStrategy(StrategyV2Base):
     def cancel_tracked_order(self, tracked_order: TrackedOrderDetails):
         if tracked_order.last_filled_at:
             self.close_filled_order(tracked_order, OrderType.MARKET, CloseType.EARLY_STOP)
+
+            for order in self.get_unfilled_close_orders(tracked_order):
+                self.cancel_close_order(order)
+
         else:
             self.cancel_unfilled_order(tracked_order)
 
@@ -259,6 +266,20 @@ class PkStrategy(StrategyV2Base):
             if order.order_id == tracked_order.order_id:
                 order.terminated_at = self.get_market_data_provider_time()
                 order.close_type = CloseType.EXPIRED
+                break
+
+    def cancel_close_order(self, close_order: CloseOrder):
+        connector_name = close_order.tracked_order.connector_name
+        trading_pair = close_order.tracked_order.trading_pair
+        order_id = close_order.order_id
+
+        self.logger().info(f"cancel_close_order: {close_order}")
+
+        self.cancel(connector_name, trading_pair, order_id)
+
+        for order in self.close_orders:
+            if order.order_id == close_order.order_id:
+                self.close_orders.remove(order)
                 break
 
     def did_create_sell_order(self, created_event: SellOrderCreatedEvent):
