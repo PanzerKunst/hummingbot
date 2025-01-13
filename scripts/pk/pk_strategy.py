@@ -221,10 +221,6 @@ class PkStrategy(StrategyV2Base):
     def cancel_tracked_order(self, tracked_order: TrackedOrderDetails):
         if tracked_order.last_filled_at:
             self.close_filled_order(tracked_order, OrderType.MARKET, CloseType.EARLY_STOP)
-
-            for order in self.get_unfilled_close_orders(tracked_order):
-                self.cancel_close_order(order)
-
         else:
             self.cancel_unfilled_order(tracked_order)
 
@@ -248,6 +244,9 @@ class PkStrategy(StrategyV2Base):
                 order.terminated_at = self.get_market_data_provider_time()
                 order.close_type = close_type
                 break
+
+        for order in self.get_unfilled_close_orders(tracked_order):
+            self.cancel_close_order(order)
 
     def market_close_orders(self, filled_orders: List[TrackedOrderDetails], close_type: CloseType):
         for tracked_order in filled_orders:
