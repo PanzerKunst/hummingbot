@@ -175,6 +175,7 @@ class ExcaliburStrategy(PkStrategy):
 
         if (
             self.is_recent_rsi_low_enough(3) and
+            self.get_current_stoch(13) < 35 and
             self.is_price_crashing(history_candle_count) and
             self.is_price_bottom_recent(history_candle_count, 3) and
             self.did_price_rebound(history_candle_count)
