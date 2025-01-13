@@ -204,7 +204,7 @@ class ExcaliburStrategy(PkStrategy):
 
         if len(filled_sell_orders) > 0:
             if (
-                self.has_price_rebounded_enough_to_close_sell(50) and
+                self.has_price_rebounded_enough_to_close_sell(40) and
                 self.is_price_under_ma(7) and
                 self.has_stoch_reversed_for_mr_sell(CANDLE_COUNT_FOR_MR_STOCH_REVERSAL, 10)
             ):
@@ -214,7 +214,7 @@ class ExcaliburStrategy(PkStrategy):
 
         if len(filled_buy_orders) > 0:
             if (
-                self.has_price_rebounded_enough_to_close_buy(50) and
+                self.has_price_rebounded_enough_to_close_buy(40) and
                 self.is_price_over_ma(7) and
                 self.has_stoch_reversed_for_mr_buy(CANDLE_COUNT_FOR_MR_STOCH_REVERSAL, 10)
             ):
@@ -534,7 +534,7 @@ class ExcaliburStrategy(PkStrategy):
         self.logger().info(f"has_price_rebounded_enough_to_close_sell() | rebound_pct:{rebound_pct} | min_rebound_pct:{min_rebound_pct}")
         self.logger().info(f"has_price_rebounded_enough_to_close_sell() | peak_price:{peak_price} | current_price:{current_price} | delta_pct_with_peak:{delta_pct_with_peak}")
 
-        has_rebounded_enough: bool = delta_pct_with_peak > min_rebound_pct
+        has_rebounded_enough: bool = min_rebound_pct < delta_pct_with_peak
 
         if not has_rebounded_enough:
             self.logger().info("has_price_rebounded_enough_to_close_sell() | resetting self.mr_stoch_reversal_counter to 0")
@@ -548,12 +548,12 @@ class ExcaliburStrategy(PkStrategy):
 
         bottom_price = self.get_current_bottom(15)
         current_price: Decimal = self.get_current_close()
-        delta_pct_with_peak: Decimal = (current_price - bottom_price) / current_price * 100
+        delta_pct_with_bottom: Decimal = (current_price - bottom_price) / current_price * 100
 
         self.logger().info(f"has_price_rebounded_enough_to_close_buy() | rebound_pct:{rebound_pct} | min_rebound_pct:{min_rebound_pct}")
-        self.logger().info(f"has_price_rebounded_enough_to_close_buy() | bottom_price:{bottom_price} | current_price:{current_price} | delta_pct_with_peak:{delta_pct_with_peak}")
+        self.logger().info(f"has_price_rebounded_enough_to_close_buy() | bottom_price:{bottom_price} | current_price:{current_price} | delta_pct_with_bottom:{delta_pct_with_bottom}")
 
-        has_rebounded_enough: bool = delta_pct_with_peak > min_rebound_pct
+        has_rebounded_enough: bool = min_rebound_pct < delta_pct_with_bottom
 
         if not has_rebounded_enough:
             self.logger().info("has_price_rebounded_enough_to_close_buy() | resetting self.mr_stoch_reversal_counter to 0")
