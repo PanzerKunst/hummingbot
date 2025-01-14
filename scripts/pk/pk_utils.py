@@ -1,12 +1,12 @@
 from datetime import datetime
 from decimal import Decimal
-from enum import Enum
-from typing import List
+from typing import List, Optional
 
 import pandas as pd
 
 from hummingbot.connector.derivative.position import Position
 from hummingbot.core.data_type.common import OrderType, TradeType
+from scripts.pk.pk_trailing_stop import PkTrailingStop
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
@@ -19,14 +19,6 @@ def are_positions_equal(position_1: Position, position_2: Position) -> bool:
     return (position_1.position_side == position_2.position_side
             and position_1.trading_pair == position_2.trading_pair
             and position_1.amount == position_2.amount)
-
-
-def compute_delta_bps(price_a: Decimal, price_b: Decimal) -> Decimal:
-    if price_b == 0:
-        return Decimal("Infinity")
-
-    delta_bps = (price_a - price_b) / price_b * 10000
-    return delta_bps
 
 
 def compute_recent_price_delta_pct(low_series: pd.Series, high_series: pd.Series, nb_candles_to_consider: int, nb_excluded: int = 0) -> Decimal:
@@ -52,47 +44,65 @@ def compute_buy_orders_pnl_pct(filled_buy_orders: List[TrackedOrderDetails], cur
     return (current_price - worst_filled_price) / worst_filled_price * 100
 
 
+def compute_stop_loss_price(side: TradeType, ref_price: Decimal, stop_loss: Decimal) -> Decimal:
+    if side == TradeType.SELL:
+        return ref_price * (1 + stop_loss)
+
+    return ref_price * (1 - stop_loss)
+
+
+def compute_take_profit_price(side: TradeType, ref_price: Decimal, take_profit: Decimal) -> Decimal:
+    if side == TradeType.SELL:
+        return ref_price * (1 - take_profit)
+
+    return ref_price * (1 + take_profit)
+
+
 def has_current_price_reached_stop_loss(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
-    stop_loss = tracked_order.triple_barrier.stop_loss
-    sl_order_type = tracked_order.triple_barrier.stop_loss_order_type
+    stop_loss: Optional[Decimal] = tracked_order.triple_barrier.stop_loss
+    sl_order_type: OrderType = tracked_order.triple_barrier.stop_loss_order_type
 
     if not stop_loss or sl_order_type == OrderType.LIMIT:
         return False
 
-    side = tracked_order.side
-    ref_price = tracked_order.last_filled_price or tracked_order.entry_price
+    side: TradeType = tracked_order.side
+    ref_price: Decimal = tracked_order.last_filled_price or tracked_order.entry_price
+    stop_loss_price: Decimal = compute_stop_loss_price(side, ref_price, stop_loss)
 
     if side == TradeType.SELL:
-        return current_price > ref_price * (1 + stop_loss)
+        return current_price > stop_loss_price
 
-    return current_price < ref_price * (1 - stop_loss)
+    return current_price < stop_loss_price
 
 
 def has_current_price_reached_take_profit(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
-    take_profit = tracked_order.triple_barrier.take_profit
+    take_profit: Optional[Decimal] = tracked_order.triple_barrier.take_profit
+    tp_order_type: OrderType = tracked_order.triple_barrier.take_profit_order_type
 
-    if not take_profit:
+    if not take_profit or tp_order_type == OrderType.LIMIT:
         return False
 
-    side = tracked_order.side
-    ref_price = tracked_order.last_filled_price or tracked_order.entry_price
+    side: TradeType = tracked_order.side
+    ref_price: Decimal = tracked_order.last_filled_price or tracked_order.entry_price
+    take_profit_price: Decimal = compute_take_profit_price(side, ref_price, take_profit)
 
     if side == TradeType.SELL:
-        return current_price < ref_price * (1 - take_profit)
+        return current_price < take_profit_price
 
-    return current_price > ref_price * (1 + take_profit)
+    return current_price > take_profit_price
 
 
 def update_trailing_stop(tracked_order: TrackedOrderDetails, current_price: Decimal):
-    trailing_stop = tracked_order.triple_barrier.trailing_stop
+    trailing_stop: Optional[PkTrailingStop] = tracked_order.triple_barrier.trailing_stop
 
     if not trailing_stop:
         return
 
-    activation_price = get_take_profit_price(tracked_order.side, tracked_order.last_filled_price, trailing_stop.activation_delta)
-    price_to_compare = tracked_order.trailing_stop_best_price or activation_price
+    side: TradeType = tracked_order.side
+    activation_price: Decimal = compute_take_profit_price(side, tracked_order.last_filled_price, trailing_stop.activation_delta)
+    price_to_compare: Decimal = tracked_order.trailing_stop_best_price or activation_price
 
-    if tracked_order.side == TradeType.SELL:
+    if side == TradeType.SELL:
         if current_price < price_to_compare:
             tracked_order.trailing_stop_best_price = current_price
         return
@@ -102,24 +112,17 @@ def update_trailing_stop(tracked_order: TrackedOrderDetails, current_price: Deci
 
 
 def should_close_trailing_stop(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
-    trailing_stop = tracked_order.triple_barrier.trailing_stop
+    trailing_stop: Optional[PkTrailingStop] = tracked_order.triple_barrier.trailing_stop
 
     if not trailing_stop or not tracked_order.trailing_stop_best_price:
         return False
 
-    trailing_delta = trailing_stop.trailing_delta
+    trailing_delta: Decimal = trailing_stop.trailing_delta
 
     if tracked_order.side == TradeType.SELL:
         return current_price > tracked_order.trailing_stop_best_price * (1 + trailing_delta)
 
     return current_price < tracked_order.trailing_stop_best_price * (1 - trailing_delta)
-
-
-def get_take_profit_price(side: TradeType, ref_price: Decimal, take_profit_delta: Decimal) -> Decimal:
-    if side == TradeType.SELL:
-        return ref_price * (1 - take_profit_delta)
-
-    return ref_price * (1 + take_profit_delta)
 
 
 def has_unfilled_order_expired(tracked_order: TrackedOrderDetails, expiration_min: int, current_timestamp: float) -> bool:
@@ -129,7 +132,7 @@ def has_unfilled_order_expired(tracked_order: TrackedOrderDetails, expiration_mi
 
 
 def has_filled_order_reached_time_limit(tracked_order: TrackedOrderDetails, current_timestamp: float) -> bool:
-    time_limit = tracked_order.triple_barrier.time_limit
+    time_limit: Optional[int] = tracked_order.triple_barrier.time_limit
 
     if not time_limit:
         return False
@@ -185,8 +188,3 @@ def compute_rsi_pullback_difference(rsi: Decimal) -> Decimal:
 
     increment = ((25 - rsi) // 3) + 3
     return increment
-
-
-class Trend(Enum):
-    UP = "UP"
-    DOWN = "DOWN"

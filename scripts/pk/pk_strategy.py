@@ -12,6 +12,7 @@ from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.pk.close_order import CloseOrder
 from scripts.pk.pk_triple_barrier import TripleBarrier
 from scripts.pk.pk_utils import (
+    compute_stop_loss_price,
     has_current_price_reached_stop_loss,
     has_current_price_reached_take_profit,
     has_filled_order_reached_time_limit,
@@ -345,7 +346,8 @@ class PkStrategy(StrategyV2Base):
                 sl_order_type = tracked_order.triple_barrier.stop_loss_order_type
 
                 if stop_loss and sl_order_type == OrderType.LIMIT:
-                    self.create_close_limit_order(tracked_order, filled_event.amount, filled_event.price)
+                    stop_loss_price = compute_stop_loss_price(tracked_order.side, filled_event.price, stop_loss)
+                    self.create_close_limit_order(tracked_order, filled_event.amount, stop_loss_price)
 
                 break
 
