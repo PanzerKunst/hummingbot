@@ -347,6 +347,10 @@ class PkStrategy(StrategyV2Base):
 
                 if stop_loss_delta and sl_order_type == OrderType.LIMIT:
                     stop_loss_price = compute_stop_loss_price(tracked_order.side, filled_event.price, stop_loss_delta)
+
+                    # TODO: remove
+                    self.logger().info(f"did_fill_order | stop_loss_delta:{stop_loss_delta} | stop_loss_price:{stop_loss_price}")
+
                     self.create_close_limit_order(tracked_order, filled_event.amount, stop_loss_price)
 
                 break
