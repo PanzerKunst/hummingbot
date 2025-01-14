@@ -1,7 +1,7 @@
 import asyncio
 from datetime import datetime
 from decimal import Decimal
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.data_type.common import OrderType, PositionAction, PriceType, TradeType
@@ -76,11 +76,11 @@ class PkStrategy(StrategyV2Base):
             type = "position_executor"
         )
 
-    def find_tracked_order_of_id(self, order_id: str) -> Optional[TrackedOrderDetails]:
+    def find_tracked_order_of_id(self, order_id: str) -> TrackedOrderDetails | None:
         orders_of_that_id = [order for order in self.tracked_orders if order.order_id == order_id]
         return None if len(orders_of_that_id) == 0 else orders_of_that_id[0]
 
-    def find_last_terminated_filled_order(self, side: TradeType, ref: str) -> Optional[TrackedOrderDetails]:
+    def find_last_terminated_filled_order(self, side: TradeType, ref: str) -> TrackedOrderDetails | None:
         terminated_filled_orders = [order for order in self.tracked_orders if (
             order.side == side and
             order.ref == ref and
@@ -93,7 +93,7 @@ class PkStrategy(StrategyV2Base):
 
         return max(terminated_filled_orders, key=lambda order: order.terminated_at)
 
-    def get_active_tracked_orders(self, ref: Optional[str] = None) -> List[TrackedOrderDetails]:
+    def get_active_tracked_orders(self, ref: str | None = None) -> List[TrackedOrderDetails]:
         active_tracked_orders = [order for order in self.tracked_orders if order.created_at and not order.terminated_at]
 
         if ref:
@@ -101,19 +101,19 @@ class PkStrategy(StrategyV2Base):
 
         return active_tracked_orders
 
-    def get_active_tracked_orders_by_side(self, ref: Optional[str] = None) -> Tuple[List[TrackedOrderDetails], List[TrackedOrderDetails]]:
+    def get_active_tracked_orders_by_side(self, ref: str | None = None) -> Tuple[List[TrackedOrderDetails], List[TrackedOrderDetails]]:
         active_orders = self.get_active_tracked_orders(ref)
         active_sell_orders = [order for order in active_orders if order.side == TradeType.SELL]
         active_buy_orders = [order for order in active_orders if order.side == TradeType.BUY]
         return active_sell_orders, active_buy_orders
 
-    def get_unfilled_tracked_orders_by_side(self, ref: Optional[str] = None) -> Tuple[List[TrackedOrderDetails], List[TrackedOrderDetails]]:
+    def get_unfilled_tracked_orders_by_side(self, ref: str | None = None) -> Tuple[List[TrackedOrderDetails], List[TrackedOrderDetails]]:
         active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ref)
         unfilled_sell_orders = [order for order in active_sell_orders if not order.last_filled_at]
         unfilled_buy_orders = [order for order in active_buy_orders if not order.last_filled_at]
         return unfilled_sell_orders, unfilled_buy_orders
 
-    def get_filled_tracked_orders_by_side(self, ref: Optional[str] = None) -> Tuple[List[TrackedOrderDetails], List[TrackedOrderDetails]]:
+    def get_filled_tracked_orders_by_side(self, ref: str | None = None) -> Tuple[List[TrackedOrderDetails], List[TrackedOrderDetails]]:
         active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ref)
         filled_sell_orders = [order for order in active_sell_orders if order.last_filled_at]
         filled_buy_orders = [order for order in active_buy_orders if order.last_filled_at]
