@@ -12,7 +12,7 @@ from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.pk.close_order import CloseOrder
 from scripts.pk.pk_triple_barrier import TripleBarrier
 from scripts.pk.pk_utils import (
-    compute_stop_loss_price,
+    compute_take_profit_price,
     has_current_price_reached_stop_loss,
     has_current_price_reached_take_profit,
     has_filled_order_reached_time_limit,
@@ -188,32 +188,32 @@ class PkStrategy(StrategyV2Base):
 
         self.logger().info(f"create_order: {self.tracked_orders[-1]}")
 
-    def create_close_limit_order(self, tracked_order: TrackedOrderDetails, filled_amount: Decimal, filled_price: Decimal):
+    def create_close_limit_order(self, tracked_order: TrackedOrderDetails, filled_amount: Decimal, entry_price: Decimal):
         side: TradeType = TradeType.SELL if tracked_order.side == TradeType.BUY else TradeType.BUY
         trading_pair: str = tracked_order.trading_pair
 
-        executor_config = self.get_executor_config(side, filled_price, filled_amount)
+        executor_config = self.get_executor_config(side, entry_price, filled_amount)
         connector_name: str = executor_config.connector_name
 
         if executor_config.side == TradeType.SELL:
-            order_id = self.sell(connector_name, trading_pair, filled_amount, OrderType.LIMIT, filled_price, PositionAction.CLOSE)
+            order_id = self.sell(connector_name, trading_pair, filled_amount, OrderType.LIMIT, entry_price, PositionAction.CLOSE)
 
             self.close_orders.append(CloseOrder(
                 order_id=order_id,
                 tracked_order=tracked_order,
                 amount=filled_amount,
-                entry_price=filled_price,
+                entry_price=entry_price,
                 created_at=self.get_market_data_provider_time()
             ))
 
         else:
-            order_id = self.buy(connector_name, trading_pair, filled_amount, OrderType.LIMIT, filled_price, PositionAction.CLOSE)
+            order_id = self.buy(connector_name, trading_pair, filled_amount, OrderType.LIMIT, entry_price, PositionAction.CLOSE)
 
             self.close_orders.append(CloseOrder(
                 order_id=order_id,
                 tracked_order=tracked_order,
                 amount = filled_amount,
-                entry_price=filled_price,
+                entry_price=entry_price,
                 created_at=self.get_market_data_provider_time()
             ))
 
@@ -316,7 +316,7 @@ class PkStrategy(StrategyV2Base):
 
             for close_order in self.close_orders:
                 if close_order.order_id == filled_event.order_id:
-                    self.logger().info(f"did_fill_order | Limit SL reached for tracked order:{close_order.tracked_order}")
+                    self.logger().info(f"did_fill_order | Limit Close price reached for tracked order:{close_order.tracked_order}")
 
                     close_order.filled_amount = filled_event.amount
                     close_order.filled_at = filled_event.timestamp
@@ -327,7 +327,7 @@ class PkStrategy(StrategyV2Base):
                     for order in self.tracked_orders:
                         if order.order_id == close_order.tracked_order.order_id:
                             order.terminated_at = filled_event.timestamp
-                            order.close_type = CloseType.STOP_LOSS
+                            order.close_type = CloseType.TAKE_PROFIT
                             break
 
                     break
@@ -342,16 +342,16 @@ class PkStrategy(StrategyV2Base):
 
                 self.logger().info(f"did_fill_order | amount:{filled_event.amount} | tracked_order.filled_amount:{tracked_order.filled_amount} | tracked_order.last_filled_price:{tracked_order.last_filled_price}")
 
-                stop_loss_delta = tracked_order.triple_barrier.stop_loss_delta
-                sl_order_type = tracked_order.triple_barrier.stop_loss_order_type
+                take_profit_delta = tracked_order.triple_barrier.take_profit_delta
+                tp_order_type = tracked_order.triple_barrier.take_profit_order_type
 
-                if stop_loss_delta and sl_order_type == OrderType.LIMIT:
-                    stop_loss_price = compute_stop_loss_price(tracked_order.side, filled_event.price, stop_loss_delta)
+                if take_profit_delta and tp_order_type == OrderType.LIMIT:
+                    take_profit_price = compute_take_profit_price(tracked_order.side, filled_event.price, take_profit_delta)
 
                     # TODO: remove
-                    self.logger().info(f"did_fill_order | stop_loss_delta:{stop_loss_delta} | stop_loss_price:{stop_loss_price}")
+                    self.logger().info(f"did_fill_order | take_profit_delta:{take_profit_delta} | take_profit_price:{take_profit_price}")
 
-                    self.create_close_limit_order(tracked_order, filled_event.amount, stop_loss_price)
+                    self.create_close_limit_order(tracked_order, filled_event.amount, take_profit_price)
 
                 break
 
