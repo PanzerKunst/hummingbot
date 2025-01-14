@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Optional
 
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
@@ -13,5 +12,5 @@ class CloseOrder:
     entry_price: Decimal
     created_at: float
     filled_amount: Decimal = Decimal(0)
-    filled_at: Optional[float] = None
-    filled_price: Optional[Decimal] = None
+    filled_at: float | None = None
+    filled_price: Decimal | None = None

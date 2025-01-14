@@ -1,6 +1,6 @@
 from datetime import datetime
 from decimal import Decimal
-from typing import List, Optional
+from typing import List
 
 import pandas as pd
 
@@ -44,30 +44,30 @@ def compute_buy_orders_pnl_pct(filled_buy_orders: List[TrackedOrderDetails], cur
     return (current_price - worst_filled_price) / worst_filled_price * 100
 
 
-def compute_stop_loss_price(side: TradeType, ref_price: Decimal, stop_loss: Decimal) -> Decimal:
+def compute_stop_loss_price(side: TradeType, ref_price: Decimal, stop_loss_delta: Decimal) -> Decimal:
     if side == TradeType.SELL:
-        return ref_price * (1 + stop_loss)
+        return ref_price * (1 + stop_loss_delta)
 
-    return ref_price * (1 - stop_loss)
+    return ref_price * (1 - stop_loss_delta)
 
 
-def compute_take_profit_price(side: TradeType, ref_price: Decimal, take_profit: Decimal) -> Decimal:
+def compute_take_profit_price(side: TradeType, ref_price: Decimal, take_profit_delta: Decimal) -> Decimal:
     if side == TradeType.SELL:
-        return ref_price * (1 - take_profit)
+        return ref_price * (1 - take_profit_delta)
 
-    return ref_price * (1 + take_profit)
+    return ref_price * (1 + take_profit_delta)
 
 
 def has_current_price_reached_stop_loss(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
-    stop_loss: Optional[Decimal] = tracked_order.triple_barrier.stop_loss
+    stop_loss_delta: Decimal | None = tracked_order.triple_barrier.stop_loss_delta
     sl_order_type: OrderType = tracked_order.triple_barrier.stop_loss_order_type
 
-    if not stop_loss or sl_order_type == OrderType.LIMIT:
+    if not stop_loss_delta or sl_order_type == OrderType.LIMIT:
         return False
 
     side: TradeType = tracked_order.side
     ref_price: Decimal = tracked_order.last_filled_price or tracked_order.entry_price
-    stop_loss_price: Decimal = compute_stop_loss_price(side, ref_price, stop_loss)
+    stop_loss_price: Decimal = compute_stop_loss_price(side, ref_price, stop_loss_delta)
 
     if side == TradeType.SELL:
         return current_price > stop_loss_price
@@ -76,15 +76,15 @@ def has_current_price_reached_stop_loss(tracked_order: TrackedOrderDetails, curr
 
 
 def has_current_price_reached_take_profit(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
-    take_profit: Optional[Decimal] = tracked_order.triple_barrier.take_profit
+    take_profit_delta: Decimal | None = tracked_order.triple_barrier.take_profit_delta
     tp_order_type: OrderType = tracked_order.triple_barrier.take_profit_order_type
 
-    if not take_profit or tp_order_type == OrderType.LIMIT:
+    if not take_profit_delta or tp_order_type == OrderType.LIMIT:
         return False
 
     side: TradeType = tracked_order.side
     ref_price: Decimal = tracked_order.last_filled_price or tracked_order.entry_price
-    take_profit_price: Decimal = compute_take_profit_price(side, ref_price, take_profit)
+    take_profit_price: Decimal = compute_take_profit_price(side, ref_price, take_profit_delta)
 
     if side == TradeType.SELL:
         return current_price < take_profit_price
@@ -93,7 +93,7 @@ def has_current_price_reached_take_profit(tracked_order: TrackedOrderDetails, cu
 
 
 def update_trailing_stop(tracked_order: TrackedOrderDetails, current_price: Decimal):
-    trailing_stop: Optional[PkTrailingStop] = tracked_order.triple_barrier.trailing_stop
+    trailing_stop: PkTrailingStop | None = tracked_order.triple_barrier.trailing_stop
 
     if not trailing_stop:
         return
@@ -112,7 +112,7 @@ def update_trailing_stop(tracked_order: TrackedOrderDetails, current_price: Deci
 
 
 def should_close_trailing_stop(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
-    trailing_stop: Optional[PkTrailingStop] = tracked_order.triple_barrier.trailing_stop
+    trailing_stop: PkTrailingStop | None = tracked_order.triple_barrier.trailing_stop
 
     if not trailing_stop or not tracked_order.trailing_stop_best_price:
         return False
@@ -132,7 +132,7 @@ def has_unfilled_order_expired(tracked_order: TrackedOrderDetails, expiration_mi
 
 
 def has_filled_order_reached_time_limit(tracked_order: TrackedOrderDetails, current_timestamp: float) -> bool:
-    time_limit: Optional[int] = tracked_order.triple_barrier.time_limit
+    time_limit: int | None = tracked_order.triple_barrier.time_limit
 
     if not time_limit:
         return False
