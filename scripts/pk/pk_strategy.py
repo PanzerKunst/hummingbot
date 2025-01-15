@@ -229,7 +229,7 @@ class PkStrategy(StrategyV2Base):
     #     else:
     #         self.cancel_unfilled_order(tracked_order)
 
-    def close_filled_order(self, filled_order: TrackedOrderDetails, order_type: OrderType, close_type: CloseType):
+    def close_filled_order(self, filled_order: TrackedOrderDetails, market_or_limit: OrderType, close_type: CloseType):
         connector_name = filled_order.connector_name
         trading_pair = filled_order.trading_pair
         filled_amount = filled_order.filled_amount
@@ -240,9 +240,9 @@ class PkStrategy(StrategyV2Base):
         self.logger().info(f"close_filled_order:{filled_order} | close_price:{close_price_sell if filled_order.side == TradeType.SELL else close_price_buy}")
 
         if filled_order.side == TradeType.SELL:
-            self.buy(connector_name, trading_pair, filled_amount, order_type, close_price_sell, PositionAction.CLOSE)
+            self.buy(connector_name, trading_pair, filled_amount, market_or_limit, close_price_sell, PositionAction.CLOSE)
         else:
-            self.sell(connector_name, trading_pair, filled_amount, order_type, close_price_buy, PositionAction.CLOSE)
+            self.sell(connector_name, trading_pair, filled_amount, market_or_limit, close_price_buy, PositionAction.CLOSE)
 
         for order in self.tracked_orders:
             if order.order_id == filled_order.order_id:
@@ -250,9 +250,9 @@ class PkStrategy(StrategyV2Base):
                 order.close_type = close_type
                 break
 
-    def market_close_orders(self, filled_orders: List[TrackedOrderDetails], close_type: CloseType):
+    def close_filled_orders(self, filled_orders: List[TrackedOrderDetails], market_or_limit: OrderType, close_type: CloseType):
         for filled_order in filled_orders:
-            self.close_filled_order(filled_order, OrderType.MARKET, close_type)
+            self.close_filled_order(filled_order, market_or_limit, close_type)
             self.cancel_take_profit_for_order(filled_order)
 
     def cancel_unfilled_order(self, tracked_order: TrackedOrderDetails):
