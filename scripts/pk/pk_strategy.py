@@ -59,13 +59,12 @@ class PkStrategy(StrategyV2Base):
 
         return self.market_data_provider.get_price_by_type(connector_name, trading_pair, price_type)
 
-    def get_executor_config(self, side: TradeType, entry_price: Decimal, amount_quote: Decimal, is_twap: bool = False) -> PositionExecutorConfig:
+    def get_executor_config(self, side: TradeType, entry_price: Decimal, amount_quote: Decimal) -> PositionExecutorConfig:
         connector_name = self.config.connector_name
         trading_pair = self.config.trading_pair
         leverage = self.config.leverage
 
-        amount_divider = self.config.market_order_twap_count if is_twap else 1
-        amount: Decimal = self.get_position_quote_amount(side, amount_quote) / entry_price / amount_divider
+        amount: Decimal = self.get_position_quote_amount(side, amount_quote) / entry_price
 
         return PositionExecutorConfig(
             timestamp=self.get_market_data_provider_time(),
@@ -388,15 +387,15 @@ class PkStrategy(StrategyV2Base):
         self.check_trading_orders()
 
     def check_unfilled_orders(self):
-        unfilled_order_expiration_min = self.config.unfilled_order_expiration_min
+        unfilled_order_expiration = self.config.unfilled_order_expiration
 
-        if not unfilled_order_expiration_min:
+        if not unfilled_order_expiration:
             return
 
         unfilled_sell_orders, unfilled_buy_orders = self.get_unfilled_tracked_orders_by_side()
 
         for unfilled_order in unfilled_sell_orders + unfilled_buy_orders:
-            if has_unfilled_order_expired(unfilled_order, unfilled_order_expiration_min, self.get_market_data_provider_time()):
+            if has_unfilled_order_expired(unfilled_order, unfilled_order_expiration, self.get_market_data_provider_time()):
                 self.logger().info("unfilled_order_has_expired")
                 self.cancel_unfilled_order(unfilled_order)
 
