@@ -5,7 +5,7 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
 @dataclass
-class CloseOrder:
+class TakeProfitLimitOrder:
     order_id: str
     tracked_order: TrackedOrderDetails
     amount: Decimal

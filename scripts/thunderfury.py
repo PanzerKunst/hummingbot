@@ -64,7 +64,6 @@ class ExcaliburStrategy(PkStrategy):
         return TripleBarrier(
             open_order_type=OrderType.MARKET,
             stop_loss_delta=stop_loss_pct / 100,
-            stop_loss_order_type=OrderType.LIMIT,
             time_limit=MR_ORDER_TIME_LIMIT_MINUTES * 60
         )
 

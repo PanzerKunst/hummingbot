@@ -60,9 +60,8 @@ def compute_take_profit_price(side: TradeType, ref_price: Decimal, take_profit_d
 
 def has_current_price_reached_stop_loss(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
     stop_loss_delta: Decimal | None = tracked_order.triple_barrier.stop_loss_delta
-    sl_order_type: OrderType = tracked_order.triple_barrier.stop_loss_order_type
 
-    if not stop_loss_delta or sl_order_type == OrderType.LIMIT:
+    if not stop_loss_delta:
         return False
 
     side: TradeType = tracked_order.side
