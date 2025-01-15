@@ -1,4 +1,3 @@
-import asyncio
 from decimal import Decimal
 from typing import Dict, List, Tuple
 
@@ -8,7 +7,7 @@ from pandas_ta import stoch
 from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.clock import Clock
-from hummingbot.core.data_type.common import OrderType, TradeType
+from hummingbot.core.data_type.common import TradeType
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.ashbringer_config import ExcaliburConfig
@@ -60,8 +59,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def get_triple_barrier(self) -> TripleBarrier:
         return TripleBarrier(
-            open_order_type=OrderType.MARKET,
-            stop_loss=self.compute_tr_sl_pct(4) / 100
+            stop_loss_delta=self.compute_tr_sl_pct(4) / 100
         )
 
     def update_processed_data(self):
@@ -159,10 +157,7 @@ class ExcaliburStrategy(PkStrategy):
 
         if self.can_create_trend_reversal_order(TradeType.BUY, active_orders):
             triple_barrier = self.get_triple_barrier()
-
-            asyncio.get_running_loop().create_task(
-                self.create_twap_market_orders(TradeType.BUY, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_TREND_REVERSAL)
-            )
+            self.create_order(TradeType.BUY, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_TREND_REVERSAL)
 
     def can_create_trend_reversal_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
         if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_TREND_REVERSAL, 5):

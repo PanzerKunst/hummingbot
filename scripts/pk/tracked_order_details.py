@@ -12,14 +12,13 @@ class TrackedOrderDetails:
     trading_pair: str
     side: TradeType
     order_id: str
-    position: str
     amount: Decimal
     entry_price: Decimal
     triple_barrier: TripleBarrier
     ref: str
+    created_at: float
     filled_amount: Decimal = Decimal(0)
     exchange_order_id: str | None = None
-    created_at: float | None = None
     last_filled_at: float | None = None
     last_filled_price: Decimal | None = None
     terminated_at: float | None = None
