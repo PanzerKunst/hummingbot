@@ -29,7 +29,8 @@ from scripts.thunderfury_config import ExcaliburConfig
 # Quickstart script: -p=a -f thunderfury.py -c conf_thunderfury_GOAT.yml
 
 ORDER_REF_MEAN_REVERSION: str = "MeanReversion"
-MR_ORDER_TIME_LIMIT_MINUTES: int = 20
+CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL: int = 2
+CANDLE_DURATION_MINUTES: int = 1
 
 
 class ExcaliburStrategy(PkStrategy):
@@ -63,8 +64,7 @@ class ExcaliburStrategy(PkStrategy):
 
         return TripleBarrier(
             open_order_type=OrderType.MARKET,
-            stop_loss_delta=stop_loss_pct / 100,
-            time_limit=MR_ORDER_TIME_LIMIT_MINUTES * 60
+            stop_loss_delta=stop_loss_pct / 100
         )
 
     def update_processed_data(self):
@@ -111,7 +111,7 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
-        mr_context_lifetime_minutes: int = MR_ORDER_TIME_LIMIT_MINUTES + 1
+        mr_context_lifetime_minutes: int = CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL * CANDLE_DURATION_MINUTES + 1
         self.check_mr_context(mr_context_lifetime_minutes)
 
         self.create_actions_proposal_mean_reversion()
@@ -172,14 +172,12 @@ class ExcaliburStrategy(PkStrategy):
         if len(active_tracked_orders) > 0:
             return False
 
-        candle_count_for_price_change: int = 2
-
         if side == TradeType.SELL:
             if (
-                self.has_price_spiked_for_mr(candle_count_for_price_change) and
-                not self.is_price_spike_a_reversal(candle_count_for_price_change, 5, self.config.min_price_delta_pct_to_open_mr) and
-                self.did_price_rebound_for_mr_sell(candle_count_for_price_change) and
-                (self.is_peak_on_current_candle(candle_count_for_price_change) or self.is_current_price_below_open())
+                self.has_price_spiked_for_mr(CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL) and
+                not self.is_price_spike_a_reversal(CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL, 5, self.config.min_price_delta_pct_to_open_mr) and
+                self.did_price_rebound_for_mr_sell(CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL) and
+                (self.is_peak_on_current_candle(CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL) or self.is_current_price_below_open())
             ):
                 self.logger().info(f"can_create_mean_reversion_order() > Opening Mean Reversion Sell at {self.get_current_close()} | Current Stoch 10:{self.get_current_stoch(10)}")
                 return True
@@ -187,10 +185,10 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         if (
-            self.has_price_crashed_for_mr(candle_count_for_price_change) and
-            not self.is_price_crash_a_reversal(candle_count_for_price_change, 5, self.config.min_price_delta_pct_to_open_mr) and
-            self.did_price_rebound_for_mr_buy(candle_count_for_price_change) and
-            (self.is_bottom_on_current_candle(candle_count_for_price_change) or self.is_current_price_above_open())
+            self.has_price_crashed_for_mr(CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL) and
+            not self.is_price_crash_a_reversal(CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL, 5, self.config.min_price_delta_pct_to_open_mr) and
+            self.did_price_rebound_for_mr_buy(CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL) and
+            (self.is_bottom_on_current_candle(CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL) or self.is_current_price_above_open())
         ):
             self.logger().info(f"can_create_mean_reversion_order() > Opening Mean Reversion Buy at {self.get_current_close()} | Current Stoch 10:{self.get_current_stoch(10)}")
             return True
@@ -200,13 +198,11 @@ class ExcaliburStrategy(PkStrategy):
     def stop_actions_proposal_mean_reversion(self):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_MEAN_REVERSION)
 
-        candle_count_for_stoch_reversal: int = 3
-
         if len(filled_sell_orders) > 0:
             if (
                 self.has_price_rebounded_enough_to_close_sell(40) and
                 self.is_price_under_ma(7) and
-                self.has_stoch_reversed_for_mr_sell(candle_count_for_stoch_reversal, 10)
+                self.has_stoch_reversed_for_mr_sell(CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL, 10)
             ):
                 self.logger().info(f"stop_actions_proposal_mean_reversion() > Closing Mean Reversion Sell at {self.get_current_close()}")
                 self.market_close_orders(filled_sell_orders, CloseType.COMPLETED)
@@ -216,7 +212,7 @@ class ExcaliburStrategy(PkStrategy):
             if (
                 self.has_price_rebounded_enough_to_close_buy(40) and
                 self.is_price_over_ma(7) and
-                self.has_stoch_reversed_for_mr_buy(candle_count_for_stoch_reversal, 10)
+                self.has_stoch_reversed_for_mr_buy(CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL, 10)
             ):
                 self.logger().info(f"stop_actions_proposal_mean_reversion() > Closing Mean Reversion Buy at {self.get_current_close()}")
                 self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
