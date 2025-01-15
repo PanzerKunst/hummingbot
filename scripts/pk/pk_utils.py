@@ -5,7 +5,7 @@ from typing import List
 import pandas as pd
 
 from hummingbot.connector.derivative.position import Position
-from hummingbot.core.data_type.common import OrderType, TradeType
+from hummingbot.core.data_type.common import TradeType
 from scripts.pk.pk_trailing_stop import PkTrailingStop
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
@@ -76,9 +76,8 @@ def has_current_price_reached_stop_loss(tracked_order: TrackedOrderDetails, curr
 
 def has_current_price_reached_take_profit(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
     take_profit_delta: Decimal | None = tracked_order.triple_barrier.take_profit_delta
-    tp_order_type: OrderType = tracked_order.triple_barrier.take_profit_order_type
 
-    if not take_profit_delta or tp_order_type == OrderType.LIMIT:
+    if not take_profit_delta:
         return False
 
     side: TradeType = tracked_order.side
