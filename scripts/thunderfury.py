@@ -59,11 +59,9 @@ class ExcaliburStrategy(PkStrategy):
             else self.compute_tp_pct_for_buy(6)
         )
 
-        stop_loss_pct: Decimal = take_profit_pct * Decimal(1.5)
-
         return TripleBarrier(
             take_profit_delta=take_profit_pct / 100,
-            stop_loss_delta=stop_loss_pct / 100
+            stop_loss_delta=take_profit_pct / 100
         )
 
     def update_processed_data(self):
