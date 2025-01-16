@@ -31,8 +31,6 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     leverage: int = 5
     unfilled_order_expiration: int = 60
     limit_take_profit_price_delta_bps: int = 0
-    market_order_twap_count: int = 1
-    market_order_twap_interval: int = 5
 
     position_mode: PositionMode = PositionMode.ONEWAY
 
