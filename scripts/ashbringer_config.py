@@ -29,15 +29,13 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     connector_name: str = "hyperliquid_perpetual"
     trading_pair: str = "GOAT-USD"
     leverage: int = 5
-    unfilled_order_expiration_min: int = 1
+    unfilled_order_expiration: int = 60
     limit_take_profit_price_delta_bps: int = 0
-    market_order_twap_count: int = 1
-    market_order_twap_interval: int = 5
 
     position_mode: PositionMode = PositionMode.ONEWAY
 
     # Triple Barrier
 
     # Order settings
-    amount_quote: int = 30
+    amount_quote: Decimal = 30.0
     min_price_delta_pct_to_open_tr: Decimal = 5.0

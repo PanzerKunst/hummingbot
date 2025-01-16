@@ -1,4 +1,3 @@
-import asyncio
 from decimal import Decimal
 from typing import Dict, List, Tuple
 
@@ -60,8 +59,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def get_triple_barrier(self) -> TripleBarrier:
         return TripleBarrier(
-            open_order_type=OrderType.MARKET,
-            stop_loss=self.compute_tr_sl_pct(4) / 100
+            stop_loss_delta=self.compute_tr_sl_pct(4) / 100
         )
 
     def update_processed_data(self):
@@ -159,10 +157,7 @@ class ExcaliburStrategy(PkStrategy):
 
         if self.can_create_trend_reversal_order(TradeType.BUY, active_orders):
             triple_barrier = self.get_triple_barrier()
-
-            asyncio.get_running_loop().create_task(
-                self.create_twap_market_orders(TradeType.BUY, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_TREND_REVERSAL)
-            )
+            self.create_order(TradeType.BUY, self.get_mid_price(), triple_barrier, self.config.amount_quote, ORDER_REF_TREND_REVERSAL)
 
     def can_create_trend_reversal_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
         if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_TREND_REVERSAL, 5):
@@ -191,7 +186,7 @@ class ExcaliburStrategy(PkStrategy):
         if len(filled_buy_orders) > 0:
             if self.is_price_over_ma(8) and self.has_stoch_reversed_for_tr_buy(CANDLE_COUNT_FOR_TR_STOCH_REVERSAL, 13):
                 self.logger().info(f"stop_actions_proposal_trend_reversal() > Closing Trend Reversal Buy at {self.get_current_close()}")
-                self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
+                self.close_filled_orders(filled_buy_orders, OrderType.MARKET, CloseType.COMPLETED)
                 self.reset_tr_context()
 
     #
