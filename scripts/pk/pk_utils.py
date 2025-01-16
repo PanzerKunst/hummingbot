@@ -123,10 +123,10 @@ def should_close_trailing_stop(tracked_order: TrackedOrderDetails, current_price
     return current_price < tracked_order.trailing_stop_best_price * (1 - trailing_delta)
 
 
-def has_unfilled_order_expired(tracked_order: TrackedOrderDetails, expiration_min: int, current_timestamp: float) -> bool:
+def has_unfilled_order_expired(tracked_order: TrackedOrderDetails, expiration: int, current_timestamp: float) -> bool:
     created_at = tracked_order.created_at
 
-    return created_at + expiration_min * 60 < current_timestamp
+    return created_at + expiration < current_timestamp
 
 
 def has_filled_order_reached_time_limit(tracked_order: TrackedOrderDetails, current_timestamp: float) -> bool:

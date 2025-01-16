@@ -12,5 +12,5 @@ class TripleBarrier:
     time_limit: int | None = None
     trailing_stop: PkTrailingStop | None = None
     open_order_type: OrderType = OrderType.LIMIT
-    take_profit_order_type: OrderType = OrderType.MARKET
+    take_profit_order_type: OrderType = OrderType.LIMIT
     time_limit_order_type: OrderType = OrderType.MARKET

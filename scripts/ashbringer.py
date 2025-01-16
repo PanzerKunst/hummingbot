@@ -7,7 +7,7 @@ from pandas_ta import stoch
 from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.clock import Clock
-from hummingbot.core.data_type.common import TradeType
+from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.ashbringer_config import ExcaliburConfig
@@ -186,7 +186,7 @@ class ExcaliburStrategy(PkStrategy):
         if len(filled_buy_orders) > 0:
             if self.is_price_over_ma(8) and self.has_stoch_reversed_for_tr_buy(CANDLE_COUNT_FOR_TR_STOCH_REVERSAL, 13):
                 self.logger().info(f"stop_actions_proposal_trend_reversal() > Closing Trend Reversal Buy at {self.get_current_close()}")
-                self.market_close_orders(filled_buy_orders, CloseType.COMPLETED)
+                self.close_filled_orders(filled_buy_orders, OrderType.MARKET, CloseType.COMPLETED)
                 self.reset_tr_context()
 
     #

@@ -1,4 +1,3 @@
-import asyncio
 from datetime import datetime
 from decimal import Decimal
 from typing import Dict, List, Tuple
@@ -57,13 +56,12 @@ class PkStrategy(StrategyV2Base):
 
         return self.market_data_provider.get_price_by_type(connector_name, trading_pair, price_type)
 
-    def get_executor_config(self, side: TradeType, entry_price: Decimal, amount_quote: Decimal, is_twap: bool = False) -> PositionExecutorConfig:
+    def get_executor_config(self, side: TradeType, entry_price: Decimal, amount_quote: Decimal) -> PositionExecutorConfig:
         connector_name = self.config.connector_name
         trading_pair = self.config.trading_pair
         leverage = self.config.leverage
 
-        amount_divider = self.config.market_order_twap_count if is_twap else 1
-        amount: Decimal = self.get_position_quote_amount(side, amount_quote) / entry_price / amount_divider
+        amount: Decimal = self.get_position_quote_amount(side, amount_quote) / entry_price
 
         return PositionExecutorConfig(
             timestamp=self.get_market_data_provider_time(),
@@ -123,17 +121,17 @@ class PkStrategy(StrategyV2Base):
         executor_config = self.get_executor_config(side, entry_price, amount_quote)
         self.create_individual_order(executor_config, triple_barrier, ref)
 
-    async def create_twap_market_orders(self, side: TradeType, entry_price: Decimal, triple_barrier: TripleBarrier, amount_quote: Decimal, ref: str):
-        executor_config = self.get_executor_config(side, entry_price, amount_quote, True)
-
-        for _ in range(self.config.market_order_twap_count):
-            is_an_order_being_created: bool = self.is_a_sell_order_being_created if executor_config.side == TradeType.SELL else self.is_a_buy_order_being_created
-
-            if is_an_order_being_created:
-                self.logger().error("ERROR: Cannot create another individual order, as one is being created")
-            else:
-                self.create_individual_order(executor_config, triple_barrier, ref)
-                await asyncio.sleep(self.config.market_order_twap_interval)
+    # async def create_twap_market_orders(self, side: TradeType, entry_price: Decimal, triple_barrier: TripleBarrier, amount_quote: Decimal, ref: str):
+    #     executor_config = self.get_executor_config(side, entry_price, amount_quote, True)
+    #
+    #     for _ in range(self.config.market_order_twap_count):
+    #         is_an_order_being_created: bool = self.is_a_sell_order_being_created if executor_config.side == TradeType.SELL else self.is_a_buy_order_being_created
+    #
+    #         if is_an_order_being_created:
+    #             self.logger().error("ERROR: Cannot create another individual order, as one is being created")
+    #         else:
+    #             self.create_individual_order(executor_config, triple_barrier, ref)
+    #             await asyncio.sleep(self.config.market_order_twap_interval)
 
     def create_individual_order(self, executor_config: PositionExecutorConfig, triple_barrier: TripleBarrier, ref: str):
         connector_name = executor_config.connector_name
@@ -190,30 +188,30 @@ class PkStrategy(StrategyV2Base):
     #     else:
     #         self.cancel_unfilled_order(tracked_order)
 
-    def close_filled_order(self, tracked_order: TrackedOrderDetails, order_type: OrderType, close_type: CloseType):
-        connector_name = tracked_order.connector_name
-        trading_pair = tracked_order.trading_pair
-        filled_amount = tracked_order.filled_amount
+    def close_filled_order(self, filled_order: TrackedOrderDetails, market_or_limit: OrderType, close_type: CloseType):
+        connector_name = filled_order.connector_name
+        trading_pair = filled_order.trading_pair
+        filled_amount = filled_order.filled_amount
 
         close_price_sell = self.get_best_bid() * Decimal(1 - self.config.limit_take_profit_price_delta_bps / 10000)
         close_price_buy = self.get_best_ask() * Decimal(1 + self.config.limit_take_profit_price_delta_bps / 10000)
 
-        self.logger().info(f"close_filled_order:{tracked_order} | close_price:{close_price_sell if tracked_order.side == TradeType.SELL else close_price_buy}")
+        self.logger().info(f"close_filled_order:{filled_order} | close_price:{close_price_sell if filled_order.side == TradeType.SELL else close_price_buy}")
 
-        if tracked_order.side == TradeType.SELL:
-            self.buy(connector_name, trading_pair, filled_amount, order_type, close_price_sell, PositionAction.CLOSE)
+        if filled_order.side == TradeType.SELL:
+            self.buy(connector_name, trading_pair, filled_amount, market_or_limit, close_price_sell, PositionAction.CLOSE)
         else:
-            self.sell(connector_name, trading_pair, filled_amount, order_type, close_price_buy, PositionAction.CLOSE)
+            self.sell(connector_name, trading_pair, filled_amount, market_or_limit, close_price_buy, PositionAction.CLOSE)
 
         for order in self.tracked_orders:
-            if order.order_id == tracked_order.order_id:
+            if order.order_id == filled_order.order_id:
                 order.terminated_at = self.get_market_data_provider_time()
                 order.close_type = close_type
                 break
 
-    def market_close_orders(self, filled_orders: List[TrackedOrderDetails], close_type: CloseType):
+    def close_filled_orders(self, filled_orders: List[TrackedOrderDetails], market_or_limit: OrderType, close_type: CloseType):
         for filled_order in filled_orders:
-            self.close_filled_order(filled_order, OrderType.MARKET, close_type)
+            self.close_filled_order(filled_order, market_or_limit, close_type)
 
     def cancel_unfilled_order(self, tracked_order: TrackedOrderDetails):
         connector_name = tracked_order.connector_name
@@ -301,15 +299,15 @@ class PkStrategy(StrategyV2Base):
         self.check_trading_orders()
 
     def check_unfilled_orders(self):
-        unfilled_order_expiration_min = self.config.unfilled_order_expiration_min
+        unfilled_order_expiration = self.config.unfilled_order_expiration
 
-        if not unfilled_order_expiration_min:
+        if not unfilled_order_expiration:
             return
 
         unfilled_sell_orders, unfilled_buy_orders = self.get_unfilled_tracked_orders_by_side()
 
         for unfilled_order in unfilled_sell_orders + unfilled_buy_orders:
-            if has_unfilled_order_expired(unfilled_order, unfilled_order_expiration_min, self.get_market_data_provider_time()):
+            if has_unfilled_order_expired(unfilled_order, unfilled_order_expiration, self.get_market_data_provider_time()):
                 self.logger().info("unfilled_order_has_expired")
                 self.cancel_unfilled_order(unfilled_order)
 
