@@ -38,4 +38,4 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     # Order settings
     amount_quote: Decimal = 24.0
-    min_price_delta_pct_to_open_mr: Decimal = 1.25
+    min_price_delta_pct_to_open_mr: Decimal = 1.5

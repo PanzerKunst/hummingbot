@@ -26,7 +26,7 @@ from scripts.thunderfury_config import ExcaliburConfig
 # Quickstart script: -p=a -f thunderfury.py -c conf_thunderfury_GOAT.yml
 
 ORDER_REF_MEAN_REVERSION: str = "MeanReversion"
-CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL: int = 2
+CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL: int = 3
 CANDLE_DURATION_MINUTES: int = 1
 
 
@@ -55,8 +55,8 @@ class ExcaliburStrategy(PkStrategy):
 
     def get_triple_barrier(self, side: TradeType) -> TripleBarrier:
         take_profit_pct: Decimal = (
-            self.compute_tp_pct_for_sell(5) if side == TradeType.SELL
-            else self.compute_tp_pct_for_buy(5)
+            self.compute_tp_pct_for_sell(6) if side == TradeType.SELL
+            else self.compute_tp_pct_for_buy(6)
         )
 
         stop_loss_pct: Decimal = take_profit_pct * Decimal(1.5)
@@ -421,7 +421,7 @@ class ExcaliburStrategy(PkStrategy):
         self.mr_price_reversal_counter += 1
         self.logger().info(f"did_price_rebound_for_mr_sell() | incremented self.mr_price_reversal_counter to:{self.mr_price_reversal_counter}")
 
-        return self.mr_price_reversal_counter > 29
+        return self.mr_price_reversal_counter > 24
 
     def did_price_rebound_for_mr_buy(self, candle_count: int) -> bool:
         saved_price_change_pct, _ = self.saved_mr_price_change_pct
@@ -446,7 +446,7 @@ class ExcaliburStrategy(PkStrategy):
         self.mr_price_reversal_counter += 1
         self.logger().info(f"did_price_rebound_for_mr_buy() | incremented self.mr_price_reversal_counter to:{self.mr_price_reversal_counter}")
 
-        return self.mr_price_reversal_counter > 29
+        return self.mr_price_reversal_counter > 24
 
     def is_peak_on_current_candle(self, candle_count: int) -> bool:
         current_peak = self.get_current_peak(candle_count)
