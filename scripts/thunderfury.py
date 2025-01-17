@@ -545,7 +545,8 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"did_volume_spike() | total_recent_vol:{total_recent_vol} | total_previous_vol:{total_previous_vol} | ratio: {total_recent_vol/total_previous_vol}")
 
-        return total_recent_vol > 2 * total_previous_vol
+        # TODO return total_recent_vol > total_previous_vol * Decimal(1.5)
+        return True
 
     def compute_tp_pct_for_sell(self, candle_count: int) -> Decimal:
         bottom_price = self.get_current_bottom(candle_count)
