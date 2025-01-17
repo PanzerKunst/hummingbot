@@ -497,7 +497,7 @@ class ExcaliburStrategy(PkStrategy):
         peak_rsi: Decimal = Decimal(recent_rsis.max())
         peak_rsi_index = recent_rsis.idxmax()
 
-        if bottom_rsi_index > peak_rsi_index:
+        if peak_rsi_index < bottom_rsi_index:
             return False
 
         if peak_rsi < 66:
@@ -522,7 +522,7 @@ class ExcaliburStrategy(PkStrategy):
         if bottom_rsi_index < peak_rsi_index:
             return False
 
-        if peak_rsi > 34:
+        if bottom_rsi > 34:
             return False
 
         rsi_delta: Decimal = peak_rsi - bottom_rsi
