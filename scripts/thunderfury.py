@@ -509,7 +509,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"did_rsi_spike() | bottom_rsi:{bottom_rsi} | peak_rsi:{peak_rsi} | rsi_delta:{rsi_delta}")
 
-        return rsi_delta > 20
+        return rsi_delta > 15
 
     def did_rsi_crash(self, candle_count: int) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI_20"]
@@ -531,7 +531,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"did_rsi_crash() | bottom_rsi:{bottom_rsi} | peak_rsi:{peak_rsi} | rsi_delta:{rsi_delta}")
 
-        return rsi_delta > 20
+        return rsi_delta > 15
 
     def did_volume_spike(self, candle_count: int) -> bool:
         vol_series: pd.Series = self.processed_data["volume"]
