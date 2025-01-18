@@ -777,7 +777,8 @@ class ExchangePyBase(ExchangeBase, ABC):
                 await self._update_time_synchronizer()
 
                 # the following method is implementation-specific
-                await self._status_polling_loop_fetch_updates()
+                # Disabled because it causes too many errors 429: Too Many Requests on Hyperliquid
+                # await self._status_polling_loop_fetch_updates()
 
                 self._last_poll_timestamp = self.current_timestamp
                 self._poll_notifier = asyncio.Event()
