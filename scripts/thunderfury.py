@@ -6,7 +6,7 @@ import pandas as pd
 from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.clock import Clock
-from hummingbot.core.data_type.common import TradeType
+from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
@@ -60,11 +60,12 @@ class ExcaliburStrategy(PkStrategy):
             else self.compute_tp_pct_for_buy(6)
         )
 
-        stop_loss_delta: Decimal = take_profit_pct * Decimal(1.5)
+        stop_loss_delta: Decimal = take_profit_pct * 2
 
         return TripleBarrier(
             take_profit_delta=take_profit_pct / 100,
-            stop_loss_delta=stop_loss_delta / 100
+            stop_loss_delta=stop_loss_delta / 100,
+            open_order_type=OrderType.MARKET
         )
 
     def update_processed_data(self):
@@ -559,7 +560,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"compute_tp_pct_for_sell() | bottom_price:{bottom_price} | current_price:{current_price} | delta_pct_with_bottom:{delta_pct_with_bottom}")
 
-        return delta_pct_with_bottom / 2
+        return delta_pct_with_bottom / 4
 
     def compute_tp_pct_for_buy(self, candle_count: int) -> Decimal:
         peak_price = self.get_current_peak(candle_count)
@@ -569,7 +570,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"compute_tp_pct_for_buy() | peak_price:{peak_price} | current_price:{current_price} | delta_pct_with_peak:{delta_pct_with_peak}")
 
-        return delta_pct_with_peak / 2
+        return delta_pct_with_peak / 4
 
     # def has_price_rebounded_enough_to_close_sell(self, rebound_pct: int) -> bool:
     #     saved_zoomed_out_price_change_pct, _ = self.saved_mr_zoomed_out_price_change_pct
