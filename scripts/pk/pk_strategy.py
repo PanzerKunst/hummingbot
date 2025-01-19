@@ -407,6 +407,7 @@ class PkStrategy(StrategyV2Base):
             if has_current_price_reached_stop_loss(filled_order, current_price):
                 self.logger().info(f"current_price_has_reached_stop_loss | current_price:{current_price}")
                 self.close_filled_order(filled_order, OrderType.MARKET, CloseType.STOP_LOSS)
+                self.cancel_take_profit_for_order(filled_order)
                 continue
 
             if len(self.get_tp_limit_orders(filled_order)) == 0 and has_current_price_reached_take_profit(filled_order, current_price):
