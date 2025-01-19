@@ -55,16 +55,19 @@ class ExcaliburStrategy(PkStrategy):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
     def get_triple_barrier(self, side: TradeType) -> TripleBarrier:
+        stop_loss_pct: Decimal = (
+            self.compute_sl_pct_for_sell(2) if side == TradeType.SELL
+            else self.compute_sl_pct_for_buy(2)
+        )
+
         take_profit_pct: Decimal = (
             self.compute_tp_pct_for_sell(6) if side == TradeType.SELL
             else self.compute_tp_pct_for_buy(6)
         )
 
-        stop_loss_delta: Decimal = take_profit_pct
-
         return TripleBarrier(
+            stop_loss_delta=stop_loss_pct / 100,
             take_profit_delta=take_profit_pct / 100,
-            stop_loss_delta=stop_loss_delta / 100,
             open_order_type=OrderType.MARKET,
             time_limit=5 * 60
         )
@@ -552,6 +555,28 @@ class ExcaliburStrategy(PkStrategy):
 
         # TODO return total_recent_vol > total_previous_vol * Decimal(1.5)
         return True
+
+    def compute_sl_pct_for_sell(self, candle_count: int) -> Decimal:
+        peak_price = self.get_current_peak(candle_count)
+        current_price: Decimal = self.get_current_close()
+
+        delta_pct_with_peak: Decimal = (peak_price - current_price) / current_price * 100
+        sl_pct: Decimal = delta_pct_with_peak * Decimal(0.8)
+
+        self.logger().info(f"compute_sl_pct_for_sell() | peak_price:{peak_price} | current_price:{current_price} | sl_pct:{sl_pct}")
+
+        return sl_pct
+
+    def compute_sl_pct_for_buy(self, candle_count: int) -> Decimal:
+        bottom_price = self.get_current_bottom(candle_count)
+        current_price: Decimal = self.get_current_close()
+
+        delta_pct_with_bottom: Decimal = (current_price - bottom_price) / current_price * 100
+        sl_pct: Decimal = delta_pct_with_bottom * Decimal(0.8)
+
+        self.logger().info(f"compute_sl_pct_for_buy() | bottom_price:{bottom_price} | current_price:{current_price} | sl_pct:{sl_pct}")
+
+        return sl_pct
 
     def compute_tp_pct_for_sell(self, candle_count: int) -> Decimal:
         bottom_price = self.get_current_bottom(candle_count)
