@@ -13,4 +13,4 @@ unfilled_order_expiration: 10
 limit_take_profit_price_delta_bps: 0
 position_mode: ONEWAY
 amount_quote: 24.0
-min_price_delta_pct_to_open_mr: 2.5
+min_price_delta_pct_to_open_mr: 4.0
