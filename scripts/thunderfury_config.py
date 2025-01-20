@@ -16,7 +16,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
         CandlesConfig(
             connector="binance_perpetual",
             interval="1m",
-            max_records=70,
+            max_records=50,
             trading_pair = "GOAT-USDT"
         )
     ])
@@ -29,15 +29,13 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     connector_name: str = "hyperliquid_perpetual"
     trading_pair: str = "GOAT-USD"
     leverage: int = 5
-    unfilled_order_expiration_min: int = 1
+    unfilled_order_expiration: int = 10
     limit_take_profit_price_delta_bps: int = 0
-    market_order_twap_count: int = 1
-    market_order_twap_interval: int = 5
 
     position_mode: PositionMode = PositionMode.ONEWAY
 
     # Triple Barrier
 
     # Order settings
-    amount_quote: int = 30
-    min_price_delta_pct_to_open_mr: Decimal = 1.25
+    amount_quote: Decimal = 24.0
+    min_price_delta_pct_to_open_mr: Decimal = 1.5
