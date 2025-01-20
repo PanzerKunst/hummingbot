@@ -22,6 +22,7 @@ from scripts.thunderfury_config import ExcaliburConfig
 #                start --script thunderfury.py --conf conf_thunderfury_PENGU.yml
 #                start --script thunderfury.py --conf conf_thunderfury_PNUT.yml
 #                start --script thunderfury.py --conf conf_thunderfury_POPCAT.yml
+#                start --script thunderfury.py --conf conf_thunderfury_TRUMP.yml
 #                start --script thunderfury.py --conf conf_thunderfury_VIRTUAL.yml
 #                start --script thunderfury.py --conf conf_thunderfury_WIF.yml
 # Quickstart script: -p=a -f thunderfury.py -c conf_thunderfury_GOAT.yml
