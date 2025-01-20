@@ -416,7 +416,7 @@ class ExcaliburStrategy(PkStrategy):
     def did_price_rebound_for_mr_sell(self, candle_count: int) -> bool:
         saved_price_change_pct, _ = self.saved_mr_price_change_pct
         price_threshold_pct: Decimal = saved_price_change_pct / 6
-        price_bottom_limit_pct: Decimal = saved_price_change_pct / Decimal(3.5)
+        price_bottom_limit_pct: Decimal = saved_price_change_pct / 3
 
         peak_price = self.get_current_peak(candle_count)
         price_threshold: Decimal = peak_price * (1 - price_threshold_pct / 100)
@@ -436,12 +436,12 @@ class ExcaliburStrategy(PkStrategy):
         self.mr_price_reversal_counter += 1
         self.logger().info(f"did_price_rebound_for_mr_sell() | incremented self.mr_price_reversal_counter to:{self.mr_price_reversal_counter}")
 
-        return self.mr_price_reversal_counter > 14
+        return self.mr_price_reversal_counter > 19
 
     def did_price_rebound_for_mr_buy(self, candle_count: int) -> bool:
         saved_price_change_pct, _ = self.saved_mr_price_change_pct
         price_threshold_pct: Decimal = saved_price_change_pct / 6
-        price_top_limit_pct: Decimal = saved_price_change_pct / Decimal(3.5)
+        price_top_limit_pct: Decimal = saved_price_change_pct / 3
 
         bottom_price = self.get_current_bottom(candle_count)
         price_threshold: Decimal = bottom_price * (1 + price_threshold_pct / 100)
@@ -461,7 +461,7 @@ class ExcaliburStrategy(PkStrategy):
         self.mr_price_reversal_counter += 1
         self.logger().info(f"did_price_rebound_for_mr_buy() | incremented self.mr_price_reversal_counter to:{self.mr_price_reversal_counter}")
 
-        return self.mr_price_reversal_counter > 14
+        return self.mr_price_reversal_counter > 19
 
     def is_peak_on_current_candle(self, candle_count: int) -> bool:
         current_peak = self.get_current_peak(candle_count)
