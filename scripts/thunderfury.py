@@ -184,7 +184,7 @@ class ExcaliburStrategy(PkStrategy):
                 not self.is_price_spike_a_reversal(CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL, 5, self.config.min_price_delta_pct_to_open_mr) and
                 self.did_price_rebound_for_mr_sell(CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL) and
                 (self.is_peak_on_current_candle(CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL) or self.is_current_price_below_open()) and
-                self.did_volume_spike(2) and
+                self.did_volume_spike(3) and
                 self.did_rsi_spike(5)
             ):
                 self.logger().info(f"can_create_mean_reversion_order() > Opening Mean Reversion Sell at {self.get_current_close()}")
@@ -197,7 +197,7 @@ class ExcaliburStrategy(PkStrategy):
             not self.is_price_crash_a_reversal(CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL, 5, self.config.min_price_delta_pct_to_open_mr) and
             self.did_price_rebound_for_mr_buy(CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL) and
             (self.is_bottom_on_current_candle(CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL) or self.is_current_price_above_open()) and
-            self.did_volume_spike(2) and
+            self.did_volume_spike(3) and
             self.did_rsi_crash(5)
         ):
             self.logger().info(f"can_create_mean_reversion_order() > Opening Mean Reversion Buy at {self.get_current_close()}")
@@ -548,7 +548,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"did_volume_spike() | total_recent_vol:{total_recent_vol} | total_previous_vol:{total_previous_vol} | ratio:{ratio_recent_previous}")
 
-        return ratio_recent_previous > 8
+        return ratio_recent_previous > 10
 
     def compute_sl_pct_for_sell(self, candle_count: int) -> Decimal:
         peak_price = self.get_current_peak(candle_count)
