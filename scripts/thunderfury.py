@@ -507,7 +507,8 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"did_rsi_spike() | bottom_rsi:{bottom_rsi} | peak_rsi:{peak_rsi} | rsi_delta:{rsi_delta}")
 
-        return rsi_delta > 15
+        # TODO return rsi_delta > 15
+        return True
 
     def did_rsi_crash(self, candle_count: int) -> bool:
         rsi_series: pd.Series = self.processed_data["RSI_20"]
