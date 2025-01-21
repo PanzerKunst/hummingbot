@@ -413,7 +413,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def did_price_rebound_for_mr_sell(self, candle_count: int) -> bool:
         saved_price_change_pct, _ = self.saved_mr_price_change_pct
-        price_threshold_pct: Decimal = saved_price_change_pct / Decimal(5.5)
+        price_threshold_pct: Decimal = saved_price_change_pct / 6
 
         peak_price = self.get_current_peak(candle_count)
         price_threshold: Decimal = peak_price * (1 - price_threshold_pct / 100)
@@ -435,7 +435,7 @@ class ExcaliburStrategy(PkStrategy):
 
     def did_price_rebound_for_mr_buy(self, candle_count: int) -> bool:
         saved_price_change_pct, _ = self.saved_mr_price_change_pct
-        price_threshold_pct: Decimal = saved_price_change_pct / Decimal(5.5)
+        price_threshold_pct: Decimal = saved_price_change_pct / 6
 
         bottom_price = self.get_current_bottom(candle_count)
         price_threshold: Decimal = bottom_price * (1 + price_threshold_pct / 100)
@@ -548,7 +548,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"did_volume_spike() | total_recent_vol:{total_recent_vol} | total_previous_vol:{total_previous_vol} | ratio: {ratio_recent_previous}")
 
-        return ratio_recent_previous > 5
+        return ratio_recent_previous > 8
 
     def compute_sl_pct_for_sell(self, candle_count: int) -> Decimal:
         peak_price = self.get_current_peak(candle_count)
