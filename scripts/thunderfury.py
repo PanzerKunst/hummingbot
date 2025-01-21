@@ -546,7 +546,7 @@ class ExcaliburStrategy(PkStrategy):
         total_previous_vol: Decimal = Decimal(previous_vol.sum())
         ratio_recent_previous: Decimal = total_recent_vol / total_previous_vol
 
-        self.logger().info(f"did_volume_spike() | total_recent_vol:{total_recent_vol} | total_previous_vol:{total_previous_vol} | ratio: {ratio_recent_previous}")
+        self.logger().info(f"did_volume_spike() | total_recent_vol:{total_recent_vol} | total_previous_vol:{total_previous_vol} | ratio:{ratio_recent_previous}")
 
         return ratio_recent_previous > 8
 
