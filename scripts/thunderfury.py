@@ -500,9 +500,8 @@ class ExcaliburStrategy(PkStrategy):
         if peak_rsi_index < bottom_rsi_index:
             return False
 
-        # TODO
-        # if peak_rsi < 66:
-        #     return False
+        if peak_rsi < 55:
+            return False
 
         rsi_delta: Decimal = peak_rsi - bottom_rsi
 
@@ -524,9 +523,8 @@ class ExcaliburStrategy(PkStrategy):
         if bottom_rsi_index < peak_rsi_index:
             return False
 
-        # TODO
-        # if bottom_rsi > 34:
-        #     return False
+        if bottom_rsi > 45:
+            return False
 
         rsi_delta: Decimal = peak_rsi - bottom_rsi
 
