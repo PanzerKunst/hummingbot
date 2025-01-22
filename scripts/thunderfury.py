@@ -183,7 +183,7 @@ class ExcaliburStrategy(PkStrategy):
                 not self.is_price_spike_a_reversal(CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL, 5, self.config.min_price_delta_pct_to_open_mr) and
                 self.did_price_rebound_for_mr_sell(CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL) and
                 (self.is_peak_on_current_candle(CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL) or self.is_current_price_below_open()) and
-                self.did_volume_spike(3) and
+                self.did_volume_spike(2) and
                 self.did_rsi_spike(5)
             ):
                 self.logger().info(f"can_create_mean_reversion_order() > Opening Mean Reversion Sell at {self.get_current_close()}")
@@ -196,7 +196,7 @@ class ExcaliburStrategy(PkStrategy):
             not self.is_price_crash_a_reversal(CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL, 5, self.config.min_price_delta_pct_to_open_mr) and
             self.did_price_rebound_for_mr_buy(CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL) and
             (self.is_bottom_on_current_candle(CANDLE_COUNT_FOR_MR_PRICE_CHANGE_AND_STOCH_REVERSAL) or self.is_current_price_above_open()) and
-            self.did_volume_spike(3) and
+            self.did_volume_spike(2) and
             self.did_rsi_crash(5)
         ):
             self.logger().info(f"can_create_mean_reversion_order() > Opening Mean Reversion Buy at {self.get_current_close()}")
@@ -543,11 +543,18 @@ class ExcaliburStrategy(PkStrategy):
 
         total_recent_vol: Decimal = Decimal(recent_vol.sum())
         total_previous_vol: Decimal = Decimal(previous_vol.sum())
-        ratio_recent_previous: Decimal = total_recent_vol / total_previous_vol
+        ratio_recent_vs_previous: Decimal = total_recent_vol / total_previous_vol
 
-        self.logger().info(f"did_volume_spike() | total_recent_vol:{total_recent_vol} | total_previous_vol:{total_previous_vol} | ratio:{ratio_recent_previous}")
+        self.logger().info(f"did_volume_spike() | total_recent_vol:{total_recent_vol} | total_previous_vol:{total_previous_vol} | ratio:{ratio_recent_vs_previous}")
 
-        return ratio_recent_previous > 3
+        recent_and_previous_vol = vol_series.iloc[previous_vol_start_index:].reset_index(drop=True)
+        peak_vol = Decimal(recent_and_previous_vol.max())
+        peak_vol_index = recent_and_previous_vol.idxmax()
+        pre_peak_vol = Decimal(recent_and_previous_vol.iloc[peak_vol_index - 1])
+
+        self.logger().info(f"did_volume_spike() | peak_vol:{peak_vol} | pre_peak_vol:{pre_peak_vol}")
+
+        return ratio_recent_vs_previous > 3 and peak_vol > pre_peak_vol * 10
 
     def compute_sl_pct_for_sell(self, candle_count: int) -> Decimal:
         peak_price = self.get_current_peak(candle_count)
