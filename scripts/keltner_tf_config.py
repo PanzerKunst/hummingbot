@@ -22,6 +22,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     ])
 
     controllers_config: List[str] = Field(default_factory=list)
+    config_update_interval: int = 10
     # Standard attributes END
 
     # Used by PkStrategy

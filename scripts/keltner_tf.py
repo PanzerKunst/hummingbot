@@ -16,6 +16,12 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 # Generate config file: create --script-config keltner_tf
 # Start the bot: start --script keltner_tf.py --conf conf_keltner_tf_GOAT.yml
+#                start --script keltner_tf.py --conf conf_keltner_tf_AIXBT.yml
+#                start --script keltner_tf.py --conf conf_keltner_tf_DOGE.yml
+#                start --script keltner_tf.py --conf conf_keltner_tf_FARTCOIN.yml
+#                start --script keltner_tf.py --conf conf_keltner_tf_POPCAT.yml
+#                start --script keltner_tf.py --conf conf_keltner_tf_SHIB.yml
+#                start --script keltner_tf.py --conf conf_keltner_tf_TRUMP.yml
 # Quickstart script: -p=a -f keltner_tf.py -c conf_keltner_tf_GOAT.yml
 
 ORDER_REF_KELTNER_TF: str = "KeltnerTF"
