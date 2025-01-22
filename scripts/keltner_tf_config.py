@@ -22,7 +22,6 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     ])
 
     controllers_config: List[str] = Field(default_factory=list)
-    config_update_interval: int = 10
     # Standard attributes END
 
     # Used by PkStrategy
@@ -37,5 +36,4 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     # Triple Barrier
 
     # Order settings
-    amount_quote: Decimal = 24.0
-    min_price_delta_pct_to_open_mr: Decimal = 1.5
+    amount_quote: Decimal = 20.0
