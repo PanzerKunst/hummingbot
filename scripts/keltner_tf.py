@@ -75,7 +75,13 @@ class ExcaliburStrategy(PkStrategy):
 
         candles_df["RSI_20"] = candles_df.ta.rsi(length=20)
 
-        # candles_df["SMA_7"] = candles_df.ta.sma(length=7)
+        sma_20_df = candles_df.ta.sma(length=20)
+
+        atr_20_df = candles_df.ta.atr(length=20)
+
+        kc_mult: Decimal = Decimal(2.0)
+        candles_df["KC_UPPER"] = sma_20_df + atr_20_df * kc_mult
+        candles_df["KC_LOWER"] = sma_20_df - atr_20_df * kc_mult
 
         # Calling the lower-level function, because the one in core.py has a bug in the argument names
         # stoch_10_df = stoch(
