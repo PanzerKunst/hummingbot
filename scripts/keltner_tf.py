@@ -207,7 +207,7 @@ class ExcaliburStrategy(PkStrategy):
         self.tf_price_over_upper_band_counter += 1
         self.logger().info(f"has_crossed_over_upper_band() | incremented self.tf_price_over_upper_band_counter to:{self.tf_price_over_upper_band_counter}")
 
-        return self.tf_price_over_upper_band_counter > 39
+        return self.tf_price_over_upper_band_counter > 89  # 1m30
 
     def has_price_crossed_lower_band(self) -> bool:
         current_price = self.get_current_close()
