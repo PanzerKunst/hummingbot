@@ -51,9 +51,7 @@ class ExcaliburStrategy(PkStrategy):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
     def get_triple_barrier(self) -> TripleBarrier:
-        return TripleBarrier(
-            time_limit=60
-        )
+        return TripleBarrier()
 
     def update_processed_data(self):
         candles_config = self.config.candles_config[0]
