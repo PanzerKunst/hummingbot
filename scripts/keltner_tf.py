@@ -70,7 +70,7 @@ class ExcaliburStrategy(PkStrategy):
 
         atr_20_df = candles_df.ta.atr(length=20)
 
-        kc_mult: Decimal = Decimal(2.0)
+        kc_mult: float = 2.0
         candles_df["KC_u"] = sma_20_df + atr_20_df * kc_mult
         candles_df["KC_l"] = sma_20_df - atr_20_df * kc_mult
 

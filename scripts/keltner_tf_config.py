@@ -15,7 +15,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     candles_config: List[CandlesConfig] = Field(default_factory=lambda: [
         CandlesConfig(
             connector="binance_perpetual",
-            interval="1m",
+            interval="3m",
             max_records=50,
             trading_pair = "GOAT-USDT"
         )
