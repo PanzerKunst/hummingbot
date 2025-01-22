@@ -547,6 +547,9 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"did_volume_spike() | total_recent_vol:{total_recent_vol} | total_previous_vol:{total_previous_vol} | ratio:{ratio_recent_vs_previous}")
 
+        if ratio_recent_vs_previous < 3:
+            return False
+
         recent_and_previous_vol = vol_series.iloc[previous_vol_start_index:].reset_index(drop=True)
         peak_vol = Decimal(recent_and_previous_vol.max())
         peak_vol_index = recent_and_previous_vol.idxmax()
@@ -554,7 +557,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.logger().info(f"did_volume_spike() | peak_vol:{peak_vol} | pre_peak_vol:{pre_peak_vol}")
 
-        return ratio_recent_vs_previous > 3 and peak_vol > pre_peak_vol * 10
+        return peak_vol > pre_peak_vol * 10
 
     def compute_sl_pct_for_sell(self, candle_count: int) -> Decimal:
         peak_price = self.get_current_peak(candle_count)
