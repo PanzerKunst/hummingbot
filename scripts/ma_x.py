@@ -161,12 +161,12 @@ class ExcaliburStrategy(PkStrategy):
         if len(filled_sell_orders) > 0:
             if self.is_latest_short_ma_over_long():
                 self.logger().info(f"stop_actions_proposal_ma_x() > Closing MA-X Sell MA-X at {self.get_current_close()}")
-                self.close_filled_orders(filled_sell_orders, OrderType.LIMIT, CloseType.COMPLETED)
+                self.close_filled_orders(filled_sell_orders, OrderType.MARKET, CloseType.COMPLETED)
 
         if len(filled_buy_orders) > 0:
             if not self.is_latest_short_ma_over_long():
                 self.logger().info(f"stop_actions_proposal_ma_x() > Closing MA-X Buy MA-X at {self.get_current_close()}")
-                self.close_filled_orders(filled_buy_orders, OrderType.LIMIT, CloseType.COMPLETED)
+                self.close_filled_orders(filled_buy_orders, OrderType.MARKET, CloseType.COMPLETED)
 
     #
     # Getters on `self.processed_data[]`
