@@ -17,12 +17,14 @@ from scripts.thunderfury_config import ExcaliburConfig
 # Start the bot: start --script thunderfury.py --conf conf_thunderfury_GOAT.yml
 #                start --script thunderfury.py --conf conf_thunderfury_AI16Z.yml
 #                start --script thunderfury.py --conf conf_thunderfury_AIXBT.yml
+#                start --script thunderfury.py --conf conf_thunderfury_ANIME.yml
 #                start --script thunderfury.py --conf conf_thunderfury_FARTCOIN.yml
 #                start --script thunderfury.py --conf conf_thunderfury_MOODENG.yml
 #                start --script thunderfury.py --conf conf_thunderfury_PENGU.yml
 #                start --script thunderfury.py --conf conf_thunderfury_PNUT.yml
 #                start --script thunderfury.py --conf conf_thunderfury_POPCAT.yml
 #                start --script thunderfury.py --conf conf_thunderfury_TRUMP.yml
+#                start --script thunderfury.py --conf conf_thunderfury_VINE.yml
 #                start --script thunderfury.py --conf conf_thunderfury_VIRTUAL.yml
 #                start --script thunderfury.py --conf conf_thunderfury_WIF.yml
 # Quickstart script: -p=a -f thunderfury.py -c conf_thunderfury_GOAT.yml
