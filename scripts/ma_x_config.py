@@ -29,7 +29,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     connector_name: str = "hyperliquid_perpetual"
     trading_pair: str = "TRUMP-USD"
     leverage: int = 10
-    unfilled_order_expiration: int = 20
+    unfilled_order_expiration: int = 8
     limit_take_profit_price_delta_bps: int = 0
 
     position_mode: PositionMode = PositionMode.ONEWAY
