@@ -61,13 +61,15 @@ class ExcaliburStrategy(PkStrategy):
             else self.compute_sl_pct_for_buy(2)
         )
 
-        take_profit_pct: Decimal = stop_loss_pct * Decimal(0.75)
+        take_profit_pct: Decimal = (
+            stop_loss_pct * Decimal(0.75) if side == TradeType.SELL
+            else stop_loss_pct * Decimal(0.5)
+        )
 
         return TripleBarrier(
             stop_loss_delta=stop_loss_pct / 100,
             take_profit_delta=take_profit_pct / 100,
-            open_order_type=OrderType.MARKET,
-            time_limit=3 * 60
+            open_order_type=OrderType.MARKET
         )
 
     def update_processed_data(self):
@@ -595,7 +597,7 @@ class ExcaliburStrategy(PkStrategy):
         current_price: Decimal = self.get_current_close()
 
         delta_pct_with_bottom: Decimal = (current_price - bottom_price) / current_price * 100
-        sl_pct: Decimal = delta_pct_with_bottom * Decimal(0.8)
+        sl_pct: Decimal = delta_pct_with_bottom * Decimal(1.25)
 
         self.logger().info(f"compute_sl_pct_for_buy() | bottom_price:{bottom_price} | current_price:{current_price} | sl_pct:{sl_pct}")
 
