@@ -16,8 +16,8 @@ class ExcaliburConfig(StrategyV2ConfigBase):
         CandlesConfig(
             connector="binance_perpetual",
             interval="1m",
-            max_records=50,
-            trading_pair = "GOAT-USDT"
+            max_records=330,
+            trading_pair = "TRUMP-USDT"
         )
     ])
 
@@ -27,9 +27,9 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     # Used by PkStrategy
     connector_name: str = "hyperliquid_perpetual"
-    trading_pair: str = "GOAT-USD"
-    leverage: int = 5
-    unfilled_order_expiration: int = 10
+    trading_pair: str = "TRUMP-USD"
+    leverage: int = 10
+    unfilled_order_expiration: int = 20
     limit_take_profit_price_delta_bps: int = 0
 
     position_mode: PositionMode = PositionMode.ONEWAY
@@ -37,5 +37,4 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     # Triple Barrier
 
     # Order settings
-    amount_quote: Decimal = 24.0
-    min_price_delta_pct_to_open_mr: Decimal = 1.5
+    amount_quote: Decimal = 20.0
