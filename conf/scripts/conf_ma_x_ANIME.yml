@@ -1,9 +1,9 @@
 markets: {}
 candles_config:
-- connector: binance
+- connector: hyperliquid_perpetual
   interval: 1m
   max_records: 330
-  trading_pair: ANIME-USDT
+  trading_pair: ANIME-USD
 controllers_config: []
 config_update_interval: 10
 connector_name: hyperliquid_perpetual
