@@ -3,6 +3,7 @@ from typing import Dict, List
 
 import pandas as pd
 
+from hummingbot.client.hummingbot_application import HummingbotApplication
 from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.clock import Clock
@@ -88,6 +89,10 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
+        if not self.is_coin_still_tradable():
+            self.logger().info("create_actions_proposal() > Stopping the bot as the coin is no longer tradable")
+            HummingbotApplication.main_application().stop()
+
         self.create_actions_proposal_ma_x()
 
         return []  # Always return []
@@ -144,9 +149,6 @@ class ExcaliburStrategy(PkStrategy):
             return False
 
         if len(active_tracked_orders) > 0:
-            return False
-
-        if not self.is_coin_still_tradable():
             return False
 
         if side == TradeType.SELL:
