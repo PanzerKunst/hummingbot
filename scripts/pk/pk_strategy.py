@@ -237,7 +237,7 @@ class PkStrategy(StrategyV2Base):
         close_price_sell = self.get_best_bid() * Decimal(1 - self.config.limit_take_profit_price_delta_bps / 10000)
         close_price_buy = self.get_best_ask() * Decimal(1 + self.config.limit_take_profit_price_delta_bps / 10000)
 
-        self.logger().info(f"close_filled_order:{filled_order} | close_price:{close_price_sell if filled_order.side == TradeType.SELL else close_price_buy}")
+        self.logger().info(f"close_filled_order | close_price:{close_price_sell if filled_order.side == TradeType.SELL else close_price_buy}")
 
         if filled_order.side == TradeType.SELL:
             self.buy(connector_name, trading_pair, filled_amount, market_or_limit, close_price_sell, PositionAction.CLOSE)
@@ -326,12 +326,18 @@ class PkStrategy(StrategyV2Base):
                     take_profit_limit_order.filled_at = filled_event.timestamp
                     take_profit_limit_order.filled_price = filled_event.price
 
-                    self.logger().info(f"did_fill_order | amount:{filled_event.amount} | take_profit_limit_order.filled_amount:{take_profit_limit_order.filled_amount} | take_profit_limit_order.filled_price:{take_profit_limit_order.filled_price}")
+                    self.logger().info(f"did_fill_order | amount:{filled_event.amount} at price:{filled_event.price}")
 
                     for order in self.tracked_orders:
                         if order.order_id == take_profit_limit_order.tracked_order.order_id:
-                            order.terminated_at = filled_event.timestamp
-                            order.close_type = CloseType.TAKE_PROFIT
+                            order.filled_amount -= filled_event.amount
+                            self.logger().info(f"did_fill_order | order.filled_amount reduced to:{order.filled_amount}")
+
+                            if order.filled_amount == 0:
+                                self.logger().info("did_fill_order > order.filled_amount == 0! Closing it")
+                                order.terminated_at = filled_event.timestamp
+                                order.close_type = CloseType.TAKE_PROFIT
+
                             break
 
                     break
@@ -344,17 +350,14 @@ class PkStrategy(StrategyV2Base):
                 tracked_order.last_filled_at = filled_event.timestamp
                 tracked_order.last_filled_price = filled_event.price
 
-                self.logger().info(f"did_fill_order | amount:{filled_event.amount} | tracked_order.filled_amount:{tracked_order.filled_amount} | tracked_order.last_filled_price:{tracked_order.last_filled_price}")
+                self.logger().info(f"did_fill_order | amount:{filled_event.amount} at price:{filled_event.price}")
 
                 take_profit_delta = tracked_order.triple_barrier.take_profit_delta
                 tp_order_type = tracked_order.triple_barrier.take_profit_order_type
 
                 if take_profit_delta and tp_order_type == OrderType.LIMIT:
                     take_profit_price = compute_take_profit_price(tracked_order.side, filled_event.price, take_profit_delta)
-
-                    # TODO: remove
                     self.logger().info(f"did_fill_order | take_profit_delta:{take_profit_delta} | take_profit_price:{take_profit_price}")
-
                     self.create_tp_limit_order(tracked_order, filled_event.amount, take_profit_price)
 
                 break
