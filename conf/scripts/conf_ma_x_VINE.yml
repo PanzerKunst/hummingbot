@@ -1,6 +1,6 @@
 markets: {}
 candles_config:
-- connector: binance_perpetual
+- connector: bybit_perpetual
   interval: 1m
   max_records: 300
   trading_pair: VINE-USDT
