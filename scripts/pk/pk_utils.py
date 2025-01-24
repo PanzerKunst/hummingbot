@@ -153,6 +153,15 @@ def timestamp_to_iso(timestamp: float) -> str:
     return datetime.fromtimestamp(timestamp).isoformat()
 
 
+def iso_to_timestamp(iso_date: str) -> float:
+    return datetime.strptime(iso_date, "%Y-%m-%d").timestamp()
+
+
+def normalize_timestamp_to_midnight(timestamp: float) -> float:
+    dt = datetime.fromtimestamp(timestamp)
+    return datetime(dt.year, dt.month, dt.day).timestamp()
+
+
 # TODO: return int instead of Decimal
 def compute_rsi_pullback_difference(rsi: Decimal) -> Decimal:
     """

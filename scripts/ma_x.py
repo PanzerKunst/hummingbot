@@ -12,18 +12,19 @@ from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.ma_x_config import ExcaliburConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
+from scripts.pk.pk_utils import iso_to_timestamp, normalize_timestamp_to_midnight
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 # Generate config file: create --script-config ma_x
-# Start the bot: start --script ma_x.py --conf conf_ma_x_TRUMP.yml
-#                start --script ma_x.py --conf conf_ma_x_ANIME.yml
+# Start the bot: start --script ma_x.py --conf conf_ma_x_ANIME.yml
 #                start --script ma_x.py --conf conf_ma_x_MELANIA.yml
+#                start --script ma_x.py --conf conf_ma_x_TRUMP.yml
 #                start --script ma_x.py --conf conf_ma_x_VINE.yml
-# Quickstart script: -p=a -f ma_x.py -c conf_ma_x_TRUMP.yml
+# Quickstart script: -p=a -f ma_x.py -c conf_ma_x_ANIME.yml
 
 ORDER_REF_MA_X: str = "MA-X"
-SHORT_MA_LENGTH: int = 15
-LONG_MA_LENGTH: int = 300
+SHORT_MA_LENGTH: int = 15  # 3 * 5
+LONG_MA_LENGTH: int = 270  # 3 * 90
 
 
 class ExcaliburStrategy(PkStrategy):
@@ -35,6 +36,7 @@ class ExcaliburStrategy(PkStrategy):
         super().__init__(connectors, config)
 
         self.processed_data = pd.DataFrame()
+        self.has_opened_at_launch: bool = not config.should_open_position_at_launch
 
     def start(self, clock: Clock, timestamp: float) -> None:
         self._last_timestamp = timestamp
@@ -144,14 +146,25 @@ class ExcaliburStrategy(PkStrategy):
         if len(active_tracked_orders) > 0:
             return False
 
+        if not self.is_coin_still_tradable():
+            return False
+
         if side == TradeType.SELL:
-            if self.did_short_ma_cross_under_long():
+            if not self.has_opened_at_launch and not self.is_latest_short_ma_over_long():
+                self.has_opened_at_launch = True
+                self.logger().info(f"can_create_ma_x_order() > Opening initial MA-X Sell at {self.get_current_close()}")
+                return True
+            elif self.did_short_ma_cross_under_long():
                 self.logger().info(f"can_create_ma_x_order() > Opening MA-X Sell at {self.get_current_close()}")
                 return True
 
             return False
 
-        if self.did_short_ma_cross_over_long():
+        if not self.has_opened_at_launch and self.is_latest_short_ma_over_long():
+            self.has_opened_at_launch = True
+            self.logger().info(f"can_create_ma_x_order() > Opening initial MA-X Buy at {self.get_current_close()}")
+            return True
+        elif self.did_short_ma_cross_over_long():
             self.logger().info(f"can_create_ma_x_order() > Opening MA-X Buy at {self.get_current_close()}")
             return True
 
@@ -206,6 +219,13 @@ class ExcaliburStrategy(PkStrategy):
     #
     # MA-X functions
     #
+
+    def is_coin_still_tradable(self) -> bool:
+        launch_timestamp: float = iso_to_timestamp(self.config.coin_launch_date)
+        start_of_today_timestamp = normalize_timestamp_to_midnight(self.get_market_data_provider_time())
+        max_trade_duration = self.config.nb_days_trading_post_launch * 24 * 60 * 60  # seconds
+
+        return start_of_today_timestamp <= launch_timestamp + max_trade_duration
 
     def did_short_ma_cross_under_long(self) -> bool:
         return not self.is_latest_short_ma_over_long() and self.is_previous_short_ma_over_long()
