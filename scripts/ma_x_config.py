@@ -38,6 +38,4 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     # Order settings
     amount_quote: Decimal = 30.0
-    coin_launch_date: str = "2025-01-23"
-    nb_days_trading_post_launch: int = 30
     should_open_position_at_launch: bool = True

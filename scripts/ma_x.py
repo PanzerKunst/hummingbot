@@ -3,7 +3,6 @@ from typing import Dict, List
 
 import pandas as pd
 
-from hummingbot.client.hummingbot_application import HummingbotApplication
 from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.clock import Clock
@@ -13,7 +12,6 @@ from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.ma_x_config import ExcaliburConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
-from scripts.pk.pk_utils import iso_to_timestamp, normalize_timestamp_to_midnight
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 # Generate config file: create --script-config ma_x
@@ -51,11 +49,6 @@ class ExcaliburStrategy(PkStrategy):
                 for trading_pair in self.market_data_provider.get_trading_pairs(connector_name):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
-    def get_triple_barrier(self) -> TripleBarrier:
-        return TripleBarrier(
-            open_order_type=OrderType.MARKET
-        )
-
     def update_processed_data(self):
         candles_config = self.config.candles_config[0]
 
@@ -89,9 +82,9 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().error("create_actions_proposal() > ERROR: processed_data_num_rows == 0")
             return []
 
-        if not self.is_coin_still_tradable():
-            self.logger().info("create_actions_proposal() > Stopping the bot as the coin is no longer tradable")
-            HummingbotApplication.main_application().stop()
+        # if not self.is_coin_still_tradable():
+        #     self.logger().info("create_actions_proposal() > Stopping the bot as the coin is no longer tradable")
+        #     HummingbotApplication.main_application().stop()
 
         self.create_actions_proposal_ma_x()
 
@@ -129,6 +122,24 @@ class ExcaliburStrategy(PkStrategy):
         return original_status + "\n".join(custom_status)
 
     #
+    # Quote amount and Triple Barrier
+    #
+
+    def get_position_quote_amount(self, side: TradeType) -> Decimal:
+        amount_quote: Decimal = self.config.amount_quote * self.config.leverage / 2
+
+        if side == TradeType.SELL:
+            return amount_quote * Decimal(0.75)  # Less, because closing an unprofitable Short position costs significantly more
+
+        return amount_quote
+
+    @staticmethod
+    def get_triple_barrier() -> TripleBarrier:
+        return TripleBarrier(
+            open_order_type=OrderType.MARKET
+        )
+
+    #
     # MA-X start/stop action proposals
     #
 
@@ -138,14 +149,18 @@ class ExcaliburStrategy(PkStrategy):
 
         if self.can_create_ma_x_order(TradeType.SELL, active_orders):
             triple_barrier = self.get_triple_barrier()
-            self.create_order(TradeType.SELL, self.get_current_close(), triple_barrier, self.config.amount_quote, ORDER_REF_MA_X)
+            amount_quote = self.get_position_quote_amount(TradeType.SELL)
+            self.create_order(TradeType.SELL, self.get_current_close(), triple_barrier, amount_quote, ORDER_REF_MA_X)
 
         if self.can_create_ma_x_order(TradeType.BUY, active_orders):
             triple_barrier = self.get_triple_barrier()
-            self.create_order(TradeType.BUY, self.get_current_close(), triple_barrier, self.config.amount_quote, ORDER_REF_MA_X)
+            amount_quote = self.get_position_quote_amount(TradeType.BUY)
+            self.create_order(TradeType.BUY, self.get_current_close(), triple_barrier, amount_quote, ORDER_REF_MA_X)
 
     def can_create_ma_x_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_MA_X, 0):
+        amount_quote = self.get_position_quote_amount(side)
+
+        if not self.can_create_order(side, amount_quote, ORDER_REF_MA_X, 0):
             return False
 
         if len(active_tracked_orders) > 0:
@@ -156,6 +171,7 @@ class ExcaliburStrategy(PkStrategy):
                 self.has_opened_at_launch = True
                 self.logger().info(f"can_create_ma_x_order() > Opening initial MA-X Sell at {self.get_current_close()}")
                 return True
+
             elif self.did_short_ma_cross_under_long():
                 self.logger().info(f"can_create_ma_x_order() > Opening MA-X Sell at {self.get_current_close()}")
                 return True
@@ -166,6 +182,7 @@ class ExcaliburStrategy(PkStrategy):
             self.has_opened_at_launch = True
             self.logger().info(f"can_create_ma_x_order() > Opening initial MA-X Buy at {self.get_current_close()}")
             return True
+
         elif self.did_short_ma_cross_over_long():
             self.logger().info(f"can_create_ma_x_order() > Opening MA-X Buy at {self.get_current_close()}")
             return True
@@ -222,12 +239,12 @@ class ExcaliburStrategy(PkStrategy):
     # MA-X functions
     #
 
-    def is_coin_still_tradable(self) -> bool:
-        launch_timestamp: float = iso_to_timestamp(self.config.coin_launch_date)
-        start_of_today_timestamp = normalize_timestamp_to_midnight(self.get_market_data_provider_time())
-        max_trade_duration = self.config.nb_days_trading_post_launch * 24 * 60 * 60  # seconds
-
-        return start_of_today_timestamp <= launch_timestamp + max_trade_duration
+    # def is_coin_still_tradable(self) -> bool:
+    #     launch_timestamp: float = iso_to_timestamp(self.config.coin_launch_date)
+    #     start_of_today_timestamp = normalize_timestamp_to_midnight(self.get_market_data_provider_time())
+    #     max_trade_duration = self.config.nb_days_trading_post_launch * 24 * 60 * 60  # seconds
+    #
+    #     return start_of_today_timestamp <= launch_timestamp + max_trade_duration
 
     def did_short_ma_cross_under_long(self) -> bool:
         return not self.is_latest_short_ma_over_long() and self.is_previous_short_ma_over_long()
