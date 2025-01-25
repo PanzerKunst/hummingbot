@@ -34,13 +34,6 @@ class PkStrategy(StrategyV2Base):
         self.tracked_orders: List[TrackedOrderDetails] = []
         self.take_profit_limit_orders: List[TakeProfitLimitOrder] = []
 
-    @staticmethod
-    def get_position_quote_amount(side: TradeType, amount_quote: Decimal) -> Decimal:
-        if side == TradeType.SELL:
-            return amount_quote * Decimal(0.67)  # Less, because closing an unprofitable Short position costs significantly more
-
-        return amount_quote
-
     def get_mid_price(self) -> Decimal:
         connector_name = self.config.connector_name
         trading_pair = self.config.trading_pair
@@ -64,7 +57,7 @@ class PkStrategy(StrategyV2Base):
         trading_pair = self.config.trading_pair
         leverage = self.config.leverage
 
-        amount: Decimal = self.get_position_quote_amount(side, amount_quote) / entry_price
+        amount: Decimal = amount_quote / entry_price
 
         return PositionExecutorConfig(
             timestamp=self.get_market_data_provider_time(),
@@ -363,7 +356,7 @@ class PkStrategy(StrategyV2Base):
                 break
 
     def can_create_order(self, side: TradeType, amount_quote: Decimal, ref: str, cooldown_time_min: int) -> bool:
-        if self.get_position_quote_amount(side, amount_quote) == 0:
+        if amount_quote == 0:
             return False
 
         if side == TradeType.SELL and self.is_a_sell_order_being_created:

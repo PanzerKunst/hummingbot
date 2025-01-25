@@ -54,23 +54,6 @@ class ExcaliburStrategy(PkStrategy):
                 for trading_pair in self.market_data_provider.get_trading_pairs(connector_name):
                     connector.set_leverage(trading_pair, self.config.leverage)
 
-    def get_triple_barrier(self, side: TradeType) -> TripleBarrier:
-        stop_loss_pct: Decimal = (
-            self.compute_sl_pct_for_sell(2) if side == TradeType.SELL
-            else self.compute_sl_pct_for_buy(2)
-        )
-
-        take_profit_pct: Decimal = (
-            stop_loss_pct * Decimal(0.75) if side == TradeType.SELL
-            else stop_loss_pct * Decimal(0.5)
-        )
-
-        return TripleBarrier(
-            stop_loss_delta=stop_loss_pct / 100,
-            take_profit_delta=take_profit_pct / 100,
-            open_order_type=OrderType.MARKET
-        )
-
     def update_processed_data(self):
         candles_config = self.config.candles_config[0]
 
@@ -157,6 +140,33 @@ class ExcaliburStrategy(PkStrategy):
         return original_status + "\n".join(custom_status)
 
     #
+    # Quote amount and Triple Barrier
+    #
+
+    def get_position_quote_amount(self, side: TradeType) -> Decimal:
+        if side == TradeType.SELL:
+            return self.config.amount_quote * Decimal(0.75)  # Less, because closing an unprofitable Short position costs significantly more
+
+        return self.config.amount_quote
+
+    def get_triple_barrier(self, side: TradeType) -> TripleBarrier:
+        stop_loss_pct: Decimal = (
+            self.compute_sl_pct_for_sell(2) if side == TradeType.SELL
+            else self.compute_sl_pct_for_buy(2)
+        )
+
+        take_profit_pct: Decimal = (
+            stop_loss_pct * Decimal(0.75) if side == TradeType.SELL
+            else stop_loss_pct * Decimal(0.5)
+        )
+
+        return TripleBarrier(
+            stop_loss_delta=stop_loss_pct / 100,
+            take_profit_delta=take_profit_pct / 100,
+            open_order_type=OrderType.MARKET
+        )
+
+    #
     # Mean Reversion start/stop action proposals
     #
 
@@ -166,14 +176,18 @@ class ExcaliburStrategy(PkStrategy):
 
         if self.can_create_mean_reversion_order(TradeType.SELL, active_orders):
             triple_barrier = self.get_triple_barrier(TradeType.SELL)
-            self.create_order(TradeType.SELL, self.get_current_close(), triple_barrier, self.config.amount_quote, ORDER_REF_MEAN_REVERSION)
+            amount_quote: Decimal = self.get_position_quote_amount(TradeType.SELL)
+            self.create_order(TradeType.SELL, self.get_current_close(), triple_barrier, amount_quote, ORDER_REF_MEAN_REVERSION)
 
         if self.can_create_mean_reversion_order(TradeType.BUY, active_orders):
             triple_barrier = self.get_triple_barrier(TradeType.BUY)
-            self.create_order(TradeType.BUY, self.get_current_close(), triple_barrier, self.config.amount_quote, ORDER_REF_MEAN_REVERSION)
+            amount_quote: Decimal = self.get_position_quote_amount(TradeType.BUY)
+            self.create_order(TradeType.BUY, self.get_current_close(), triple_barrier, amount_quote, ORDER_REF_MEAN_REVERSION)
 
     def can_create_mean_reversion_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_MEAN_REVERSION, 5):
+        amount_quote: Decimal = self.get_position_quote_amount(side)
+
+        if not self.can_create_order(side, amount_quote, ORDER_REF_MEAN_REVERSION, 5):
             return False
 
         if len(active_tracked_orders) > 0:
