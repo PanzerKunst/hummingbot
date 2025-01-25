@@ -256,10 +256,18 @@ class ExcaliburStrategy(PkStrategy):
 
     def is_latest_short_ma_over_long(self) -> bool:
         latest_short_minus_long: Decimal = self.get_latest_ma(SHORT_MA_LENGTH, "S") - self.get_latest_ma(LONG_MA_LENGTH, "E")
+
+        # TODO: remove
+        self.logger().info(f"is_latest_short_ma_over_long() | latest_short_ma:{self.get_latest_ma(SHORT_MA_LENGTH, 'S')} | latest_long_ma:{self.get_latest_ma(LONG_MA_LENGTH, 'E')} | result:{latest_short_minus_long > 0}")
+
         return latest_short_minus_long > 0
 
     def is_previous_short_ma_over_long(self) -> bool:
         previous_short_minus_long: Decimal = self.get_previous_ma(SHORT_MA_LENGTH, "S") - self.get_previous_ma(LONG_MA_LENGTH, "E")
+
+        # TODO: remove
+        self.logger().info(f"is_previous_short_ma_over_long() | previous_short_ma:{self.get_previous_ma(SHORT_MA_LENGTH, 'S')} | previous_long_ma:{self.get_previous_ma(LONG_MA_LENGTH, 'E')} | result:{previous_short_minus_long > 0}")
+
         return previous_short_minus_long > 0
 
     # def is_current_price_over_short_ma(self) -> bool:
