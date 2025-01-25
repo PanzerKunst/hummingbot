@@ -23,7 +23,7 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 ORDER_REF_MA_X: str = "MA-X"
 SHORT_MA_LENGTH: int = 15  # 3 * 5
-LONG_MA_LENGTH: int = 270  # 3 * 90
+LONG_MA_LENGTH: int = 285  # 3 * 95
 
 
 class ExcaliburStrategy(PkStrategy):
@@ -67,7 +67,7 @@ class ExcaliburStrategy(PkStrategy):
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
 
         candles_df[f"SMA_{SHORT_MA_LENGTH}"] = candles_df.ta.sma(length=SHORT_MA_LENGTH)
-        candles_df[f"SMA_{LONG_MA_LENGTH}"] = candles_df.ta.sma(length=LONG_MA_LENGTH)
+        candles_df[f"EMA_{LONG_MA_LENGTH}"] = candles_df.ta.ema(length=LONG_MA_LENGTH)
 
         candles_df.dropna(inplace=True)
 
@@ -222,17 +222,17 @@ class ExcaliburStrategy(PkStrategy):
         high_series: pd.Series = self.processed_data["high"]
         return Decimal(high_series.iloc[-1])
 
-    def get_current_ma(self, length: int) -> Decimal:
-        return self._get_ma_at_index(length, -1)
+    def get_current_ma(self, length: int, s_or_e: str) -> Decimal:
+        return self._get_ma_at_index(length, -1, s_or_e)
 
-    def get_latest_ma(self, length: int) -> Decimal:
-        return self._get_ma_at_index(length, -2)
+    def get_latest_ma(self, length: int, s_or_e: str) -> Decimal:
+        return self._get_ma_at_index(length, -2, s_or_e)
 
-    def get_previous_ma(self, length: int) -> Decimal:
-        return self._get_ma_at_index(length, -3)
+    def get_previous_ma(self, length: int, s_or_e: str) -> Decimal:
+        return self._get_ma_at_index(length, -3, s_or_e)
 
-    def _get_ma_at_index(self, length: int, index: int) -> Decimal:
-        sma_series: pd.Series = self.processed_data[f"SMA_{length}"]
+    def _get_ma_at_index(self, length: int, index: int, s_or_e: str) -> Decimal:
+        sma_series: pd.Series = self.processed_data[f"{s_or_e}MA_{length}"]
         return Decimal(sma_series.iloc[index])
 
     #
@@ -253,13 +253,13 @@ class ExcaliburStrategy(PkStrategy):
         return self.is_latest_short_ma_over_long() and not self.is_previous_short_ma_over_long()
 
     def is_latest_short_ma_over_long(self) -> bool:
-        latest_short_minus_long: Decimal = self.get_latest_ma(SHORT_MA_LENGTH) - self.get_latest_ma(LONG_MA_LENGTH)
+        latest_short_minus_long: Decimal = self.get_latest_ma(SHORT_MA_LENGTH, "S") - self.get_latest_ma(LONG_MA_LENGTH, "E")
         return latest_short_minus_long > 0
 
     def is_previous_short_ma_over_long(self) -> bool:
-        previous_short_minus_long: Decimal = self.get_previous_ma(SHORT_MA_LENGTH) - self.get_previous_ma(LONG_MA_LENGTH)
+        previous_short_minus_long: Decimal = self.get_previous_ma(SHORT_MA_LENGTH, "S") - self.get_previous_ma(LONG_MA_LENGTH, "E")
         return previous_short_minus_long > 0
 
     # def is_current_price_over_short_ma(self) -> bool:
-    #     current_price_minus_short_ma: Decimal = self.get_current_close() - self.get_current_ma(SHORT_MA_LENGTH)
+    #     current_price_minus_short_ma: Decimal = self.get_current_close() - self.get_current_ma(SHORT_MA_LENGTH, "S")
     #     return current_price_minus_short_ma > 0
