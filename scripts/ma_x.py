@@ -130,9 +130,6 @@ class ExcaliburStrategy(PkStrategy):
         softened_leverage: int = compute_softened_leverage(self.config.leverage)
         amount_quote: Decimal = self.config.amount_quote * softened_leverage
 
-        # TODO: remove
-        self.logger().info(f"get_position_quote_amount() > softened leverage for {self.config.trading_pair}:{softened_leverage}")
-
         if side == TradeType.BUY:
             return amount_quote * Decimal(1.25)  # More, because closing an unprofitable Less position costs significantly less
 
