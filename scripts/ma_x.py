@@ -114,7 +114,7 @@ class ExcaliburStrategy(PkStrategy):
                     "close",
                     "volume",
                     f"SMA_{SHORT_MA_LENGTH}",
-                    f"SMA_{LONG_MA_LENGTH}"
+                    f"EMA_{LONG_MA_LENGTH}"
                 ]
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display], table_format="psql"))

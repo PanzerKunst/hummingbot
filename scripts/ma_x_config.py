@@ -16,7 +16,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
         CandlesConfig(
             connector="binance_perpetual",
             interval="1m",
-            max_records=300,
+            max_records=315,
             trading_pair = "ANIME-USDT"
         )
     ])
@@ -37,5 +37,5 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     # Triple Barrier
 
     # Order settings
-    amount_quote: Decimal = 30.0
+    amount_quote: Decimal = 28.0
     should_open_position_at_launch: bool = True

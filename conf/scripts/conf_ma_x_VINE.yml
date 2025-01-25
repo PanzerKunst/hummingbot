@@ -1,8 +1,8 @@
 markets: {}
 candles_config:
-- connector: bybit_perpetual
+- connector: binance_perpetual
   interval: 1m
-  max_records: 300
+  max_records: 315
   trading_pair: VINE-USDT
 controllers_config: []
 config_update_interval: 10
@@ -12,5 +12,5 @@ leverage: 3
 unfilled_order_expiration: 60
 limit_take_profit_price_delta_bps: 0
 position_mode: ONEWAY
-amount_quote: 30.0
+amount_quote: 28.0
 should_open_position_at_launch: true
