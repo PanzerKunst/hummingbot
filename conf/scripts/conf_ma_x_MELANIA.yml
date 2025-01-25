@@ -2,14 +2,17 @@ markets: {}
 candles_config:
 - connector: binance_perpetual
   interval: 1m
-  max_records: 330
+  max_records: 300
   trading_pair: MELANIA-USDT
 controllers_config: []
 config_update_interval: 10
 connector_name: hyperliquid_perpetual
 trading_pair: MELANIA-USD
 leverage: 5
-unfilled_order_expiration: 8
+unfilled_order_expiration: 60
 limit_take_profit_price_delta_bps: 0
 position_mode: ONEWAY
 amount_quote: 30.0
+coin_launch_date: '2025-01-20'
+nb_days_trading_post_launch: 4
+should_open_position_at_launch: true
