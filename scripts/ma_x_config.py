@@ -16,7 +16,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
         CandlesConfig(
             connector="binance_perpetual",
             interval="1m",
-            max_records=305,
+            max_records=1000,  # Need a lot of history to correcly compute EMAs
             trading_pair = "ANIME-USDT"
         )
     ])
