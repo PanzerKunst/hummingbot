@@ -195,3 +195,22 @@ def compute_rsi_pullback_difference(rsi: Decimal) -> Decimal:
 
     increment = ((25 - rsi) // 3) + 3
     return increment
+
+
+def compute_softened_leverage(leverage: int) -> int:
+    """
+    i:0 leverage:3   result:3   (leverage-i)
+    i:1 leverage:5   result:4   (leverage-i)
+    i:2 leverage:7   result:5   (leverage-i)
+    i:3 leverage:9   result:6   (leverage-i)
+    i:4 leverage:11  result:7   (leverage-i)
+    i:5 leverage:13  result:8   (leverage-i)
+    i:6 leverage:15  result:9   (leverage-i)
+    i:7 leverage:17  result:10  (leverage-i)
+    i:8 leverage:19  result:11  (leverage-i)
+    i:9 leverage:21  result:12  (leverage-i)
+    [...]
+    """
+    decrement: int = (leverage - 3) // 2
+
+    return leverage - decrement

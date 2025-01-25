@@ -12,6 +12,7 @@ from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.ma_x_config import ExcaliburConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
+from scripts.pk.pk_utils import compute_softened_leverage
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 # Generate config file: create --script-config ma_x
@@ -126,10 +127,14 @@ class ExcaliburStrategy(PkStrategy):
     #
 
     def get_position_quote_amount(self, side: TradeType) -> Decimal:
-        amount_quote: Decimal = self.config.amount_quote * self.config.leverage / 2
+        softened_leverage: int = compute_softened_leverage(self.config.leverage)
+        amount_quote: Decimal = self.config.amount_quote * softened_leverage
 
-        if side == TradeType.SELL:
-            return amount_quote * Decimal(0.75)  # Less, because closing an unprofitable Short position costs significantly more
+        # TODO: remove
+        self.logger().info(f"get_position_quote_amount() > softened leverage for {self.config.trading_pair}:{softened_leverage}")
+
+        if side == TradeType.BUY:
+            return amount_quote * Decimal(1.25)  # More, because closing an unprofitable Less position costs significantly less
 
         return amount_quote
 
@@ -193,13 +198,13 @@ class ExcaliburStrategy(PkStrategy):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_MA_X)
 
         if len(filled_sell_orders) > 0:
-            if self.is_latest_short_ma_over_long():
-                self.logger().info(f"stop_actions_proposal_ma_x() > Closing MA-X Sell MA-X at {self.get_current_close()}")
+            if self.did_short_ma_cross_over_long():
+                self.logger().info(f"stop_actions_proposal_ma_x() > Closing MA-X Sell at {self.get_current_close()}")
                 self.close_filled_orders(filled_sell_orders, OrderType.MARKET, CloseType.COMPLETED)
 
         if len(filled_buy_orders) > 0:
-            if not self.is_latest_short_ma_over_long():
-                self.logger().info(f"stop_actions_proposal_ma_x() > Closing MA-X Buy MA-X at {self.get_current_close()}")
+            if self.did_short_ma_cross_under_long():
+                self.logger().info(f"stop_actions_proposal_ma_x() > Closing MA-X Buy at {self.get_current_close()}")
                 self.close_filled_orders(filled_buy_orders, OrderType.MARKET, CloseType.COMPLETED)
 
     #
