@@ -12,7 +12,6 @@ from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.ma_x_config import ExcaliburConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
-from scripts.pk.pk_utils import compute_softened_leverage
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 # Generate config file: create --script-config ma_x
@@ -128,13 +127,10 @@ class ExcaliburStrategy(PkStrategy):
     #
 
     def get_position_quote_amount(self, side: TradeType) -> Decimal:
-        softened_leverage: int = compute_softened_leverage(self.config.leverage)
-        amount_quote: Decimal = self.config.amount_quote * softened_leverage
+        if side == TradeType.SELL:
+            return self.config.amount_quote * Decimal(0.75)  # Less, because closing an unprofitable Short position costs significantly more
 
-        if side == TradeType.BUY:
-            return amount_quote * Decimal(1.25)  # More, because closing an unprofitable Less position costs significantly less
-
-        return amount_quote
+        return self.config.amount_quote
 
     @staticmethod
     def get_triple_barrier() -> TripleBarrier:
