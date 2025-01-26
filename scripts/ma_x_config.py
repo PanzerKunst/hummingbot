@@ -39,3 +39,4 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     # Order settings
     amount_quote: Decimal = 20.0
     should_open_position_at_launch: bool = True
+    max_delta_pct_between_price_and_long_ma: Decimal = Decimal(3.6)

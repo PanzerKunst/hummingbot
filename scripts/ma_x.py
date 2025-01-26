@@ -165,6 +165,9 @@ class ExcaliburStrategy(PkStrategy):
         if len(active_tracked_orders) > 0:
             return False
 
+        if self.is_price_too_far_from_long_ma():
+            return False
+
         if side == TradeType.SELL:
             if not self.has_opened_at_launch and not self.is_latest_short_ma_over_long():
                 self.has_opened_at_launch = True
@@ -244,6 +247,18 @@ class ExcaliburStrategy(PkStrategy):
     #     max_trade_duration = self.config.nb_days_trading_post_launch * 24 * 60 * 60  # seconds
     #
     #     return start_of_today_timestamp <= launch_timestamp + max_trade_duration
+
+    def is_price_too_far_from_long_ma(self) -> bool:
+        current_price: Decimal = self.get_current_close()
+        current_long_ma: Decimal = self.get_current_ma(LONG_MA_LENGTH)
+
+        price_delta_pct: Decimal = abs(current_long_ma - current_price) / current_price * 100
+        is_too_far: bool = price_delta_pct > self.config.max_delta_pct_between_price_and_long_ma
+
+        if is_too_far:
+            self.logger().info(f"is_price_too_far_from_long_ma() | price_delta_pct:{price_delta_pct}")
+
+        return is_too_far
 
     def did_short_ma_cross_under_long(self) -> bool:
         return not self.is_latest_short_ma_over_long() and self.is_previous_short_ma_over_long()
