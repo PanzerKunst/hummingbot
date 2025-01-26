@@ -2,7 +2,7 @@ markets: {}
 candles_config:
 - connector: binance_perpetual
   interval: 1m
-  max_records: 300
+  max_records: 1000
   trading_pair: TRUMP-USDT
 controllers_config: []
 config_update_interval: 10
@@ -12,7 +12,6 @@ leverage: 10
 unfilled_order_expiration: 60
 limit_take_profit_price_delta_bps: 0
 position_mode: ONEWAY
-amount_quote: 30.0
-coin_launch_date: '2025-01-18'
-nb_days_trading_post_launch: 30
+amount_quote: 20.0
 should_open_position_at_launch: true
+max_delta_pct_between_price_and_long_ma: 3.6

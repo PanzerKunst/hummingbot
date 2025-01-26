@@ -16,7 +16,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
         CandlesConfig(
             connector="binance_perpetual",
             interval="1m",
-            max_records=300,
+            max_records=1000,  # Need a lot of history to correcly compute EMAs
             trading_pair = "ANIME-USDT"
         )
     ])
@@ -37,7 +37,6 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     # Triple Barrier
 
     # Order settings
-    amount_quote: Decimal = 30.0
-    coin_launch_date: str = "2025-01-23"
-    nb_days_trading_post_launch: int = 30
+    amount_quote: Decimal = 20.0
     should_open_position_at_launch: bool = True
+    max_delta_pct_between_price_and_long_ma: Decimal = Decimal(3.6)
