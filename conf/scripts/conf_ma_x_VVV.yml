@@ -1,0 +1,17 @@
+markets: {}
+candles_config:
+- connector: bybit_perpetual
+  interval: 1m
+  max_records: 1000
+  trading_pair: VVV-USDT
+controllers_config: []
+config_update_interval: 10
+connector_name: hyperliquid_perpetual
+trading_pair: VVV-USD
+leverage: 3
+unfilled_order_expiration: 60
+limit_take_profit_price_delta_bps: 0
+position_mode: ONEWAY
+amount_quote: 20.0
+should_open_position_at_launch: true
+max_delta_pct_between_price_and_long_ma: 1.75

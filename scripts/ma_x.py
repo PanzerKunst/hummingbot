@@ -20,6 +20,7 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 #                start --script ma_x.py --conf conf_ma_x_RUNE.yml
 #                start --script ma_x.py --conf conf_ma_x_TRUMP.yml
 #                start --script ma_x.py --conf conf_ma_x_VINE.yml
+#                start --script ma_x.py --conf conf_ma_x_VVV.yml
 # Quickstart script: -p=a -f ma_x.py -c conf_ma_x_ANIME.yml
 
 ORDER_REF_MA_X: str = "MA-X"
