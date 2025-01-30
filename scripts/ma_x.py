@@ -266,7 +266,8 @@ class ExcaliburStrategy(PkStrategy):
                 self.logger().info(f"did_fill_order | amount:{filled_event.amount} at price:{filled_event.price}")
 
                 take_profit_delta = self.config.tp_threshold_pct / 100
-                take_profit_amount: Decimal = filled_event.amount * Decimal(self.config.max_take_profits / 100)
+                ratio_with_initial_amount: Decimal = Decimal(100 / self.config.max_take_profits / 100)  # 100 / 4 / 100 = 0.25
+                take_profit_amount: Decimal = filled_event.amount * ratio_with_initial_amount
 
                 take_profit_price = compute_take_profit_price(tracked_order.side, filled_event.price, take_profit_delta)
                 self.logger().info(f"did_fill_order > Creating Limit TP order number {self.tp_count + 1}")
