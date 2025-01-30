@@ -40,7 +40,6 @@ class ExcaliburStrategy(PkStrategy):
 
         self.processed_data = pd.DataFrame()
         self.has_opened_at_launch: bool = not config.should_open_position_at_launch
-        self.tp_count: int = 0
 
     def start(self, clock: Clock, timestamp: float) -> None:
         self._last_timestamp = timestamp
