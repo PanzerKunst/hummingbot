@@ -21,7 +21,6 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 #                start --script ma_x.py --conf conf_ma_x_AI16Z.yml
 #                start --script ma_x.py --conf conf_ma_x_AIXBT.yml
 #                start --script ma_x.py --conf conf_ma_x_FARTCOIN.yml
-#                start --script ma_x.py --conf conf_ma_x_MELANIA.yml
 #                start --script ma_x.py --conf conf_ma_x_PENGU.yml
 #                start --script ma_x.py --conf conf_ma_x_SPX.yml
 #                start --script ma_x.py --conf conf_ma_x_TRUMP.yml
