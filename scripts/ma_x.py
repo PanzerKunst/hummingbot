@@ -18,9 +18,12 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 # Generate config file: create --script-config ma_x
 # Start the bot: start --script ma_x.py --conf conf_ma_x_ANIME.yml
-#                start --script ma_x.py --conf conf_ma_x_AI16Z.yml
 #                start --script ma_x.py --conf conf_ma_x_AIXBT.yml
+#                start --script ma_x.py --conf conf_ma_x_AIXBT.yml
+#                start --script ma_x.py --conf conf_ma_x_FARTCOIN.yml
+#                start --script ma_x.py --conf conf_ma_x_MELANIA.yml
 #                start --script ma_x.py --conf conf_ma_x_PENGU.yml
+#                start --script ma_x.py --conf conf_ma_x_SPX.yml
 #                start --script ma_x.py --conf conf_ma_x_TRUMP.yml
 #                start --script ma_x.py --conf conf_ma_x_VINE.yml
 #                start --script ma_x.py --conf conf_ma_x_VVV.yml
