@@ -321,15 +321,15 @@ class PkStrategy(StrategyV2Base):
 
                     self.logger().info(f"did_fill_order | amount:{filled_event.amount} at price:{filled_event.price}")
 
-                    for order in self.tracked_orders:
-                        if order.order_id == take_profit_limit_order.tracked_order.order_id:
-                            order.filled_amount -= filled_event.amount
-                            self.logger().info(f"did_fill_order | order.filled_amount reduced to:{order.filled_amount}")
+                    for tracked_order in self.tracked_orders:
+                        if tracked_order.order_id == take_profit_limit_order.tracked_order.order_id:
+                            tracked_order.filled_amount -= filled_event.amount
+                            self.logger().info(f"did_fill_order | tracked_order.filled_amount reduced to:{tracked_order.filled_amount}")
 
-                            if order.filled_amount == 0:
-                                self.logger().info("did_fill_order > order.filled_amount == 0! Closing it")
-                                order.terminated_at = filled_event.timestamp
-                                order.close_type = CloseType.TAKE_PROFIT
+                            if tracked_order.filled_amount == 0:
+                                self.logger().info("did_fill_order > tracked_order.filled_amount == 0! Closing it")
+                                tracked_order.terminated_at = filled_event.timestamp
+                                tracked_order.close_type = CloseType.TAKE_PROFIT
 
                             break
 

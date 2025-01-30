@@ -41,6 +41,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.processed_data = pd.DataFrame()
         self.reset_mr_context()
+        self.latest_saved_candles_timestamp: float = 0
 
     def start(self, clock: Clock, timestamp: float) -> None:
         self._last_timestamp = timestamp
@@ -66,6 +67,8 @@ class ExcaliburStrategy(PkStrategy):
         if num_rows == 0:
             return
 
+        self.check_if_candles_missed_beats(candles_df["timestamp"])
+
         candles_df["index"] = candles_df["timestamp"]
         candles_df.set_index("index", inplace=True)
 
@@ -90,6 +93,19 @@ class ExcaliburStrategy(PkStrategy):
         candles_df.dropna(inplace=True)
 
         self.processed_data = candles_df
+
+    def check_if_candles_missed_beats(self, timestamp_series: pd.Series):
+        current_timestamp: float = timestamp_series.iloc[-1]
+
+        if self.latest_saved_candles_timestamp == 0:
+            self.latest_saved_candles_timestamp = current_timestamp
+
+        delta: int = int(current_timestamp - self.latest_saved_candles_timestamp)
+
+        if delta > CANDLE_DURATION_MINUTES * 60:
+            self.logger().error(f"check_if_candles_missed_beats() | missed {delta/60} minutes between the last two candles fetch")
+
+        self.latest_saved_candles_timestamp = current_timestamp
 
     def create_actions_proposal(self) -> List[CreateExecutorAction]:
         self.update_processed_data()
