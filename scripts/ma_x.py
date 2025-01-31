@@ -6,22 +6,25 @@ import pandas as pd
 from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.clock import Clock
-from hummingbot.core.data_type.common import OrderType, TradeType
+from hummingbot.core.data_type.common import OrderType, PositionAction, TradeType
+from hummingbot.core.event.events import OrderFilledEvent
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 from hummingbot.strategy_v2.models.executors import CloseType
 from scripts.ma_x_config import ExcaliburConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
+from scripts.pk.pk_utils import compute_take_profit_price
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 # Generate config file: create --script-config ma_x
-# Start the bot: start --script ma_x.py --conf conf_ma_x_ANIME.yml
-#                start --script ma_x.py --conf conf_ma_x_MELANIA.yml
-#                start --script ma_x.py --conf conf_ma_x_RUNE.yml
+# Start the bot: start --script ma_x.py --conf conf_ma_x_AI16Z.yml
+#                start --script ma_x.py --conf conf_ma_x_AIXBT.yml
+#                start --script ma_x.py --conf conf_ma_x_FARTCOIN.yml
+#                start --script ma_x.py --conf conf_ma_x_SPX.yml
 #                start --script ma_x.py --conf conf_ma_x_TRUMP.yml
 #                start --script ma_x.py --conf conf_ma_x_VINE.yml
 #                start --script ma_x.py --conf conf_ma_x_VVV.yml
-# Quickstart script: -p=a -f ma_x.py -c conf_ma_x_ANIME.yml
+# Quickstart script: -p=a -f ma_x.py -c conf_ma_x_AI16Z.yml
 
 ORDER_REF_MA_X: str = "MA-X"
 SHORT_MA_LENGTH: int = 15  # 3 * 5
@@ -151,11 +154,13 @@ class ExcaliburStrategy(PkStrategy):
             triple_barrier = self.get_triple_barrier()
             amount_quote = self.get_position_quote_amount(TradeType.SELL)
             self.create_order(TradeType.SELL, self.get_current_close(), triple_barrier, amount_quote, ORDER_REF_MA_X)
+            self.tp_count = 0
 
         if self.can_create_ma_x_order(TradeType.BUY, active_orders):
             triple_barrier = self.get_triple_barrier()
             amount_quote = self.get_position_quote_amount(TradeType.BUY)
             self.create_order(TradeType.BUY, self.get_current_close(), triple_barrier, amount_quote, ORDER_REF_MA_X)
+            self.tp_count = 0
 
     def can_create_ma_x_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
         amount_quote = self.get_position_quote_amount(side)
@@ -204,6 +209,69 @@ class ExcaliburStrategy(PkStrategy):
             if self.did_short_ma_cross_under_long():
                 self.logger().info(f"stop_actions_proposal_ma_x() > Closing MA-X Buy at {self.get_current_close()}")
                 self.close_filled_orders(filled_buy_orders, OrderType.MARKET, CloseType.COMPLETED)
+
+    def did_fill_order(self, filled_event: OrderFilledEvent):
+        position = filled_event.position
+
+        if not position or position == PositionAction.CLOSE.value:
+            self.logger().info(f"did_fill_order | position:{position}")
+
+            for take_profit_limit_order in self.take_profit_limit_orders:
+                if take_profit_limit_order.order_id == filled_event.order_id:
+                    self.logger().info(f"did_fill_order | Take Profit price reached for tracked order:{take_profit_limit_order.tracked_order}")
+
+                    take_profit_limit_order.filled_amount = filled_event.amount
+                    take_profit_limit_order.filled_at = filled_event.timestamp
+                    take_profit_limit_order.filled_price = filled_event.price
+
+                    self.logger().info(f"did_fill_order | amount:{filled_event.amount} at price:{filled_event.price}")
+
+                    self.tp_count += 1
+
+                    for tracked_order in self.tracked_orders:
+                        if tracked_order.order_id == take_profit_limit_order.tracked_order.order_id:
+                            tracked_order.filled_amount -= filled_event.amount
+                            self.logger().info(f"did_fill_order | tracked_order.filled_amount reduced to:{tracked_order.filled_amount}")
+
+                            if tracked_order.filled_amount == 0:
+                                self.logger().info("did_fill_order > tracked_order.filled_amount == 0! Closing it")
+                                tracked_order.terminated_at = filled_event.timestamp
+                                tracked_order.close_type = CloseType.TAKE_PROFIT
+
+                            if not tracked_order.terminated_at and self.tp_count < self.config.max_take_profits:
+                                # We create the next TP Limit order
+                                take_profit_delta = self.config.tp_threshold_pct / 100
+                                take_profit_amount: Decimal = filled_event.amount  # Same amount as the TP order which was just filled
+
+                                take_profit_price = compute_take_profit_price(tracked_order.side, filled_event.price, take_profit_delta)
+                                self.logger().info(f"did_fill_order > Creating Limit TP order number {self.tp_count + 1}")
+                                self.logger().info(f"did_fill_order | take_profit_delta:{take_profit_delta} | take_profit_price:{take_profit_price} | take_profit_amount:{take_profit_amount}")
+                                self.create_tp_limit_order(tracked_order, take_profit_amount, take_profit_price)
+
+                            break
+
+                    break
+
+            return
+
+        for tracked_order in self.tracked_orders:
+            if tracked_order.order_id == filled_event.order_id:
+                tracked_order.filled_amount += filled_event.amount
+                tracked_order.last_filled_at = filled_event.timestamp
+                tracked_order.last_filled_price = filled_event.price
+
+                self.logger().info(f"did_fill_order | amount:{filled_event.amount} at price:{filled_event.price}")
+
+                take_profit_delta = self.config.tp_threshold_pct / 100
+                ratio_with_initial_amount: Decimal = Decimal(100 / self.config.max_take_profits / 100)  # 100 / 4 / 100 = 0.25
+                take_profit_amount: Decimal = filled_event.amount * ratio_with_initial_amount
+
+                take_profit_price = compute_take_profit_price(tracked_order.side, filled_event.price, take_profit_delta)
+                self.logger().info(f"did_fill_order > Creating Limit TP order number {self.tp_count + 1}")
+                self.logger().info(f"did_fill_order | take_profit_delta:{take_profit_delta} | take_profit_price:{take_profit_price} | take_profit_amount:{take_profit_amount}")
+                self.create_tp_limit_order(tracked_order, take_profit_amount, take_profit_price)
+
+                break
 
     #
     # Getters on `self.processed_data[]`

@@ -1,6 +1,6 @@
 markets: {}
 candles_config:
-- connector: bybit_perpetual
+- connector: binance_perpetual
   interval: 1m
   max_records: 1000
   trading_pair: VVV-USDT
@@ -12,6 +12,8 @@ leverage: 3
 unfilled_order_expiration: 60
 limit_take_profit_price_delta_bps: 0
 position_mode: ONEWAY
-amount_quote: 20.0
-should_open_position_at_launch: true
-max_delta_pct_between_price_and_long_ma: 3.6
+amount_quote: 60.0
+should_open_position_at_launch: false
+max_delta_pct_between_price_and_long_ma: 2.1875
+max_take_profits: 1
+tp_threshold_pct: 6.0
