@@ -40,5 +40,5 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     amount_quote: Decimal = 20.0
     should_open_position_at_launch: bool = False
     max_delta_pct_between_price_and_long_ma: Decimal = Decimal(1.75)
-    max_take_profits: int = 4
+    max_take_profits: int = 1
     tp_threshold_pct: Decimal = Decimal(3.5)
