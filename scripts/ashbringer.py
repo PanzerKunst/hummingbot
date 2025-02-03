@@ -309,12 +309,15 @@ class ExcaliburStrategy(PkStrategy):
 
     # TODO: remove
     def _check_unfilled_tps_which_shouldnt_be_there(self):
+        if self.nb_take_profits_left > 0:
+            return
+
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_TF)
 
         for filled_order in filled_sell_orders + filled_buy_orders:
             unfilled_limit_take_profit_orders = self.get_unfilled_tp_limit_orders(filled_order)
 
-            if len(unfilled_limit_take_profit_orders) > 0 and self.nb_take_profits_left == 0:
+            if len(unfilled_limit_take_profit_orders) > 0:
                 self.logger().info(f"_check_unfilled_tps_which_shouldnt_be_there > There is {len(unfilled_limit_take_profit_orders)} unfilled TPs left which shouldn't be there")
 
     #
