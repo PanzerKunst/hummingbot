@@ -39,7 +39,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     # Order settings
     amount_quote: Decimal = 70.0
     should_open_position_at_launch: bool = False
-    tp_pct: Decimal = Decimal(2.9)
+    tp_pct: Decimal = Decimal(2.6)
     tp_position_pct: int = 24
     tp_expiration_min: int = 5
     tp_cooldown_min: int = 6
