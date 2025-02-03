@@ -39,7 +39,9 @@ class ExcaliburStrategy(PkStrategy):
 
         self.processed_data = pd.DataFrame()
         self.latest_saved_candles_timestamp: float = 0
+
         self.has_opened_at_launch: bool = not config.should_open_position_at_launch
+        self.nb_take_profits_left: int = self.get_max_take_profits()
         self.latest_filled_tp_order: TakeProfitLimitOrder | None = None
 
     def start(self, clock: Clock, timestamp: float) -> None:
@@ -168,19 +170,17 @@ class ExcaliburStrategy(PkStrategy):
         active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_TF)
         active_orders = active_sell_orders + active_buy_orders
 
-        max_tps: int = math.floor(1 / self.config.tp_position_pct * 100)  # If tp_position_pct = 20%, we want maxTps = 5. 1 / 20 * 100 = 5
-
         if self.can_create_tf_order(TradeType.SELL, active_orders):
             triple_barrier = self.get_triple_barrier()
             amount_quote = self.get_position_quote_amount(TradeType.SELL)
             self.create_order(TradeType.SELL, self.get_current_close(), triple_barrier, amount_quote, ORDER_REF_TF)
-            self.nb_tps_left = max_tps
+            self.nb_take_profits_left = self.get_max_take_profits()
 
         if self.can_create_tf_order(TradeType.BUY, active_orders):
             triple_barrier = self.get_triple_barrier()
             amount_quote = self.get_position_quote_amount(TradeType.BUY)
             self.create_order(TradeType.BUY, self.get_current_close(), triple_barrier, amount_quote, ORDER_REF_TF)
-            self.nb_tps_left = max_tps
+            self.nb_take_profits_left = self.get_max_take_profits()
 
     def can_create_tf_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
         amount_quote = self.get_position_quote_amount(side)
@@ -244,11 +244,11 @@ class ExcaliburStrategy(PkStrategy):
 
             if self.latest_filled_tp_order.order_id != latest_filled_tp_order.order_id:
                 self.logger().info("check_for_newly_filled_tp > we got a new one!")
-                self.nb_tps_left -= 1
+                self.nb_take_profits_left -= 1
                 self.latest_filled_tp_order = latest_filled_tp_order
 
     def create_actions_proposal_tp(self):
-        if self.nb_tps_left == 0:
+        if self.nb_take_profits_left == 0:
             return
 
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_TF)
@@ -338,6 +338,9 @@ class ExcaliburStrategy(PkStrategy):
     #     max_trade_duration = self.config.nb_days_trading_post_launch * 24 * 60 * 60  # seconds
     #
     #     return start_of_today_timestamp <= launch_timestamp + max_trade_duration
+
+    def get_max_take_profits(self) -> int:
+        return math.floor(1 / self.config.tp_position_pct * 100)  # If tp_position_pct = 20%, we want maxTps = 5. 1 / 20 * 100 = 5
 
     def did_short_ma_cross_under_long(self) -> bool:
         return not self.is_latest_short_ma_over_long() and self.is_previous_short_ma_over_long()
