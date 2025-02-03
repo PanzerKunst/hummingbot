@@ -24,6 +24,7 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 # Quickstart script: -p=a -f ashbringer.py -c conf_ashbringer_AI16Z.yml
 
 ORDER_REF_TF: str = "TrendFollowing"
+CANDLE_DURATION_MINUTES: int = 1
 SHORT_MA_LENGTH: int = 15  # 3 * 5
 LONG_MA_LENGTH: int = 285  # 3 * 95
 
@@ -37,6 +38,7 @@ class ExcaliburStrategy(PkStrategy):
         super().__init__(connectors, config)
 
         self.processed_data = pd.DataFrame()
+        self.latest_saved_candles_timestamp: float = 0
         self.has_opened_at_launch: bool = not config.should_open_position_at_launch
         self.latest_filled_tp_order: TakeProfitLimitOrder | None = None
 
@@ -64,6 +66,8 @@ class ExcaliburStrategy(PkStrategy):
         if num_rows == 0:
             return
 
+        self.check_if_candles_missed_beats(candles_df["timestamp"])
+
         candles_df["index"] = candles_df["timestamp"]
         candles_df.set_index("index", inplace=True)
 
@@ -75,6 +79,19 @@ class ExcaliburStrategy(PkStrategy):
         candles_df.dropna(inplace=True)
 
         self.processed_data = candles_df
+
+    def check_if_candles_missed_beats(self, timestamp_series: pd.Series):
+        current_timestamp: float = timestamp_series.iloc[-1]
+
+        if self.latest_saved_candles_timestamp == 0:
+            self.latest_saved_candles_timestamp = current_timestamp
+
+        delta: int = int(current_timestamp - self.latest_saved_candles_timestamp)
+
+        if delta > CANDLE_DURATION_MINUTES * 60:
+            self.logger().error(f"check_if_candles_missed_beats() | missed {delta/60} minutes between the last two candles fetch")
+
+        self.latest_saved_candles_timestamp = current_timestamp
 
     def create_actions_proposal(self) -> List[CreateExecutorAction]:
         self.update_processed_data()
