@@ -365,7 +365,7 @@ class ExcaliburStrategy(PkStrategy):
     #     return start_of_today_timestamp <= launch_timestamp + max_trade_duration
 
     def get_max_take_profits(self) -> int:
-        return math.floor(1 / self.config.tp_position_pct * 100)  # If tp_position_pct = 20%, we want maxTps = 5. 1 / 20 * 100 = 5
+        return math.floor(1 / self.config.tp_position_pct * 100)  # If tp_position_pct = 24%, we want maxTps = 4. 1 / 24 * 100 = 4.16
 
     def did_short_ma_cross_under_long(self) -> bool:
         return not self.is_latest_short_ma_over_long() and self.is_previous_short_ma_over_long()
