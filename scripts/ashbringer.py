@@ -248,7 +248,7 @@ class ExcaliburStrategy(PkStrategy):
 
             self.logger().info(f"check_for_newly_filled_tp | latest_filled_tp_order:{latest_filled_tp_order}")
 
-            if self.latest_filled_tp_order.order_id != latest_filled_tp_order.order_id:
+            if not self.latest_filled_tp_order or self.latest_filled_tp_order.order_id != latest_filled_tp_order.order_id:
                 self.logger().info("check_for_newly_filled_tp > we got a new one!")
                 self.nb_take_profits_left -= 1
                 self.latest_filled_tp_order = latest_filled_tp_order
