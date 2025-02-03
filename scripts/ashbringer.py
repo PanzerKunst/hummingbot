@@ -176,11 +176,17 @@ class ExcaliburStrategy(PkStrategy):
             self.create_order(TradeType.SELL, self.get_current_close(), triple_barrier, amount_quote, ORDER_REF_TF)
             self.nb_take_profits_left = self.get_max_take_profits()
 
+            # TODO: remove
+            self.logger().info(f"create_actions_proposal_tf() > created SELL order | self.nb_take_profits_left:{self.nb_take_profits_left}")
+
         if self.can_create_tf_order(TradeType.BUY, active_orders):
             triple_barrier = self.get_triple_barrier()
             amount_quote = self.get_position_quote_amount(TradeType.BUY)
             self.create_order(TradeType.BUY, self.get_current_close(), triple_barrier, amount_quote, ORDER_REF_TF)
             self.nb_take_profits_left = self.get_max_take_profits()
+
+            # TODO: remove
+            self.logger().info(f"create_actions_proposal_tf() > created BUY order | self.nb_take_profits_left:{self.nb_take_profits_left}")
 
     def can_create_tf_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
         amount_quote = self.get_position_quote_amount(side)
@@ -249,6 +255,10 @@ class ExcaliburStrategy(PkStrategy):
 
     def create_actions_proposal_tp(self):
         if self.nb_take_profits_left == 0:
+
+            # TODO: remove
+            self.logger().info("create_actions_proposal_tp > self.nb_take_profits_left == 0")
+
             return
 
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_TF)
