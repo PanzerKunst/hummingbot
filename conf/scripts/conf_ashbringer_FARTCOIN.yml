@@ -3,17 +3,18 @@ candles_config:
 - connector: binance_perpetual
   interval: 1m
   max_records: 1000
-  trading_pair: TRUMP-USDT
+  trading_pair: FARTCOIN-USDT
 controllers_config: []
 config_update_interval: 10
 connector_name: hyperliquid_perpetual
-trading_pair: TRUMP-USD
-leverage: 10
+trading_pair: FARTCOIN-USD
+leverage: 3
 unfilled_order_expiration: 60
 limit_take_profit_price_delta_bps: 0
 position_mode: ONEWAY
-amount_quote: 60.0
+amount_quote: 70.0
 should_open_position_at_launch: false
-max_delta_pct_between_price_and_long_ma: 1.5
-max_take_profits: 1
-tp_threshold_pct: 3.5
+tp_pct: 2.9
+tp_position_pct: 24
+tp_expiration_min: 5
+tp_cooldown_min: 6

@@ -1,3 +1,4 @@
+import math
 from decimal import Decimal
 from typing import Dict, List
 
@@ -6,27 +7,23 @@ import pandas as pd
 from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.clock import Clock
-from hummingbot.core.data_type.common import OrderType, PositionAction, TradeType
-from hummingbot.core.event.events import OrderFilledEvent
+from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
 from hummingbot.strategy_v2.models.executors import CloseType
-from scripts.ma_x_config import ExcaliburConfig
+from scripts.ashbringer_config import ExcaliburConfig
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
-from scripts.pk.pk_utils import compute_take_profit_price
+from scripts.pk.pk_utils import compute_take_profit_price, has_unfilled_order_expired
+from scripts.pk.take_profit_limit_order import TakeProfitLimitOrder
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
-# Generate config file: create --script-config ma_x
-# Start the bot: start --script ma_x.py --conf conf_ma_x_AI16Z.yml
-#                start --script ma_x.py --conf conf_ma_x_AIXBT.yml
-#                start --script ma_x.py --conf conf_ma_x_FARTCOIN.yml
-#                start --script ma_x.py --conf conf_ma_x_SPX.yml
-#                start --script ma_x.py --conf conf_ma_x_TRUMP.yml
-#                start --script ma_x.py --conf conf_ma_x_VINE.yml
-#                start --script ma_x.py --conf conf_ma_x_VVV.yml
-# Quickstart script: -p=a -f ma_x.py -c conf_ma_x_AI16Z.yml
+# Generate config file: create --script-config ashbringer
+# Start the bot: start --script ashbringer.py --conf conf_ashbringer_AI16Z.yml
+#                start --script ashbringer.py --conf conf_ashbringer_FARTCOIN.yml
+#                start --script ashbringer.py --conf conf_ashbringer_VINE.yml
+# Quickstart script: -p=a -f ashbringer.py -c conf_ashbringer_AI16Z.yml
 
-ORDER_REF_MA_X: str = "MA-X"
+ORDER_REF_TF: str = "TrendFollowing"
 SHORT_MA_LENGTH: int = 15  # 3 * 5
 LONG_MA_LENGTH: int = 285  # 3 * 95
 
@@ -41,6 +38,7 @@ class ExcaliburStrategy(PkStrategy):
 
         self.processed_data = pd.DataFrame()
         self.has_opened_at_launch: bool = not config.should_open_position_at_launch
+        self.latest_filled_tp_order: TakeProfitLimitOrder | None = None
 
     def start(self, clock: Clock, timestamp: float) -> None:
         self._last_timestamp = timestamp
@@ -91,7 +89,9 @@ class ExcaliburStrategy(PkStrategy):
         #     self.logger().info("create_actions_proposal() > Stopping the bot as the coin is no longer tradable")
         #     HummingbotApplication.main_application().stop()
 
-        self.create_actions_proposal_ma_x()
+        self.check_for_newly_filled_tp()
+        self.create_actions_proposal_tf()
+        self.create_actions_proposal_tp()
 
         return []  # Always return []
 
@@ -102,7 +102,8 @@ class ExcaliburStrategy(PkStrategy):
             return []
 
         self.check_orders()
-        self.stop_actions_proposal_ma_x()
+        self.stop_actions_proposal_tf()
+        self.stop_actions_proposal_tp()
 
         return []  # Always return []
 
@@ -143,135 +144,139 @@ class ExcaliburStrategy(PkStrategy):
         )
 
     #
-    # MA-X start/stop action proposals
+    # TF start/stop action proposals
     #
 
-    def create_actions_proposal_ma_x(self):
-        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_MA_X)
+    def create_actions_proposal_tf(self):
+        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_TF)
         active_orders = active_sell_orders + active_buy_orders
 
-        if self.can_create_ma_x_order(TradeType.SELL, active_orders):
+        max_tps: int = math.floor(1 / self.config.tp_position_pct * 100)  # If tp_position_pct = 20%, we want maxTps = 5. 1 / 20 * 100 = 5
+
+        if self.can_create_tf_order(TradeType.SELL, active_orders):
             triple_barrier = self.get_triple_barrier()
             amount_quote = self.get_position_quote_amount(TradeType.SELL)
-            self.create_order(TradeType.SELL, self.get_current_close(), triple_barrier, amount_quote, ORDER_REF_MA_X)
-            self.tp_count = 0
+            self.create_order(TradeType.SELL, self.get_current_close(), triple_barrier, amount_quote, ORDER_REF_TF)
+            self.nb_tps_left = max_tps
 
-        if self.can_create_ma_x_order(TradeType.BUY, active_orders):
+        if self.can_create_tf_order(TradeType.BUY, active_orders):
             triple_barrier = self.get_triple_barrier()
             amount_quote = self.get_position_quote_amount(TradeType.BUY)
-            self.create_order(TradeType.BUY, self.get_current_close(), triple_barrier, amount_quote, ORDER_REF_MA_X)
-            self.tp_count = 0
+            self.create_order(TradeType.BUY, self.get_current_close(), triple_barrier, amount_quote, ORDER_REF_TF)
+            self.nb_tps_left = max_tps
 
-    def can_create_ma_x_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
+    def can_create_tf_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
         amount_quote = self.get_position_quote_amount(side)
 
-        if not self.can_create_order(side, amount_quote, ORDER_REF_MA_X, 0):
+        if not self.can_create_order(side, amount_quote, ORDER_REF_TF, 0):
             return False
 
         if len(active_tracked_orders) > 0:
             return False
 
-        if self.is_price_too_far_from_long_ma():
-            return False
-
         if side == TradeType.SELL:
             if not self.has_opened_at_launch and not self.is_latest_short_ma_over_long():
                 self.has_opened_at_launch = True
-                self.logger().info(f"can_create_ma_x_order() > Opening initial MA-X Sell at {self.get_current_close()}")
+                self.logger().info(f"can_create_tf_order() > Opening initial TF Sell at {self.get_current_close()}")
                 return True
 
             elif self.did_short_ma_cross_under_long():
-                self.logger().info(f"can_create_ma_x_order() > Opening MA-X Sell at {self.get_current_close()}")
+                self.logger().info(f"can_create_tf_order() > Opening TF Sell at {self.get_current_close()}")
                 return True
 
             return False
 
         if not self.has_opened_at_launch and self.is_latest_short_ma_over_long():
             self.has_opened_at_launch = True
-            self.logger().info(f"can_create_ma_x_order() > Opening initial MA-X Buy at {self.get_current_close()}")
+            self.logger().info(f"can_create_tf_order() > Opening initial TF Buy at {self.get_current_close()}")
             return True
 
         elif self.did_short_ma_cross_over_long():
-            self.logger().info(f"can_create_ma_x_order() > Opening MA-X Buy at {self.get_current_close()}")
+            self.logger().info(f"can_create_tf_order() > Opening TF Buy at {self.get_current_close()}")
             return True
 
         return False
 
-    def stop_actions_proposal_ma_x(self):
-        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_MA_X)
+    def stop_actions_proposal_tf(self):
+        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_TF)
 
         if len(filled_sell_orders) > 0:
             if self.did_short_ma_cross_over_long():
-                self.logger().info(f"stop_actions_proposal_ma_x() > Closing MA-X Sell at {self.get_current_close()}")
+                self.logger().info(f"stop_actions_proposal_tf() > Closing TF Sell at {self.get_current_close()}")
                 self.close_filled_orders(filled_sell_orders, OrderType.MARKET, CloseType.COMPLETED)
 
         if len(filled_buy_orders) > 0:
             if self.did_short_ma_cross_under_long():
-                self.logger().info(f"stop_actions_proposal_ma_x() > Closing MA-X Buy at {self.get_current_close()}")
+                self.logger().info(f"stop_actions_proposal_tf() > Closing TF Buy at {self.get_current_close()}")
                 self.close_filled_orders(filled_buy_orders, OrderType.MARKET, CloseType.COMPLETED)
 
-    def did_fill_order(self, filled_event: OrderFilledEvent):
-        position = filled_event.position
+    #
+    # TP start/stop action proposals
+    #
 
-        if not position or position == PositionAction.CLOSE.value:
-            self.logger().info(f"did_fill_order | position:{position}")
+    def check_for_newly_filled_tp(self):
+        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_TF)
 
-            for take_profit_limit_order in self.take_profit_limit_orders:
-                if take_profit_limit_order.order_id == filled_event.order_id:
-                    self.logger().info(f"did_fill_order | Take Profit price reached for tracked order:{take_profit_limit_order.tracked_order}")
+        for filled_tf_order in filled_sell_orders + filled_buy_orders:
+            latest_filled_tp_order: TakeProfitLimitOrder | None = self.get_latest_filled_tp_limit_order(filled_tf_order)
 
-                    take_profit_limit_order.filled_amount = filled_event.amount
-                    take_profit_limit_order.filled_at = filled_event.timestamp
-                    take_profit_limit_order.filled_price = filled_event.price
+            if not latest_filled_tp_order:
+                break
 
-                    self.logger().info(f"did_fill_order | amount:{filled_event.amount} at price:{filled_event.price}")
+            self.logger().info(f"check_for_newly_filled_tp | latest_filled_tp_order:{latest_filled_tp_order}")
 
-                    self.tp_count += 1
+            if self.latest_filled_tp_order.order_id != latest_filled_tp_order.order_id:
+                self.logger().info("check_for_newly_filled_tp > we got a new one!")
+                self.nb_tps_left -= 1
+                self.latest_filled_tp_order = latest_filled_tp_order
 
-                    for tracked_order in self.tracked_orders:
-                        if tracked_order.order_id == take_profit_limit_order.tracked_order.order_id:
-                            tracked_order.filled_amount -= filled_event.amount
-                            self.logger().info(f"did_fill_order | tracked_order.filled_amount reduced to:{tracked_order.filled_amount}")
-
-                            if tracked_order.filled_amount == 0:
-                                self.logger().info("did_fill_order > tracked_order.filled_amount == 0! Closing it")
-                                tracked_order.terminated_at = filled_event.timestamp
-                                tracked_order.close_type = CloseType.TAKE_PROFIT
-
-                            if not tracked_order.terminated_at and self.tp_count < self.config.max_take_profits:
-                                # We create the next TP Limit order
-                                take_profit_delta = self.config.tp_threshold_pct / 100
-                                take_profit_amount: Decimal = filled_event.amount  # Same amount as the TP order which was just filled
-
-                                take_profit_price = compute_take_profit_price(tracked_order.side, filled_event.price, take_profit_delta)
-                                self.logger().info(f"did_fill_order > Creating Limit TP order number {self.tp_count + 1}")
-                                self.logger().info(f"did_fill_order | take_profit_delta:{take_profit_delta} | take_profit_price:{take_profit_price} | take_profit_amount:{take_profit_amount}")
-                                self.create_tp_limit_order(tracked_order, take_profit_amount, take_profit_price)
-
-                            break
-
-                    break
-
+    def create_actions_proposal_tp(self):
+        if self.nb_tps_left == 0:
             return
 
-        for tracked_order in self.tracked_orders:
-            if tracked_order.order_id == filled_event.order_id:
-                tracked_order.filled_amount += filled_event.amount
-                tracked_order.last_filled_at = filled_event.timestamp
-                tracked_order.last_filled_price = filled_event.price
+        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_TF)
 
-                self.logger().info(f"did_fill_order | amount:{filled_event.amount} at price:{filled_event.price}")
+        if self._is_tp_cooling_down(filled_sell_orders + filled_buy_orders):
+            return
 
-                take_profit_delta = self.config.tp_threshold_pct / 100
-                ratio_with_initial_amount: Decimal = Decimal(100 / self.config.max_take_profits / 100)  # 100 / 4 / 100 = 0.25
-                take_profit_amount: Decimal = filled_event.amount * ratio_with_initial_amount
+        if len(filled_sell_orders) > 0:
+            for filled_order in filled_sell_orders:
+                unfilled_tp_orders = self.get_unfilled_tp_limit_orders(filled_order)
 
-                take_profit_price = compute_take_profit_price(tracked_order.side, filled_event.price, take_profit_delta)
-                self.logger().info(f"did_fill_order > Creating Limit TP order number {self.tp_count + 1}")
-                self.logger().info(f"did_fill_order | take_profit_delta:{take_profit_delta} | take_profit_price:{take_profit_price} | take_profit_amount:{take_profit_amount}")
-                self.create_tp_limit_order(tracked_order, take_profit_amount, take_profit_price)
+                if len(unfilled_tp_orders) == 0:
+                    tp_amount: Decimal = filled_order.amount * self.config.tp_position_pct / 100
+                    tp_price: Decimal = compute_take_profit_price(TradeType.SELL, self.get_current_close(), self.config.tp_pct / 100)
+                    self.create_tp_limit_order(filled_order, tp_amount, tp_price)
 
-                break
+        if len(filled_buy_orders) > 0:
+            for filled_order in filled_buy_orders:
+                unfilled_tp_orders = self.get_unfilled_tp_limit_orders(filled_order)
+
+                if len(unfilled_tp_orders) == 0:
+                    tp_amount: Decimal = filled_order.amount * self.config.tp_position_pct / 100
+                    tp_price: Decimal = compute_take_profit_price(TradeType.BUY, self.get_current_close(), self.config.tp_pct / 100)
+                    self.create_tp_limit_order(filled_order, tp_amount, tp_price)
+
+    def _is_tp_cooling_down(self, filled_orders) -> bool:
+        for filled_order in filled_orders:
+            latest_filled_tp_order: TakeProfitLimitOrder | None = self.get_latest_filled_tp_limit_order(filled_order)
+
+            if not latest_filled_tp_order:
+                continue
+
+            is_cooling_down: bool = latest_filled_tp_order.last_filled_at + self.config.tp_cooldown_min * 60 > self.get_market_data_provider_time()
+
+            if is_cooling_down:
+                self.logger().info("_is_tp_cooling_down > TRUE")
+                return True
+
+        return False
+
+    def stop_actions_proposal_tp(self):
+        for take_profit_limit_order in self.take_profit_limit_orders:
+            if has_unfilled_order_expired(take_profit_limit_order, self.config.tp_expiration_min * 60, self.get_market_data_provider_time()):
+                self.logger().info("Unfilled TP order has expired")
+                self.cancel_take_profit_for_order(take_profit_limit_order.tracked_order)
 
     #
     # Getters on `self.processed_data[]`
@@ -307,7 +312,7 @@ class ExcaliburStrategy(PkStrategy):
         return Decimal(sma_series.iloc[index])
 
     #
-    # MA-X functions
+    # TF functions
     #
 
     # def is_coin_still_tradable(self) -> bool:
@@ -316,18 +321,6 @@ class ExcaliburStrategy(PkStrategy):
     #     max_trade_duration = self.config.nb_days_trading_post_launch * 24 * 60 * 60  # seconds
     #
     #     return start_of_today_timestamp <= launch_timestamp + max_trade_duration
-
-    def is_price_too_far_from_long_ma(self) -> bool:
-        current_price: Decimal = self.get_current_close()
-        current_long_ma: Decimal = self.get_current_ma(LONG_MA_LENGTH)
-
-        price_delta_pct: Decimal = abs(current_long_ma - current_price) / current_price * 100
-        is_too_far: bool = price_delta_pct > self.config.max_delta_pct_between_price_and_long_ma
-
-        if is_too_far:
-            self.logger().info(f"is_price_too_far_from_long_ma() | price_delta_pct:{price_delta_pct}")
-
-        return is_too_far
 
     def did_short_ma_cross_under_long(self) -> bool:
         return not self.is_latest_short_ma_over_long() and self.is_previous_short_ma_over_long()

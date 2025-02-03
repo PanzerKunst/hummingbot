@@ -17,7 +17,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
             connector="binance_perpetual",
             interval="1m",
             max_records=1000,  # Need a lot of history to correcly compute EMAs
-            trading_pair = "ANIME-USDT"
+            trading_pair = "AI16Z-USDT"
         )
     ])
 
@@ -27,8 +27,8 @@ class ExcaliburConfig(StrategyV2ConfigBase):
 
     # Used by PkStrategy
     connector_name: str = "hyperliquid_perpetual"
-    trading_pair: str = "ANIME-USD"
-    leverage: int = 3
+    trading_pair: str = "AI16Z-USD"
+    leverage: int = 5
     unfilled_order_expiration: int = 60
     limit_take_profit_price_delta_bps: int = 0
 
@@ -37,8 +37,9 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     # Triple Barrier
 
     # Order settings
-    amount_quote: Decimal = 20.0
+    amount_quote: Decimal = 70.0
     should_open_position_at_launch: bool = False
-    max_delta_pct_between_price_and_long_ma: Decimal = Decimal(1.75)
-    max_take_profits: int = 1
-    tp_threshold_pct: Decimal = Decimal(3.5)
+    tp_pct: Decimal = Decimal(2.9)
+    tp_position_pct: int = 24
+    tp_expiration_min: int = 5
+    tp_cooldown_min: int = 6
