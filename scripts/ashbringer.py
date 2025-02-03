@@ -305,6 +305,18 @@ class ExcaliburStrategy(PkStrategy):
                 self.logger().info("Unfilled TP order has expired")
                 self.cancel_take_profit_for_order(take_profit_limit_order.tracked_order)
 
+        self._check_unfilled_tps_which_shouldnt_be_there()
+
+    # TODO: remove
+    def _check_unfilled_tps_which_shouldnt_be_there(self):
+        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_TF)
+
+        for filled_order in filled_sell_orders + filled_buy_orders:
+            unfilled_limit_take_profit_orders = self.get_unfilled_tp_limit_orders(filled_order)
+
+            if len(unfilled_limit_take_profit_orders) > 0 and self.nb_take_profits_left == 0:
+                self.logger().info(f"_check_unfilled_tps_which_shouldnt_be_there > There is {len(unfilled_limit_take_profit_orders)} unfilled TPs left which shouldn't be there")
+
     #
     # Getters on `self.processed_data[]`
     #
