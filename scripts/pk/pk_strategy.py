@@ -16,8 +16,6 @@ from scripts.pk.pk_utils import (
     has_current_price_reached_take_profit,
     has_filled_order_reached_time_limit,
     has_unfilled_order_expired,
-    should_close_trailing_stop,
-    update_trailing_stop,
 )
 from scripts.pk.take_profit_limit_order import TakeProfitLimitOrder
 from scripts.pk.tracked_order_details import TrackedOrderDetails
@@ -182,7 +180,7 @@ class PkStrategy(StrategyV2Base):
                 trading_pair=trading_pair,
                 side=TradeType.BUY,
                 order_id=order_id,
-                amount = amount,
+                amount=amount,
                 entry_price=entry_price,
                 triple_barrier=triple_barrier,
                 ref=ref,
@@ -217,7 +215,7 @@ class PkStrategy(StrategyV2Base):
             self.take_profit_limit_orders.append(TakeProfitLimitOrder(
                 order_id=order_id,
                 tracked_order=tracked_order,
-                amount = amount,
+                amount=amount,
                 entry_price=entry_price,
                 created_at=self.get_market_data_provider_time()
             ))
@@ -325,11 +323,14 @@ class PkStrategy(StrategyV2Base):
                 if take_profit_limit_order.order_id == filled_event.order_id:
                     self.logger().info(f"did_fill_order | Take Profit price reached for tracked order:{take_profit_limit_order.tracked_order}")
 
-                    take_profit_limit_order.filled_amount = filled_event.amount
+                    take_profit_limit_order.filled_amount += filled_event.amount
                     take_profit_limit_order.last_filled_at = filled_event.timestamp
                     take_profit_limit_order.last_filled_price = filled_event.price
 
                     self.logger().info(f"did_fill_order | amount:{filled_event.amount} at price:{filled_event.price}")
+
+                    if take_profit_limit_order.filled_amount != take_profit_limit_order.amount:
+                        self.logger().info("did_fill_order > OMG we got a partial fill of a limit TP!!!")
 
                     for tracked_order in self.tracked_orders:
                         if tracked_order.order_id == take_profit_limit_order.tracked_order.order_id:
@@ -420,20 +421,6 @@ class PkStrategy(StrategyV2Base):
                 self.logger().info(f"current_price_has_reached_take_profit | current_price:{current_price}")
                 take_profit_order_type = filled_order.triple_barrier.take_profit_order_type
                 self.close_filled_order(filled_order, take_profit_order_type, CloseType.TAKE_PROFIT)
-                continue
-
-            update_trailing_stop(filled_order, current_price)
-
-            if filled_order.trailing_stop_best_price and filled_order.triple_barrier.time_limit:
-                filled_order.triple_barrier.time_limit = None  # We disable the time limit
-
-            if filled_order.trailing_stop_best_price == current_price:
-                self.logger().info(f"Updated trailing_stop_best_price to:{filled_order.trailing_stop_best_price}")
-
-            if should_close_trailing_stop(filled_order, current_price):
-                self.logger().info(f"should_close_trailing_stop | current_price:{current_price}")
-                take_profit_order_type = filled_order.triple_barrier.take_profit_order_type
-                self.close_filled_order(filled_order, take_profit_order_type, CloseType.TRAILING_STOP)
                 continue
 
             if has_filled_order_reached_time_limit(filled_order, self.get_market_data_provider_time()):

@@ -11,6 +11,6 @@ class TakeProfitLimitOrder:
     amount: Decimal
     entry_price: Decimal
     created_at: float
-    filled_amount: Decimal = Decimal(0)
+    filled_amount: Decimal = 0
     last_filled_at: float | None = None
     last_filled_price: Decimal | None = None

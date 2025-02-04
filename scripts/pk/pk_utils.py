@@ -6,7 +6,6 @@ import pandas as pd
 
 from hummingbot.connector.derivative.position import Position
 from hummingbot.core.data_type.common import TradeType
-from scripts.pk.pk_trailing_stop import PkTrailingStop
 from scripts.pk.take_profit_limit_order import TakeProfitLimitOrder
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
@@ -89,39 +88,6 @@ def has_current_price_reached_take_profit(tracked_order: TrackedOrderDetails, cu
         return current_price < take_profit_price
 
     return current_price > take_profit_price
-
-
-def update_trailing_stop(tracked_order: TrackedOrderDetails, current_price: Decimal):
-    trailing_stop: PkTrailingStop | None = tracked_order.triple_barrier.trailing_stop
-
-    if not trailing_stop:
-        return
-
-    side: TradeType = tracked_order.side
-    activation_price: Decimal = compute_take_profit_price(side, tracked_order.last_filled_price, trailing_stop.activation_delta)
-    price_to_compare: Decimal = tracked_order.trailing_stop_best_price or activation_price
-
-    if side == TradeType.SELL:
-        if current_price < price_to_compare:
-            tracked_order.trailing_stop_best_price = current_price
-        return
-
-    if current_price > price_to_compare:
-        tracked_order.trailing_stop_best_price = current_price
-
-
-def should_close_trailing_stop(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
-    trailing_stop: PkTrailingStop | None = tracked_order.triple_barrier.trailing_stop
-
-    if not trailing_stop or not tracked_order.trailing_stop_best_price:
-        return False
-
-    trailing_delta: Decimal = trailing_stop.trailing_delta
-
-    if tracked_order.side == TradeType.SELL:
-        return current_price > tracked_order.trailing_stop_best_price * (1 + trailing_delta)
-
-    return current_price < tracked_order.trailing_stop_best_price * (1 - trailing_delta)
 
 
 def has_unfilled_order_expired(order: TrackedOrderDetails | TakeProfitLimitOrder, expiration: int, current_timestamp: float) -> bool:
