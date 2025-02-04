@@ -19,6 +19,7 @@ from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 # Generate config file: create --script-config ashbringer
 # Start the bot: start --script ashbringer.py --conf conf_ashbringer_AI16Z.yml
+#                start --script ashbringer.py --conf conf_ashbringer_AIXBT.yml
 #                start --script ashbringer.py --conf conf_ashbringer_FARTCOIN.yml
 #                start --script ashbringer.py --conf conf_ashbringer_VINE.yml
 # Quickstart script: -p=a -f ashbringer.py -c conf_ashbringer_AI16Z.yml
@@ -247,6 +248,7 @@ class ExcaliburStrategy(PkStrategy):
         if not latest_filled_tp_order:
             return
 
+        # TODO: remove
         self.logger().info(f"check_for_newly_filled_tp | latest_filled_tp_order:{latest_filled_tp_order}")
 
         if not self.latest_filled_tp_order or self.latest_filled_tp_order.order_id != latest_filled_tp_order.order_id:
@@ -262,10 +264,10 @@ class ExcaliburStrategy(PkStrategy):
 
             return
 
-        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_TF)
-
         if self.is_tp_cooling_down():
             return
+
+        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_TF)
 
         if len(filled_sell_orders) > 0:
             for filled_tf_order in filled_sell_orders:
