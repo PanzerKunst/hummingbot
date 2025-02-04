@@ -113,12 +113,22 @@ class PkStrategy(StrategyV2Base):
         filled_buy_orders = [order for order in active_buy_orders if order.last_filled_at]
         return filled_sell_orders, filled_buy_orders
 
-    def get_tp_limit_orders(self, tracked_order: TrackedOrderDetails) -> List[TakeProfitLimitOrder]:
-        return [order for order in self.take_profit_limit_orders if order.tracked_order.order_id == tracked_order.order_id]
+    def get_all_unfilled_tp_limit_orders(self) -> List[TakeProfitLimitOrder]:
+        return [order for order in self.take_profit_limit_orders if not order.last_filled_at]
+
+    def get_all_filled_tp_limit_orders(self) -> List[TakeProfitLimitOrder]:
+        return [order for order in self.take_profit_limit_orders if order.last_filled_at]
 
     def get_unfilled_tp_limit_orders(self, tracked_order: TrackedOrderDetails) -> List[TakeProfitLimitOrder]:
-        tp_limit_orders: List[TakeProfitLimitOrder] = self.get_tp_limit_orders(tracked_order)
-        return [order for order in tp_limit_orders if not order.filled_at]
+        return [order for order in self.get_all_unfilled_tp_limit_orders() if order.tracked_order.order_id == tracked_order.order_id]
+
+    def get_latest_filled_tp_limit_order(self) -> TakeProfitLimitOrder | None:
+        filled_tp_orders = self.get_all_filled_tp_limit_orders()
+
+        if len(filled_tp_orders) == 0:
+            return None
+
+        return filled_tp_orders[-1]  # The latest filled TP is necessarily the last one created
 
     def create_order(self, side: TradeType, entry_price: Decimal, triple_barrier: TripleBarrier, amount_quote: Decimal, ref: str):
         executor_config = self.get_executor_config(side, entry_price, amount_quote)
@@ -183,31 +193,31 @@ class PkStrategy(StrategyV2Base):
 
         self.logger().info(f"create_order: {self.tracked_orders[-1]}")
 
-    def create_tp_limit_order(self, tracked_order: TrackedOrderDetails, filled_amount: Decimal, entry_price: Decimal):
+    def create_tp_limit_order(self, tracked_order: TrackedOrderDetails, amount: Decimal, entry_price: Decimal):
         side: TradeType = TradeType.SELL if tracked_order.side == TradeType.BUY else TradeType.BUY
         trading_pair: str = tracked_order.trading_pair
 
-        executor_config = self.get_executor_config(side, entry_price, filled_amount)
+        executor_config = self.get_executor_config(side, entry_price, amount)
         connector_name: str = executor_config.connector_name
 
         if executor_config.side == TradeType.SELL:
-            order_id = self.sell(connector_name, trading_pair, filled_amount, OrderType.LIMIT, entry_price, PositionAction.CLOSE)
+            order_id = self.sell(connector_name, trading_pair, amount, OrderType.LIMIT, entry_price, PositionAction.CLOSE)
 
             self.take_profit_limit_orders.append(TakeProfitLimitOrder(
                 order_id=order_id,
                 tracked_order=tracked_order,
-                amount=filled_amount,
+                amount=amount,
                 entry_price=entry_price,
                 created_at=self.get_market_data_provider_time()
             ))
 
         else:
-            order_id = self.buy(connector_name, trading_pair, filled_amount, OrderType.LIMIT, entry_price, PositionAction.CLOSE)
+            order_id = self.buy(connector_name, trading_pair, amount, OrderType.LIMIT, entry_price, PositionAction.CLOSE)
 
             self.take_profit_limit_orders.append(TakeProfitLimitOrder(
                 order_id=order_id,
                 tracked_order=tracked_order,
-                amount = filled_amount,
+                amount=amount,
                 entry_price=entry_price,
                 created_at=self.get_market_data_provider_time()
             ))
@@ -316,8 +326,8 @@ class PkStrategy(StrategyV2Base):
                     self.logger().info(f"did_fill_order | Take Profit price reached for tracked order:{take_profit_limit_order.tracked_order}")
 
                     take_profit_limit_order.filled_amount = filled_event.amount
-                    take_profit_limit_order.filled_at = filled_event.timestamp
-                    take_profit_limit_order.filled_price = filled_event.price
+                    take_profit_limit_order.last_filled_at = filled_event.timestamp
+                    take_profit_limit_order.last_filled_price = filled_event.price
 
                     self.logger().info(f"did_fill_order | amount:{filled_event.amount} at price:{filled_event.price}")
 

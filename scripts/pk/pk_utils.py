@@ -7,6 +7,7 @@ import pandas as pd
 from hummingbot.connector.derivative.position import Position
 from hummingbot.core.data_type.common import TradeType
 from scripts.pk.pk_trailing_stop import PkTrailingStop
+from scripts.pk.take_profit_limit_order import TakeProfitLimitOrder
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
@@ -123,8 +124,8 @@ def should_close_trailing_stop(tracked_order: TrackedOrderDetails, current_price
     return current_price < tracked_order.trailing_stop_best_price * (1 - trailing_delta)
 
 
-def has_unfilled_order_expired(tracked_order: TrackedOrderDetails, expiration: int, current_timestamp: float) -> bool:
-    created_at = tracked_order.created_at
+def has_unfilled_order_expired(order: TrackedOrderDetails | TakeProfitLimitOrder, expiration: int, current_timestamp: float) -> bool:
+    created_at = order.created_at
 
     return created_at + expiration < current_timestamp
 
