@@ -267,26 +267,26 @@ class ExcaliburStrategy(PkStrategy):
             return
 
         if len(filled_sell_orders) > 0:
-            for filled_order in filled_sell_orders:
-                unfilled_tp_orders = self.get_unfilled_tp_limit_orders(filled_order)
+            for filled_tf_order in filled_sell_orders:
+                unfilled_tp_orders = self.get_unfilled_tp_limit_orders(filled_tf_order)
 
                 if len(unfilled_tp_orders) == 0:
-                    tp_amount: Decimal = filled_order.amount * self.config.tp_position_pct / 100
+                    tp_amount: Decimal = filled_tf_order.amount * self.config.tp_position_pct / 100
                     tp_price: Decimal = compute_take_profit_price(TradeType.SELL, self.get_current_close(), self.config.tp_pct / 100)
-                    self.create_tp_limit_order(filled_order, tp_amount, tp_price)
+                    self.create_tp_limit_order(filled_tf_order, tp_amount, tp_price)
 
         if len(filled_buy_orders) > 0:
-            for filled_order in filled_buy_orders:
-                unfilled_tp_orders = self.get_unfilled_tp_limit_orders(filled_order)
+            for filled_tf_order in filled_buy_orders:
+                unfilled_tp_orders = self.get_unfilled_tp_limit_orders(filled_tf_order)
 
                 if len(unfilled_tp_orders) == 0:
-                    tp_amount: Decimal = filled_order.amount * self.config.tp_position_pct / 100
+                    tp_amount: Decimal = filled_tf_order.amount * self.config.tp_position_pct / 100
                     tp_price: Decimal = compute_take_profit_price(TradeType.BUY, self.get_current_close(), self.config.tp_pct / 100)
-                    self.create_tp_limit_order(filled_order, tp_amount, tp_price)
+                    self.create_tp_limit_order(filled_tf_order, tp_amount, tp_price)
 
     def _is_tp_cooling_down(self, filled_orders) -> bool:
-        for filled_order in filled_orders:
-            latest_filled_tp_order: TakeProfitLimitOrder | None = self.get_latest_filled_tp_limit_order(filled_order)
+        for filled_tf_order in filled_orders:
+            latest_filled_tp_order: TakeProfitLimitOrder | None = self.get_latest_filled_tp_limit_order(filled_tf_order)
 
             if not latest_filled_tp_order:
                 continue
@@ -300,10 +300,13 @@ class ExcaliburStrategy(PkStrategy):
         return False
 
     def stop_actions_proposal_tp(self):
-        for take_profit_limit_order in self.take_profit_limit_orders:
-            if has_unfilled_order_expired(take_profit_limit_order, self.config.tp_expiration_min * 60, self.get_market_data_provider_time()):
-                self.logger().info("Unfilled TP order has expired")
-                self.cancel_take_profit_for_order(take_profit_limit_order.tracked_order)
+        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_TF)
+
+        for filled_tf_order in filled_sell_orders + filled_buy_orders:
+            for unfilled_tp_order in self.get_unfilled_tp_limit_orders(filled_tf_order):
+                if has_unfilled_order_expired(unfilled_tp_order, self.config.tp_expiration_min * 60, self.get_market_data_provider_time()):
+                    self.logger().info("Unfilled TP order has expired")
+                    self.cancel_take_profit_for_order(unfilled_tp_order.tracked_order)
 
         self._check_unfilled_tps_which_shouldnt_be_there()
 
