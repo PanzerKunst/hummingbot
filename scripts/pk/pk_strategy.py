@@ -416,7 +416,7 @@ class PkStrategy(StrategyV2Base):
                 self.cancel_take_profit_for_order(filled_order)
                 continue
 
-            if len(self.get_tp_limit_orders(filled_order)) == 0 and has_current_price_reached_take_profit(filled_order, current_price):
+            if len(self.get_unfilled_tp_limit_orders(filled_order)) == 0 and has_current_price_reached_take_profit(filled_order, current_price):
                 self.logger().info(f"current_price_has_reached_take_profit | current_price:{current_price}")
                 take_profit_order_type = filled_order.triple_barrier.take_profit_order_type
                 self.close_filled_order(filled_order, take_profit_order_type, CloseType.TAKE_PROFIT)
