@@ -113,19 +113,17 @@ class PkStrategy(StrategyV2Base):
         filled_buy_orders = [order for order in active_buy_orders if order.last_filled_at]
         return filled_sell_orders, filled_buy_orders
 
-    def get_tp_limit_orders(self, tracked_order: TrackedOrderDetails) -> List[TakeProfitLimitOrder]:
-        return [order for order in self.take_profit_limit_orders if order.tracked_order.order_id == tracked_order.order_id]
+    def get_all_unfilled_tp_limit_orders(self) -> List[TakeProfitLimitOrder]:
+        return [order for order in self.take_profit_limit_orders if not order.last_filled_at]
+
+    def get_all_filled_tp_limit_orders(self) -> List[TakeProfitLimitOrder]:
+        return [order for order in self.take_profit_limit_orders if order.last_filled_at]
 
     def get_unfilled_tp_limit_orders(self, tracked_order: TrackedOrderDetails) -> List[TakeProfitLimitOrder]:
-        tp_limit_orders: List[TakeProfitLimitOrder] = self.get_tp_limit_orders(tracked_order)
-        return [order for order in tp_limit_orders if not order.last_filled_at]
+        return [order for order in self.get_all_unfilled_tp_limit_orders() if order.tracked_order.order_id == tracked_order.order_id]
 
-    def get_filled_tp_limit_orders(self, tracked_order: TrackedOrderDetails) -> List[TakeProfitLimitOrder]:
-        tp_limit_orders: List[TakeProfitLimitOrder] = self.get_tp_limit_orders(tracked_order)
-        return [order for order in tp_limit_orders if order.last_filled_at]
-
-    def get_latest_filled_tp_limit_order(self, tracked_order: TrackedOrderDetails) -> TakeProfitLimitOrder | None:
-        filled_tp_orders = self.get_filled_tp_limit_orders(tracked_order)
+    def get_latest_filled_tp_limit_order(self) -> TakeProfitLimitOrder | None:
+        filled_tp_orders = self.get_all_filled_tp_limit_orders()
 
         if len(filled_tp_orders) == 0:
             return None

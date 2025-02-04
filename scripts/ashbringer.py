@@ -225,11 +225,15 @@ class ExcaliburStrategy(PkStrategy):
 
         if len(filled_sell_orders) > 0:
             if self.did_short_ma_cross_over_long():
+                self.cancel_all_unfilled_take_profits()
+
                 self.logger().info(f"stop_actions_proposal_tf() > Closing TF Sell at {self.get_current_close()}")
                 self.close_filled_orders(filled_sell_orders, OrderType.MARKET, CloseType.COMPLETED)
 
         if len(filled_buy_orders) > 0:
             if self.did_short_ma_cross_under_long():
+                self.cancel_all_unfilled_take_profits()
+
                 self.logger().info(f"stop_actions_proposal_tf() > Closing TF Buy at {self.get_current_close()}")
                 self.close_filled_orders(filled_buy_orders, OrderType.MARKET, CloseType.COMPLETED)
 
@@ -238,20 +242,17 @@ class ExcaliburStrategy(PkStrategy):
     #
 
     def check_for_newly_filled_tp(self):
-        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_TF)
+        latest_filled_tp_order: TakeProfitLimitOrder | None = self.get_latest_filled_tp_limit_order()
 
-        for filled_tf_order in filled_sell_orders + filled_buy_orders:
-            latest_filled_tp_order: TakeProfitLimitOrder | None = self.get_latest_filled_tp_limit_order(filled_tf_order)
+        if not latest_filled_tp_order:
+            return
 
-            if not latest_filled_tp_order:
-                break
+        self.logger().info(f"check_for_newly_filled_tp | latest_filled_tp_order:{latest_filled_tp_order}")
 
-            self.logger().info(f"check_for_newly_filled_tp | latest_filled_tp_order:{latest_filled_tp_order}")
-
-            if not self.latest_filled_tp_order or self.latest_filled_tp_order.order_id != latest_filled_tp_order.order_id:
-                self.logger().info("check_for_newly_filled_tp > we got a new one!")
-                self.nb_take_profits_left -= 1
-                self.latest_filled_tp_order = latest_filled_tp_order
+        if not self.latest_filled_tp_order or self.latest_filled_tp_order.order_id != latest_filled_tp_order.order_id:
+            self.logger().info("check_for_newly_filled_tp > we got a new one!")
+            self.nb_take_profits_left -= 1
+            self.latest_filled_tp_order = latest_filled_tp_order
 
     def create_actions_proposal_tp(self):
         if self.nb_take_profits_left == 0:
@@ -263,7 +264,7 @@ class ExcaliburStrategy(PkStrategy):
 
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_TF)
 
-        if self._is_tp_cooling_down(filled_sell_orders + filled_buy_orders):
+        if self.is_tp_cooling_down():
             return
 
         if len(filled_sell_orders) > 0:
@@ -284,29 +285,11 @@ class ExcaliburStrategy(PkStrategy):
                     tp_price: Decimal = compute_take_profit_price(TradeType.BUY, self.get_current_close(), self.config.tp_pct / 100)
                     self.create_tp_limit_order(filled_tf_order, tp_amount, tp_price)
 
-    def _is_tp_cooling_down(self, filled_orders) -> bool:
-        for filled_tf_order in filled_orders:
-            latest_filled_tp_order: TakeProfitLimitOrder | None = self.get_latest_filled_tp_limit_order(filled_tf_order)
-
-            if not latest_filled_tp_order:
-                continue
-
-            is_cooling_down: bool = latest_filled_tp_order.last_filled_at + self.config.tp_cooldown_min * 60 > self.get_market_data_provider_time()
-
-            if is_cooling_down:
-                self.logger().info("_is_tp_cooling_down > TRUE")
-                return True
-
-        return False
-
     def stop_actions_proposal_tp(self):
-        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_TF)
-
-        for filled_tf_order in filled_sell_orders + filled_buy_orders:
-            for unfilled_tp_order in self.get_unfilled_tp_limit_orders(filled_tf_order):
-                if has_unfilled_order_expired(unfilled_tp_order, self.config.tp_expiration_min * 60, self.get_market_data_provider_time()):
-                    self.logger().info("Unfilled TP order has expired")
-                    self.cancel_take_profit_for_order(unfilled_tp_order.tracked_order)
+        for unfilled_tp_order in self.get_all_unfilled_tp_limit_orders():
+            if has_unfilled_order_expired(unfilled_tp_order, self.config.tp_expiration_min * 60, self.get_market_data_provider_time()):
+                self.logger().info("Unfilled TP order has expired")
+                self.cancel_take_profit_for_order(unfilled_tp_order.tracked_order)
 
         self._check_unfilled_tps_which_shouldnt_be_there()
 
@@ -315,13 +298,10 @@ class ExcaliburStrategy(PkStrategy):
         if self.nb_take_profits_left > 0:
             return
 
-        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_TF)
+        unfilled_limit_take_profit_orders = self.get_all_unfilled_tp_limit_orders()
 
-        for filled_order in filled_sell_orders + filled_buy_orders:
-            unfilled_limit_take_profit_orders = self.get_unfilled_tp_limit_orders(filled_order)
-
-            if len(unfilled_limit_take_profit_orders) > 0:
-                self.logger().info(f"_check_unfilled_tps_which_shouldnt_be_there > There is {len(unfilled_limit_take_profit_orders)} unfilled TPs left which shouldn't be there")
+        if len(unfilled_limit_take_profit_orders) > 0:
+            self.logger().info(f"_check_unfilled_tps_which_shouldnt_be_there > There is {len(unfilled_limit_take_profit_orders)} unfilled TPs left which shouldn't be there")
 
     #
     # Getters on `self.processed_data[]`
@@ -387,3 +367,24 @@ class ExcaliburStrategy(PkStrategy):
     # def is_current_price_over_short_ma(self) -> bool:
     #     current_price_minus_short_ma: Decimal = self.get_current_close() - self.get_current_ma(SHORT_MA_LENGTH, "S")
     #     return current_price_minus_short_ma > 0
+
+    #
+    # TP functions
+    #
+
+    def cancel_all_unfilled_take_profits(self):
+        for unfilled_tp in self.get_all_unfilled_tp_limit_orders():
+            self.cancel_take_profit_for_order(unfilled_tp.tracked_order)
+
+    def is_tp_cooling_down(self) -> bool:
+        latest_filled_tp_order: TakeProfitLimitOrder | None = self.get_latest_filled_tp_limit_order()
+
+        if not latest_filled_tp_order:
+            return False
+
+        is_cooling_down: bool = latest_filled_tp_order.last_filled_at + self.config.tp_cooldown_min * 60 > self.get_market_data_provider_time()
+
+        if is_cooling_down:
+            self.logger().info("is_tp_cooling_down > TRUE")
+
+        return is_cooling_down
