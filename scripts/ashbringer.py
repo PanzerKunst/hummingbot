@@ -409,6 +409,7 @@ class ExcaliburStrategy(PkStrategy):
         if len(unfilled_limit_take_profit_orders) > 0:
             self.logger().info(f"_check_unfilled_tps_which_shouldnt_be_there > There is {len(unfilled_limit_take_profit_orders)} unfilled TPs left which shouldn't be there")
 
+    # TODO: remove
     def cancel_lingering_tp(self):
         filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_TF)
 
