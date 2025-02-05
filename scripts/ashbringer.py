@@ -326,13 +326,14 @@ class ExcaliburStrategy(PkStrategy):
         return math.floor(1 / self.config.tp_position_pct * 100)  # If tp_position_pct = 24%, we want maxTps = 4. 1 / 24 * 100 = 4.16
 
     def did_short_ma_cross_under_long(self) -> bool:
-        lookback: int = 12
-
         """
         Returns True if short MA has *crossed under* long MA at some point
         between the LATEST bar (-2) and any of the previous `lookback` bars
         (i.e. -3 through -(lookback+2)).
         """
+
+        lookback: int = 12
+
         # 1) Compute short - long at the latest bar (-2)
         latest_sml = self._get_short_minus_long_at_index(-2)
 
