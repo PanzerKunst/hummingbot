@@ -18,11 +18,9 @@ from scripts.pk.take_profit_limit_order import TakeProfitLimitOrder
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 # Generate config file: create --script-config ashbringer
-# Start the bot: start --script ashbringer.py --conf conf_ashbringer_AI16Z.yml
-#                start --script ashbringer.py --conf conf_ashbringer_AIXBT.yml
-#                start --script ashbringer.py --conf conf_ashbringer_FARTCOIN.yml
-#                start --script ashbringer.py --conf conf_ashbringer_VINE.yml
-# Quickstart script: -p=a -f ashbringer.py -c conf_ashbringer_AI16Z.yml
+# Start the bot: start --script ashbringer.py --conf conf_ashbringer_VINE.yml
+#                start --script ashbringer.py --conf conf_ashbringer_XXX.yml
+# Quickstart script: -p=a -f ashbringer.py -c conf_ashbringer_VINE.yml
 
 ORDER_REF_TF: str = "TrendFollowing"
 CANDLE_DURATION_MINUTES: int = 1
@@ -248,9 +246,6 @@ class ExcaliburStrategy(PkStrategy):
         if not latest_filled_tp_order:
             return
 
-        # TODO: remove
-        self.logger().info(f"check_for_newly_filled_tp | latest_filled_tp_order:{latest_filled_tp_order}")
-
         if not self.latest_filled_tp_order or self.latest_filled_tp_order.order_id != latest_filled_tp_order.order_id:
             self.logger().info("check_for_newly_filled_tp > we got a new one!")
             self.nb_take_profits_left -= 1
@@ -258,10 +253,6 @@ class ExcaliburStrategy(PkStrategy):
 
     def create_actions_proposal_tp(self):
         if self.nb_take_profits_left == 0:
-
-            # TODO: remove
-            self.logger().info("create_actions_proposal_tp > self.nb_take_profits_left == 0")
-
             return
 
         if self.is_tp_cooling_down():
