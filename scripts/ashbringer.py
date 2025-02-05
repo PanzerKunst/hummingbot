@@ -224,15 +224,11 @@ class ExcaliburStrategy(PkStrategy):
 
         if len(filled_sell_orders) > 0:
             if self.did_short_ma_cross_over_long():
-                self.cancel_all_unfilled_take_profits()
-
                 self.logger().info(f"stop_actions_proposal_tf() > Closing TF Sell at {self.get_current_close()}")
                 self.close_filled_orders(filled_sell_orders, OrderType.MARKET, CloseType.COMPLETED)
 
         if len(filled_buy_orders) > 0:
             if self.did_short_ma_cross_under_long():
-                self.cancel_all_unfilled_take_profits()
-
                 self.logger().info(f"stop_actions_proposal_tf() > Closing TF Buy at {self.get_current_close()}")
                 self.close_filled_orders(filled_buy_orders, OrderType.MARKET, CloseType.COMPLETED)
 
@@ -247,8 +243,8 @@ class ExcaliburStrategy(PkStrategy):
             return
 
         if not self.latest_filled_tp_order or self.latest_filled_tp_order.order_id != latest_filled_tp_order.order_id:
-            self.logger().info("check_for_newly_filled_tp > we got a new one!")
             self.nb_take_profits_left -= 1
+            self.logger().info(f"check_for_newly_filled_tp > we got a new one! | nb_take_profits_left:{self.nb_take_profits_left}")
             self.latest_filled_tp_order = latest_filled_tp_order
 
     def create_actions_proposal_tp(self):
@@ -279,22 +275,8 @@ class ExcaliburStrategy(PkStrategy):
                     self.create_tp_limit_order(filled_tf_order, tp_amount, tp_price)
 
     def stop_actions_proposal_tp(self):
-        for unfilled_tp_order in self.get_all_unfilled_tp_limit_orders():
-            if has_unfilled_order_expired(unfilled_tp_order, self.config.tp_expiration_min * 60, self.get_market_data_provider_time()):
-                self.logger().info("Unfilled TP order has expired")
-                self.cancel_take_profit_for_order(unfilled_tp_order.tracked_order)
-
-        self._check_unfilled_tps_which_shouldnt_be_there()
-
-    # TODO: remove
-    def _check_unfilled_tps_which_shouldnt_be_there(self):
-        if self.nb_take_profits_left > 0:
-            return
-
-        unfilled_limit_take_profit_orders = self.get_all_unfilled_tp_limit_orders()
-
-        if len(unfilled_limit_take_profit_orders) > 0:
-            self.logger().info(f"_check_unfilled_tps_which_shouldnt_be_there > There is {len(unfilled_limit_take_profit_orders)} unfilled TPs left which shouldn't be there")
+        self.cancel_expired_tp()
+        self.cancel_lingering_tp()
 
     #
     # Getters on `self.processed_data[]`
@@ -344,10 +326,47 @@ class ExcaliburStrategy(PkStrategy):
         return math.floor(1 / self.config.tp_position_pct * 100)  # If tp_position_pct = 24%, we want maxTps = 4. 1 / 24 * 100 = 4.16
 
     def did_short_ma_cross_under_long(self) -> bool:
-        return not self.is_latest_short_ma_over_long() and self.is_previous_short_ma_over_long()
+        lookback: int = 12
+
+        """
+        Returns True if short MA has *crossed under* long MA at some point
+        between the LATEST bar (-2) and any of the previous `lookback` bars
+        (i.e. -3 through -(lookback+2)).
+        """
+        # 1) Compute short - long at the latest bar (-2)
+        latest_sml = self._get_short_minus_long_at_index(-2)
+
+        # 2) If the latest reading is >= 0, then we cannot have "crossed under"
+        #    in this bar.  In other words, for "cross under," the latest should be negative.
+        if latest_sml >= 0:
+            return False
+
+        # 3) Look up to `lookback` bars back (i.e. -3 to -(lookback+2))
+        #    to see if short-minus-long used to be positive at any point.
+        for i in range(3, lookback + 3):
+            sml_i = self._get_short_minus_long_at_index(-i)
+            # If we find a bar in which short-minus-long was > 0,
+            # then a cross-under *must* have happened between that bar and the latest bar.
+            if sml_i > 0:
+                return True
+
+        # If we never found any bar in the last `lookback` where it was positive,
+        # there's no sign change => no cross.
+        return False
 
     def did_short_ma_cross_over_long(self) -> bool:
-        return self.is_latest_short_ma_over_long() and not self.is_previous_short_ma_over_long()
+        lookback: int = 12
+
+        latest_sml = self._get_short_minus_long_at_index(-2)
+        if latest_sml <= 0:
+            return False
+
+        for i in range(3, lookback + 3):
+            sml_i = self._get_short_minus_long_at_index(-i)
+            if sml_i < 0:
+                return True
+
+        return False
 
     def is_latest_short_ma_over_long(self) -> bool:
         latest_short_minus_long: Decimal = self.get_latest_ma(SHORT_MA_LENGTH) - self.get_latest_ma(LONG_MA_LENGTH)
@@ -357,6 +376,9 @@ class ExcaliburStrategy(PkStrategy):
         previous_short_minus_long: Decimal = self.get_previous_ma(SHORT_MA_LENGTH) - self.get_previous_ma(LONG_MA_LENGTH)
         return previous_short_minus_long > 0
 
+    def _get_short_minus_long_at_index(self, idx: int) -> Decimal:
+        return self._get_ma_at_index(SHORT_MA_LENGTH, idx) - self._get_ma_at_index(LONG_MA_LENGTH, idx)
+
     # def is_current_price_over_short_ma(self) -> bool:
     #     current_price_minus_short_ma: Decimal = self.get_current_close() - self.get_current_ma(SHORT_MA_LENGTH, "S")
     #     return current_price_minus_short_ma > 0
@@ -364,10 +386,6 @@ class ExcaliburStrategy(PkStrategy):
     #
     # TP functions
     #
-
-    def cancel_all_unfilled_take_profits(self):
-        for unfilled_tp in self.get_all_unfilled_tp_limit_orders():
-            self.cancel_take_profit_for_order(unfilled_tp.tracked_order)
 
     def is_tp_cooling_down(self) -> bool:
         latest_filled_tp_order: TakeProfitLimitOrder | None = self.get_latest_filled_tp_limit_order()
@@ -381,3 +399,40 @@ class ExcaliburStrategy(PkStrategy):
             self.logger().info("is_tp_cooling_down > TRUE")
 
         return is_cooling_down
+
+    def cancel_expired_tp(self):
+        for unfilled_tp_order in self.get_all_unfilled_tp_limit_orders():
+            if has_unfilled_order_expired(unfilled_tp_order, self.config.tp_expiration_min * 60, self.get_market_data_provider_time()):
+                self.logger().info("Unfilled TP order has expired")
+                self.cancel_take_profit_for_order(unfilled_tp_order.tracked_order)
+
+        self._check_unfilled_tps_which_shouldnt_be_there()
+
+    # TODO: remove
+    def _check_unfilled_tps_which_shouldnt_be_there(self):
+        if self.nb_take_profits_left > 0:
+            return
+
+        unfilled_limit_take_profit_orders = self.get_all_unfilled_tp_limit_orders()
+
+        if len(unfilled_limit_take_profit_orders) > 0:
+            self.logger().info(f"_check_unfilled_tps_which_shouldnt_be_there > There is {len(unfilled_limit_take_profit_orders)} unfilled TPs left which shouldn't be there")
+
+    def cancel_lingering_tp(self):
+        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_TF)
+
+        if len(filled_sell_orders) > 0:
+            previous_tf_order = self.find_last_terminated_filled_order(TradeType.BUY, ORDER_REF_TF)
+
+            if previous_tf_order:
+                for unfilled_tp in self.get_unfilled_tp_limit_orders(previous_tf_order):
+                    self.logger().info("Found a lingering TP for a Short. Cancelling it")
+                    self.cancel_take_profit_for_order(unfilled_tp.tracked_order)
+
+        if len(filled_buy_orders) > 0:
+            previous_tf_order = self.find_last_terminated_filled_order(TradeType.SELL, ORDER_REF_TF)
+
+            if previous_tf_order:
+                for unfilled_tp in self.get_unfilled_tp_limit_orders(previous_tf_order):
+                    self.logger().info("Found a lingering TP for a Long. Cancelling it")
+                    self.cancel_take_profit_for_order(unfilled_tp.tracked_order)

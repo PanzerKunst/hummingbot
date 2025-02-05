@@ -4,7 +4,12 @@ from typing import Dict, List, Tuple
 
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.core.data_type.common import OrderType, PositionAction, PriceType, TradeType
-from hummingbot.core.event.events import BuyOrderCreatedEvent, OrderFilledEvent, SellOrderCreatedEvent
+from hummingbot.core.event.events import (
+    BuyOrderCreatedEvent,
+    OrderCancelledEvent,
+    OrderFilledEvent,
+    SellOrderCreatedEvent,
+)
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base
 from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig
 from hummingbot.strategy_v2.models.executors import CloseType
@@ -262,14 +267,7 @@ class PkStrategy(StrategyV2Base):
         order_id = tracked_order.order_id
 
         self.logger().info(f"cancel_unfilled_order: {tracked_order}")
-
         self.cancel(connector_name, trading_pair, order_id)
-
-        for order in self.tracked_orders:
-            if order.order_id == tracked_order.order_id:
-                order.terminated_at = self.get_market_data_provider_time()
-                order.close_type = CloseType.EXPIRED
-                break
 
     def cancel_take_profit_for_order(self, filled_order: TrackedOrderDetails):
         connector_name = filled_order.connector_name
@@ -277,15 +275,8 @@ class PkStrategy(StrategyV2Base):
 
         for tp_limit_order in self.get_unfilled_tp_limit_orders(filled_order):
             order_id = tp_limit_order.order_id
-
             self.logger().info(f"cancel_take_profit_for_order: {tp_limit_order}")
-
             self.cancel(connector_name, trading_pair, order_id)
-
-            for order in self.take_profit_limit_orders:
-                if order.order_id == tp_limit_order.order_id:
-                    self.take_profit_limit_orders.remove(order)
-                    break
 
     def did_create_sell_order(self, created_event: SellOrderCreatedEvent):
         position = created_event.position
@@ -364,6 +355,20 @@ class PkStrategy(StrategyV2Base):
                     self.logger().info(f"did_fill_order | take_profit_delta:{take_profit_delta} | take_profit_price:{take_profit_price}")
                     self.create_tp_limit_order(tracked_order, filled_event.amount, take_profit_price)
 
+                break
+
+    def did_cancel_order(self, cancelled_event: OrderCancelledEvent):
+        self.logger().info(f"did_cancel_order | cancelled_event:{cancelled_event}")
+
+        for order in self.tracked_orders:
+            if order.order_id == cancelled_event.order_id:
+                order.terminated_at = self.get_market_data_provider_time()
+                order.close_type = CloseType.EXPIRED
+                break
+
+        for order in self.take_profit_limit_orders:
+            if order.order_id == cancelled_event.order_id:
+                self.take_profit_limit_orders.remove(order)
                 break
 
     def can_create_order(self, side: TradeType, amount_quote: Decimal, ref: str, cooldown_time_min: int) -> bool:
