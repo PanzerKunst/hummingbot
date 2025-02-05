@@ -37,7 +37,7 @@ class ExcaliburConfig(StrategyV2ConfigBase):
     # Triple Barrier
 
     # Order settings
-    amount_quote: Decimal = 70.0
+    amount_quote: Decimal = 50.0
     should_open_position_at_launch: bool = False
     tp_pct: Decimal = 2.8
     tp_position_pct: int = 24

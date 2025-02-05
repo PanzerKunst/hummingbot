@@ -149,12 +149,6 @@ class ExcaliburStrategy(PkStrategy):
     # Quote amount and Triple Barrier
     #
 
-    def get_position_quote_amount(self, side: TradeType) -> Decimal:
-        if side == TradeType.SELL:
-            return self.config.amount_quote * Decimal(0.75)  # Less, because closing an unprofitable Short position costs significantly more
-
-        return self.config.amount_quote
-
     @staticmethod
     def get_triple_barrier() -> TripleBarrier:
         return TripleBarrier(
@@ -171,8 +165,7 @@ class ExcaliburStrategy(PkStrategy):
 
         if self.can_create_tf_order(TradeType.SELL, active_orders):
             triple_barrier = self.get_triple_barrier()
-            amount_quote = self.get_position_quote_amount(TradeType.SELL)
-            self.create_order(TradeType.SELL, self.get_current_close(), triple_barrier, amount_quote, ORDER_REF_TF)
+            self.create_order(TradeType.SELL, self.get_current_close(), triple_barrier, self.config.amount_quote, ORDER_REF_TF)
             self.nb_take_profits_left = self.get_max_take_profits()
 
             # TODO: remove
@@ -180,17 +173,14 @@ class ExcaliburStrategy(PkStrategy):
 
         if self.can_create_tf_order(TradeType.BUY, active_orders):
             triple_barrier = self.get_triple_barrier()
-            amount_quote = self.get_position_quote_amount(TradeType.BUY)
-            self.create_order(TradeType.BUY, self.get_current_close(), triple_barrier, amount_quote, ORDER_REF_TF)
+            self.create_order(TradeType.BUY, self.get_current_close(), triple_barrier, self.config.amount_quote, ORDER_REF_TF)
             self.nb_take_profits_left = self.get_max_take_profits()
 
             # TODO: remove
             self.logger().info(f"create_actions_proposal_tf() > created BUY order | self.nb_take_profits_left:{self.nb_take_profits_left}")
 
     def can_create_tf_order(self, side: TradeType, active_tracked_orders: List[TrackedOrderDetails]) -> bool:
-        amount_quote = self.get_position_quote_amount(side)
-
-        if not self.can_create_order(side, amount_quote, ORDER_REF_TF, 0):
+        if not self.can_create_order(side, self.config.amount_quote, ORDER_REF_TF, 0):
             return False
 
         if len(active_tracked_orders) > 0:
