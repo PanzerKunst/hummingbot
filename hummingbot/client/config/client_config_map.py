@@ -882,17 +882,6 @@ class HyperliquidRateSourceMode(ExchangeRateSourceModeBase):
         title = "hyperliquid"
 
 
-class TegroRateSourceMode(ExchangeRateSourceModeBase):
-    name: str = Field(
-        default="tegro",
-        const=True,
-        client_data=None,
-    )
-
-    class Config:
-        title = "tegro"
-
-
 RATE_SOURCE_MODES = {
     AscendExRateSourceMode.Config.title: AscendExRateSourceMode,
     BinanceRateSourceMode.Config.title: BinanceRateSourceMode,
@@ -905,7 +894,6 @@ RATE_SOURCE_MODES = {
     CoinbaseAdvancedTradeRateSourceMode.Config.title: CoinbaseAdvancedTradeRateSourceMode,
     CubeRateSourceMode.Config.title: CubeRateSourceMode,
     HyperliquidRateSourceMode.Config.title: HyperliquidRateSourceMode,
-    TegroRateSourceMode.Config.title: TegroRateSourceMode,
 }
 
 

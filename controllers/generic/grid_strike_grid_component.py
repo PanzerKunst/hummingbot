@@ -4,7 +4,7 @@ from typing import Dict, List, Optional, Set
 from pydantic import Field
 
 from hummingbot.client.config.config_data_types import ClientFieldData
-from hummingbot.core.data_type.common import OrderType, PositionMode, PriceType, TradeType
+from hummingbot.core.data_type.common import OrderType, PositionMode, TradeType
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.strategy_v2.controllers import ControllerBase, ControllerConfigBase
 from hummingbot.strategy_v2.executors.data_types import ConnectorPair
@@ -83,13 +83,8 @@ class GridStrike(ControllerBase):
             if executor.is_active
         ]
 
-    def is_inside_bounds(self, price: Decimal) -> bool:
-        return self.config.start_price <= price <= self.config.end_price
-
     def determine_executor_actions(self) -> List[ExecutorAction]:
-        mid_price = self.market_data_provider.get_price_by_type(
-            self.config.connector_name, self.config.trading_pair, PriceType.MidPrice)
-        if len(self.active_executors()) == 0 and self.is_inside_bounds(mid_price):
+        if len(self.active_executors()) == 0:
             return [CreateExecutorAction(
                 controller_id=self.config.id,
                 executor_config=GridExecutorConfig(
@@ -125,9 +120,6 @@ class GridStrike(ControllerBase):
         header = f"Grid Executor Controller: {self.config.id}"
         status.append(header.center(total_width))
         status.append("═" * total_width)
-        mid_price = self.market_data_provider.get_price_by_type(
-            self.config.connector_name, self.config.trading_pair, PriceType.MidPrice)
-        status.append(f"Mid Price: {mid_price:.4f} | Inside bounds: {self.is_inside_bounds(mid_price)}".center(total_width))
         for level in self.active_executors():
             status.append(f"Grid Status - {level.id}:".center(total_width))
             status.append(f"Current Status: {level.status}".center(total_width))
