@@ -266,7 +266,6 @@ class ExcaliburStrategy(PkStrategy):
 
     def stop_actions_proposal_tp(self):
         self.cancel_expired_tp()
-        self.cancel_lingering_tp()
 
     #
     # Getters on `self.processed_data[]`
@@ -396,35 +395,3 @@ class ExcaliburStrategy(PkStrategy):
             if has_unfilled_order_expired(unfilled_tp_order, self.config.tp_expiration_min * 60, self.get_market_data_provider_time()):
                 self.logger().info("Unfilled TP order has expired")
                 self.cancel_take_profit_for_order(unfilled_tp_order.tracked_order)
-
-        self._check_unfilled_tps_which_shouldnt_be_there()
-
-    # TODO: remove
-    def _check_unfilled_tps_which_shouldnt_be_there(self):
-        if self.nb_take_profits_left > 0:
-            return
-
-        unfilled_limit_take_profit_orders = self.get_all_unfilled_tp_limit_orders()
-
-        if len(unfilled_limit_take_profit_orders) > 0:
-            self.logger().info(f"_check_unfilled_tps_which_shouldnt_be_there > There is {len(unfilled_limit_take_profit_orders)} unfilled TPs left which shouldn't be there")
-
-    # TODO: remove
-    def cancel_lingering_tp(self):
-        filled_sell_orders, filled_buy_orders = self.get_filled_tracked_orders_by_side(ORDER_REF_TF)
-
-        if len(filled_sell_orders) > 0:
-            previous_tf_order = self.find_last_terminated_filled_order(TradeType.BUY, ORDER_REF_TF)
-
-            if previous_tf_order:
-                for unfilled_tp in self.get_unfilled_tp_limit_orders(previous_tf_order):
-                    self.logger().info("Found a lingering TP for a Short. Cancelling it")
-                    self.cancel_take_profit_for_order(unfilled_tp.tracked_order)
-
-        if len(filled_buy_orders) > 0:
-            previous_tf_order = self.find_last_terminated_filled_order(TradeType.SELL, ORDER_REF_TF)
-
-            if previous_tf_order:
-                for unfilled_tp in self.get_unfilled_tp_limit_orders(previous_tf_order):
-                    self.logger().info("Found a lingering TP for a Long. Cancelling it")
-                    self.cancel_take_profit_for_order(unfilled_tp.tracked_order)
