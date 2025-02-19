@@ -6,7 +6,7 @@ import pandas as pd
 
 from hummingbot.connector.derivative.position import Position
 from hummingbot.core.data_type.common import TradeType
-from scripts.pk.pk_trailing_stop import PkTrailingStop
+from scripts.pk.take_profit_limit_order import TakeProfitLimitOrder
 from scripts.pk.tracked_order_details import TrackedOrderDetails
 
 
@@ -58,6 +58,16 @@ def compute_take_profit_price(side: TradeType, ref_price: Decimal, take_profit_d
     return ref_price * (1 + take_profit_delta)
 
 
+def compute_avg_position_price(filled_orders: List[TrackedOrderDetails]) -> Decimal:
+    if len(filled_orders) == 0:
+        return Decimal(0)
+
+    total_amount = sum(order.filled_amount for order in filled_orders)
+    total_cost = sum(order.filled_amount * order.last_filled_price for order in filled_orders)
+
+    return Decimal(total_cost / total_amount)
+
+
 def has_current_price_reached_stop_loss(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
     stop_loss_delta: Decimal | None = tracked_order.triple_barrier.stop_loss_delta
 
@@ -90,41 +100,8 @@ def has_current_price_reached_take_profit(tracked_order: TrackedOrderDetails, cu
     return current_price > take_profit_price
 
 
-def update_trailing_stop(tracked_order: TrackedOrderDetails, current_price: Decimal):
-    trailing_stop: PkTrailingStop | None = tracked_order.triple_barrier.trailing_stop
-
-    if not trailing_stop:
-        return
-
-    side: TradeType = tracked_order.side
-    activation_price: Decimal = compute_take_profit_price(side, tracked_order.last_filled_price, trailing_stop.activation_delta)
-    price_to_compare: Decimal = tracked_order.trailing_stop_best_price or activation_price
-
-    if side == TradeType.SELL:
-        if current_price < price_to_compare:
-            tracked_order.trailing_stop_best_price = current_price
-        return
-
-    if current_price > price_to_compare:
-        tracked_order.trailing_stop_best_price = current_price
-
-
-def should_close_trailing_stop(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
-    trailing_stop: PkTrailingStop | None = tracked_order.triple_barrier.trailing_stop
-
-    if not trailing_stop or not tracked_order.trailing_stop_best_price:
-        return False
-
-    trailing_delta: Decimal = trailing_stop.trailing_delta
-
-    if tracked_order.side == TradeType.SELL:
-        return current_price > tracked_order.trailing_stop_best_price * (1 + trailing_delta)
-
-    return current_price < tracked_order.trailing_stop_best_price * (1 - trailing_delta)
-
-
-def has_unfilled_order_expired(tracked_order: TrackedOrderDetails, expiration: int, current_timestamp: float) -> bool:
-    created_at = tracked_order.created_at
+def has_unfilled_order_expired(order: TrackedOrderDetails | TakeProfitLimitOrder, expiration: int, current_timestamp: float) -> bool:
+    created_at = order.created_at
 
     return created_at + expiration < current_timestamp
 
@@ -149,8 +126,44 @@ def was_an_order_recently_opened(tracked_orders: List[TrackedOrderDetails], seco
     return most_recent_created_at + seconds > current_timestamp
 
 
+def combine_filled_orders(filled_orders: List[TrackedOrderDetails]) -> TrackedOrderDetails:
+    non_terminated_filled_orders = [order for order in filled_orders if not order.terminated_at]
+    combined_filled_amount: Decimal = Decimal(0)
+
+    for order in non_terminated_filled_orders:
+        if order.side == TradeType.SELL:
+            combined_filled_amount -= order.filled_amount
+
+        else:
+            combined_filled_amount += order.filled_amount
+
+    first_order = filled_orders[0]
+
+    return TrackedOrderDetails(
+        connector_name=first_order.connector_name,
+        trading_pair=first_order.trading_pair,
+        side=TradeType.SELL if combined_filled_amount < 0 else TradeType.BUY,
+        order_id="combined",
+        amount=abs(combined_filled_amount),
+        entry_price=first_order.last_filled_price,
+        triple_barrier=first_order.triple_barrier,
+        ref=first_order.ref,
+        created_at=first_order.created_at,
+        filled_amount=abs(combined_filled_amount)
+    )
+
+
 def timestamp_to_iso(timestamp: float) -> str:
     return datetime.fromtimestamp(timestamp).isoformat()
+
+
+def iso_to_timestamp(iso_date: str) -> float:
+    return datetime.strptime(iso_date, "%Y-%m-%d").timestamp()
+
+
+def normalize_timestamp_to_midnight(timestamp: float) -> float:
+    dt = datetime.fromtimestamp(timestamp)
+    return datetime(dt.year, dt.month, dt.day).timestamp()
 
 
 # TODO: return int instead of Decimal
@@ -186,3 +199,22 @@ def compute_rsi_pullback_difference(rsi: Decimal) -> Decimal:
 
     increment = ((25 - rsi) // 3) + 3
     return increment
+
+
+def compute_softened_leverage(leverage: int) -> int:
+    """
+    i:0 leverage:3   result:3   (leverage-i)
+    i:1 leverage:5   result:4   (leverage-i)
+    i:2 leverage:7   result:5   (leverage-i)
+    i:3 leverage:9   result:6   (leverage-i)
+    i:4 leverage:11  result:7   (leverage-i)
+    i:5 leverage:13  result:8   (leverage-i)
+    i:6 leverage:15  result:9   (leverage-i)
+    i:7 leverage:17  result:10  (leverage-i)
+    i:8 leverage:19  result:11  (leverage-i)
+    i:9 leverage:21  result:12  (leverage-i)
+    [...]
+    """
+    decrement: int = (leverage - 3) // 2
+
+    return leverage - decrement

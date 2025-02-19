@@ -1,16 +1,16 @@
 markets: {}
 candles_config:
 - connector: binance_perpetual
-  interval: 3m
-  max_records: 70
-  trading_pair: GOAT-USDT
+  interval: 1m
+  max_records: 50
+  trading_pair: PENGU-USDT
 controllers_config: []
 config_update_interval: 10
 connector_name: hyperliquid_perpetual
-trading_pair: GOAT-USD
+trading_pair: PENGU-USD
 leverage: 5
-unfilled_order_expiration: 60
+unfilled_order_expiration: 10
 limit_take_profit_price_delta_bps: 0
 position_mode: ONEWAY
-amount_quote: 30.0
-min_price_delta_pct_to_open_tr: 5.0
+amount_quote: 100.0
+min_price_delta_pct_to_open_mr: 0.75
