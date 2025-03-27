@@ -6,8 +6,8 @@ import pandas as pd
 
 from hummingbot.connector.derivative.position import Position
 from hummingbot.core.data_type.common import TradeType
-from scripts.pk.take_profit_limit_order import TakeProfitLimitOrder
-from scripts.pk.tracked_order_details import TrackedOrderDetails
+from scripts.pk.take_profit_order import TakeProfitOrder
+from scripts.pk.tracked_order import TrackedOrder
 
 
 def average(*args) -> Decimal:
@@ -21,7 +21,7 @@ def are_positions_equal(position_1: Position, position_2: Position) -> bool:
             and position_1.amount == position_2.amount)
 
 
-def compute_recent_price_delta_pct(low_series: pd.Series, high_series: pd.Series, nb_candles_to_consider: int, nb_excluded: int = 0) -> Decimal:
+def calc_recent_price_delta_pct(low_series: pd.Series, high_series: pd.Series, nb_candles_to_consider: int, nb_excluded: int = 0) -> Decimal:
     start_index = nb_candles_to_consider + nb_excluded
     end_index = nb_excluded
 
@@ -34,31 +34,31 @@ def compute_recent_price_delta_pct(low_series: pd.Series, high_series: pd.Series
     return (highest_price - lowest_price) / highest_price * 100
 
 
-def compute_sell_orders_pnl_pct(filled_sell_orders: List[TrackedOrderDetails], current_price: Decimal) -> Decimal:
+def calc_sell_orders_pnl_pct(filled_sell_orders: List[TrackedOrder], current_price: Decimal) -> Decimal:
     worst_filled_price = min(filled_sell_orders, key=lambda order: order.last_filled_price).last_filled_price
     return (worst_filled_price - current_price) / worst_filled_price * 100
 
 
-def compute_buy_orders_pnl_pct(filled_buy_orders: List[TrackedOrderDetails], current_price: Decimal) -> Decimal:
+def calc_buy_orders_pnl_pct(filled_buy_orders: List[TrackedOrder], current_price: Decimal) -> Decimal:
     worst_filled_price = max(filled_buy_orders, key=lambda order: order.last_filled_price).last_filled_price
     return (current_price - worst_filled_price) / worst_filled_price * 100
 
 
-def compute_stop_loss_price(side: TradeType, ref_price: Decimal, stop_loss_delta: Decimal) -> Decimal:
+def calc_stop_loss_price(side: TradeType, ref_price: Decimal, stop_loss_delta: Decimal) -> Decimal:
     if side == TradeType.SELL:
         return ref_price * (1 + stop_loss_delta)
 
     return ref_price * (1 - stop_loss_delta)
 
 
-def compute_take_profit_price(side: TradeType, ref_price: Decimal, take_profit_delta: Decimal) -> Decimal:
+def calc_take_profit_price(side: TradeType, ref_price: Decimal, take_profit_delta: Decimal) -> Decimal:
     if side == TradeType.SELL:
         return ref_price * (1 - take_profit_delta)
 
     return ref_price * (1 + take_profit_delta)
 
 
-def compute_avg_position_price(filled_orders: List[TrackedOrderDetails]) -> Decimal:
+def calc_avg_position_price(filled_orders: List[TrackedOrder]) -> Decimal:
     if len(filled_orders) == 0:
         return Decimal(0)
 
@@ -68,7 +68,7 @@ def compute_avg_position_price(filled_orders: List[TrackedOrderDetails]) -> Deci
     return Decimal(total_cost / total_amount)
 
 
-def has_current_price_reached_stop_loss(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
+def has_current_price_reached_stop_loss(tracked_order: TrackedOrder, current_price: Decimal) -> bool:
     stop_loss_delta: Decimal | None = tracked_order.triple_barrier.stop_loss_delta
 
     if not stop_loss_delta:
@@ -76,7 +76,7 @@ def has_current_price_reached_stop_loss(tracked_order: TrackedOrderDetails, curr
 
     side: TradeType = tracked_order.side
     ref_price: Decimal = tracked_order.last_filled_price or tracked_order.entry_price
-    stop_loss_price: Decimal = compute_stop_loss_price(side, ref_price, stop_loss_delta)
+    stop_loss_price: Decimal = calc_stop_loss_price(side, ref_price, stop_loss_delta)
 
     if side == TradeType.SELL:
         return current_price > stop_loss_price
@@ -84,29 +84,13 @@ def has_current_price_reached_stop_loss(tracked_order: TrackedOrderDetails, curr
     return current_price < stop_loss_price
 
 
-def has_current_price_reached_take_profit(tracked_order: TrackedOrderDetails, current_price: Decimal) -> bool:
-    take_profit_delta: Decimal | None = tracked_order.triple_barrier.take_profit_delta
-
-    if not take_profit_delta:
-        return False
-
-    side: TradeType = tracked_order.side
-    ref_price: Decimal = tracked_order.last_filled_price or tracked_order.entry_price
-    take_profit_price: Decimal = compute_take_profit_price(side, ref_price, take_profit_delta)
-
-    if side == TradeType.SELL:
-        return current_price < take_profit_price
-
-    return current_price > take_profit_price
-
-
-def has_unfilled_order_expired(order: TrackedOrderDetails | TakeProfitLimitOrder, expiration: int, current_timestamp: float) -> bool:
+def has_unfilled_order_expired(order: TrackedOrder | TakeProfitOrder, expiration: int, current_timestamp: float) -> bool:
     created_at = order.created_at
 
     return created_at + expiration < current_timestamp
 
 
-def has_filled_order_reached_time_limit(tracked_order: TrackedOrderDetails, current_timestamp: float) -> bool:
+def has_filled_order_reached_time_limit(tracked_order: TrackedOrder, current_timestamp: float) -> bool:
     time_limit: int | None = tracked_order.triple_barrier.time_limit
 
     if not time_limit:
@@ -117,7 +101,7 @@ def has_filled_order_reached_time_limit(tracked_order: TrackedOrderDetails, curr
     return filled_at + time_limit < current_timestamp
 
 
-def was_an_order_recently_opened(tracked_orders: List[TrackedOrderDetails], seconds: int, current_timestamp: float) -> bool:
+def was_an_order_recently_opened(tracked_orders: List[TrackedOrder], seconds: int, current_timestamp: float) -> bool:
     if len(tracked_orders) == 0:
         return False
 
@@ -126,7 +110,7 @@ def was_an_order_recently_opened(tracked_orders: List[TrackedOrderDetails], seco
     return most_recent_created_at + seconds > current_timestamp
 
 
-def combine_filled_orders(filled_orders: List[TrackedOrderDetails]) -> TrackedOrderDetails:
+def combine_filled_orders(filled_orders: List[TrackedOrder]) -> TrackedOrder:
     non_terminated_filled_orders = [order for order in filled_orders if not order.terminated_at]
     combined_filled_amount: Decimal = Decimal(0)
 
@@ -139,7 +123,7 @@ def combine_filled_orders(filled_orders: List[TrackedOrderDetails]) -> TrackedOr
 
     first_order = filled_orders[0]
 
-    return TrackedOrderDetails(
+    return TrackedOrder(
         connector_name=first_order.connector_name,
         trading_pair=first_order.trading_pair,
         side=TradeType.SELL if combined_filled_amount < 0 else TradeType.BUY,
@@ -167,7 +151,7 @@ def normalize_timestamp_to_midnight(timestamp: float) -> float:
 
 
 # TODO: return int instead of Decimal
-def compute_rsi_pullback_difference(rsi: Decimal) -> Decimal:
+def calc_rsi_pullback_difference(rsi: Decimal) -> Decimal:
     """
     When `rsi > 50`:
     i:3 rsi:75 result:72 (rsi-i)
@@ -201,7 +185,7 @@ def compute_rsi_pullback_difference(rsi: Decimal) -> Decimal:
     return increment
 
 
-def compute_softened_leverage(leverage: int) -> int:
+def calc_softened_leverage(leverage: int) -> int:
     """
     i:0 leverage:3   result:3   (leverage-i)
     i:1 leverage:5   result:4   (leverage-i)

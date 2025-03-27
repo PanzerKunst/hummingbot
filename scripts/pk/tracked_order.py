@@ -7,7 +7,7 @@ from scripts.pk.pk_triple_barrier import TripleBarrier
 
 
 @dataclass
-class TrackedOrderDetails:
+class TrackedOrder:
     connector_name: str
     trading_pair: str
     side: TradeType
@@ -21,5 +21,6 @@ class TrackedOrderDetails:
     exchange_order_id: str | None = None
     last_filled_at: float | None = None
     last_filled_price: Decimal | None = None
+    closing_at: float | None = None
     terminated_at: float | None = None
     close_type: CloseType | None = None
