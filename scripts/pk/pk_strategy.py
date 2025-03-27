@@ -14,7 +14,6 @@ from hummingbot.core.event.events import (
 from hummingbot.strategy.strategy_v2_base import StrategyV2Base
 from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig
 from hummingbot.strategy_v2.models.executors import CloseType
-from scripts.ashbringer_config import ExcaliburConfig
 from scripts.pk.close_order import CloseOrder
 from scripts.pk.pk_triple_barrier import TripleBarrier
 from scripts.pk.pk_utils import (
@@ -24,6 +23,7 @@ from scripts.pk.pk_utils import (
 )
 from scripts.pk.take_profit_order import TakeProfitOrder
 from scripts.pk.tracked_order import TrackedOrder
+from scripts.thunderfury_config import ExcaliburConfig
 
 
 class PkStrategy(StrategyV2Base):
