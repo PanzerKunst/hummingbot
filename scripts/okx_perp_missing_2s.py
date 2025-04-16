@@ -18,7 +18,7 @@ from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction,
 # Start the bot: start --script okx_perp_missing_2s.py --conf conf_okx_perp_missing_2s_FARTCOIN_Hyperliquid.yml
 #                start --script okx_perp_missing_2s.py --conf conf_okx_perp_missing_2s_FARTCOIN_OKX.yml
 
-SHORT_MA_LENGTH: int = 28
+MA_LENGTH: int = 20
 
 
 class OkxMissingTwoSecConfig(StrategyV2ConfigBase):
@@ -90,7 +90,7 @@ class OkxMissingTwoSec(StrategyV2Base):
 
         candles_df["timestamp_iso"] = pd.to_datetime(candles_df["timestamp"], unit="s")
 
-        candles_df[f"EMA_{SHORT_MA_LENGTH}"] = candles_df.ta.ema(length=SHORT_MA_LENGTH)
+        candles_df[f"EMA_{MA_LENGTH}"] = candles_df.ta.ema(length=MA_LENGTH)
 
         candles_df.dropna(inplace=True)
 
@@ -120,7 +120,7 @@ class OkxMissingTwoSec(StrategyV2Base):
                     "high",
                     "close",
                     "volume",
-                    f"EMA_{SHORT_MA_LENGTH}"
+                    f"EMA_{MA_LENGTH}"
                 ]
 
                 custom_status.append(format_df_for_printout(self.processed_data[columns_to_display].tail(20), table_format="psql"))
