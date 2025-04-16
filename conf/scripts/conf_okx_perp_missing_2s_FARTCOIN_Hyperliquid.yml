@@ -1,0 +1,14 @@
+markets: {}
+candles_config: []
+controllers_config: []
+config_update_interval: 60
+script_file_name: okx_perp_missing_2s.py
+exchange: hyperliquid_perpetual
+trading_pair: FARTCOIN-USD
+candles_exchange: binance_perpetual
+candles_pair: FARTCOIN-USDT
+candles_interval: 1m
+candles_length: 60
+order_amount_quote: 30
+leverage: 3
+position_mode: ONEWAY
