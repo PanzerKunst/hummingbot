@@ -45,7 +45,7 @@ __pycache__
 **/.DS_Store
 portfolio_value.csv
 /notebooks
-/data
+/data/*.sqlite
 debug.log
 /installation/docker-commands/hummingbot_files
 
