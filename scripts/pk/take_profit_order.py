@@ -11,7 +11,6 @@ class TakeProfitOrder:
     amount: Decimal
     entry_price: Decimal
     created_at: float
-    filled_amount: Decimal = 0
     exchange_order_id: str | None = None
     last_filled_at: float | None = None
     last_filled_price: Decimal | None = None

@@ -15,12 +15,15 @@ class TrackedOrder:
     amount: Decimal
     entry_price: Decimal
     triple_barrier: TripleBarrier
-    ref: str
+    tag: str
     created_at: float
-    filled_amount: Decimal = 0
+    filled_amount: Decimal = Decimal("0")
+    filled_tp_amount: Decimal = Decimal("0")
+    closed_amount: Decimal = Decimal("0")
     exchange_order_id: str | None = None
     last_filled_at: float | None = None
     last_filled_price: Decimal | None = None
+    canceling_at: float | None = None
     closing_at: float | None = None
     terminated_at: float | None = None
     close_type: CloseType | None = None

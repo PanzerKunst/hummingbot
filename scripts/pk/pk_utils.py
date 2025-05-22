@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from decimal import Decimal
-from typing import List
+from typing import List, Tuple
 
 import pandas as pd
 
@@ -34,14 +34,37 @@ def calc_recent_price_delta_pct(low_series: pd.Series, high_series: pd.Series, n
     return (highest_price - lowest_price) / highest_price * 100
 
 
+def calc_avg_filled_price(filled_orders: List[TrackedOrder]) -> Decimal:
+    total_value: Decimal = sum(
+        (
+            o.last_filled_price * (o.filled_amount - o.filled_tp_amount)
+            for o in filled_orders
+        ),
+        Decimal("0")
+    )
+
+    total_amount: Decimal = sum(
+        (
+            (o.filled_amount - o.filled_tp_amount)
+            for o in filled_orders
+        ),
+        Decimal("0")
+    )
+
+    if total_amount == 0:
+        return Decimal("0")
+
+    return total_value / total_amount
+
+
 def calc_sell_orders_pnl_pct(filled_sell_orders: List[TrackedOrder], current_price: Decimal) -> Decimal:
-    worst_filled_price = min(filled_sell_orders, key=lambda order: order.last_filled_price).last_filled_price
-    return (worst_filled_price - current_price) / worst_filled_price * 100
+    avg_price: Decimal = calc_avg_filled_price(filled_sell_orders)
+    return (avg_price - current_price) / avg_price * 100
 
 
 def calc_buy_orders_pnl_pct(filled_buy_orders: List[TrackedOrder], current_price: Decimal) -> Decimal:
-    worst_filled_price = max(filled_buy_orders, key=lambda order: order.last_filled_price).last_filled_price
-    return (current_price - worst_filled_price) / worst_filled_price * 100
+    avg_price: Decimal = calc_avg_filled_price(filled_buy_orders)
+    return (current_price - avg_price) / avg_price * 100
 
 
 def calc_stop_loss_price(side: TradeType, ref_price: Decimal, stop_loss_delta: Decimal) -> Decimal:
@@ -60,7 +83,7 @@ def calc_take_profit_price(side: TradeType, ref_price: Decimal, take_profit_delt
 
 def calc_avg_position_price(filled_orders: List[TrackedOrder]) -> Decimal:
     if len(filled_orders) == 0:
-        return Decimal(0)
+        return Decimal("0")
 
     total_amount = sum(order.filled_amount for order in filled_orders)
     total_cost = sum(order.filled_amount * order.last_filled_price for order in filled_orders)
@@ -71,7 +94,7 @@ def calc_avg_position_price(filled_orders: List[TrackedOrder]) -> Decimal:
 def has_current_price_reached_stop_loss(tracked_order: TrackedOrder, current_price: Decimal) -> bool:
     stop_loss_delta: Decimal | None = tracked_order.triple_barrier.stop_loss_delta
 
-    if not stop_loss_delta:
+    if stop_loss_delta is None:
         return False
 
     side: TradeType = tracked_order.side
@@ -93,12 +116,12 @@ def has_unfilled_order_expired(order: TrackedOrder | TakeProfitOrder, expiration
 def has_filled_order_reached_time_limit(tracked_order: TrackedOrder, current_timestamp: float) -> bool:
     time_limit: int | None = tracked_order.triple_barrier.time_limit
 
-    if not time_limit:
+    if time_limit is None:
         return False
 
     filled_at = tracked_order.last_filled_at
 
-    return filled_at + time_limit < current_timestamp
+    return current_timestamp > filled_at + time_limit
 
 
 def was_an_order_recently_opened(tracked_orders: List[TrackedOrder], seconds: int, current_timestamp: float) -> bool:
@@ -111,8 +134,8 @@ def was_an_order_recently_opened(tracked_orders: List[TrackedOrder], seconds: in
 
 
 def combine_filled_orders(filled_orders: List[TrackedOrder]) -> TrackedOrder:
-    non_terminated_filled_orders = [order for order in filled_orders if not order.terminated_at]
-    combined_filled_amount: Decimal = Decimal(0)
+    non_terminated_filled_orders = [order for order in filled_orders if order.terminated_at is None]
+    combined_filled_amount: Decimal = Decimal("0")
 
     for order in non_terminated_filled_orders:
         if order.side == TradeType.SELL:
@@ -131,7 +154,7 @@ def combine_filled_orders(filled_orders: List[TrackedOrder]) -> TrackedOrder:
         amount=abs(combined_filled_amount),
         entry_price=first_order.last_filled_price,
         triple_barrier=first_order.triple_barrier,
-        ref=first_order.ref,
+        tag=first_order.tag,
         created_at=first_order.created_at,
         filled_amount=abs(combined_filled_amount)
     )
@@ -148,6 +171,14 @@ def iso_to_timestamp(iso_date: str) -> float:
 def normalize_timestamp_to_midnight(timestamp: float) -> float:
     dt = datetime.fromtimestamp(timestamp)
     return datetime(dt.year, dt.month, dt.day).timestamp()
+
+
+def bucket_minute(tracked_order: TrackedOrder) -> Tuple[int, int, int, int, int]:
+    """
+    Convert an order’s created_at timestamp into a (year, month, day, hour, minute) tuple.
+    """
+    dt: datetime = datetime.fromtimestamp(tracked_order.created_at, tz=timezone.utc)
+    return dt.year, dt.month, dt.day, dt.hour, dt.minute
 
 
 # TODO: return int instead of Decimal
@@ -183,22 +214,3 @@ def calc_rsi_pullback_difference(rsi: Decimal) -> Decimal:
 
     increment = ((25 - rsi) // 3) + 3
     return increment
-
-
-def calc_softened_leverage(leverage: int) -> int:
-    """
-    i:0 leverage:3   result:3   (leverage-i)
-    i:1 leverage:5   result:4   (leverage-i)
-    i:2 leverage:7   result:5   (leverage-i)
-    i:3 leverage:9   result:6   (leverage-i)
-    i:4 leverage:11  result:7   (leverage-i)
-    i:5 leverage:13  result:8   (leverage-i)
-    i:6 leverage:15  result:9   (leverage-i)
-    i:7 leverage:17  result:10  (leverage-i)
-    i:8 leverage:19  result:11  (leverage-i)
-    i:9 leverage:21  result:12  (leverage-i)
-    [...]
-    """
-    decrement: int = (leverage - 3) // 2
-
-    return leverage - decrement

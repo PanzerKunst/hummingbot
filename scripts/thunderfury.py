@@ -1,14 +1,16 @@
 from decimal import Decimal
-from typing import Dict, List, Tuple
+from typing import Dict, Final, List, Tuple
 
 import pandas as pd
 
 from hummingbot.client.ui.interface_utils import format_df_for_printout
 from hummingbot.connector.connector_base import ConnectorBase
+from hummingbot.connector.utils import split_hb_trading_pair
 from hummingbot.core.clock import Clock
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.event.events import OrderFilledEvent
 from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction, StopExecutorAction
+from scripts.pk.log_level import LogLevel
 from scripts.pk.pk_strategy import PkStrategy
 from scripts.pk.pk_triple_barrier import TripleBarrier
 from scripts.pk.pk_utils import calc_take_profit_price
@@ -28,9 +30,10 @@ from scripts.thunderfury_config import ExcaliburConfig
 #                start --script thunderfury.py --conf conf_thunderfury_WIF.yml
 # Quickstart script: -p=a -f thunderfury.py -c conf_thunderfury_GOAT.yml
 
-ORDER_REF_MR: str = "MeanReversion"
-CANDLE_COUNT_FOR_MR_PRICE_CHANGE: int = 3
-CANDLE_DURATION_MINUTES: int = 1
+STRATEGY_CODE: Final[str] = "MR"
+ORDER_TAG_MR: Final[str] = "MeanReversion"
+CANDLE_COUNT_FOR_MR_PRICE_CHANGE: Final[int] = 3
+CANDLE_DURATION_MINUTES: Final[int] = 1
 
 
 class ExcaliburStrategy(PkStrategy):
@@ -106,9 +109,15 @@ class ExcaliburStrategy(PkStrategy):
         delta: int = int(current_timestamp - self.latest_saved_candles_timestamp)
 
         if delta > CANDLE_DURATION_MINUTES * 60:
-            self.logger().error(f"check_if_candles_missed_beats() | missed {delta/60} minutes between the last two candles fetch")
+            self.logger().error(f"check_if_candles_missed_beats() | missed {delta / 60} minutes between the last two candles fetch")
 
         self.latest_saved_candles_timestamp = current_timestamp
+
+    def telegram(self, log_lvl: LogLevel, text: str):
+        lvl_prefix: str = "[E]" if log_lvl == LogLevel.ERROR else "[I]"
+        base, _ = split_hb_trading_pair(self.config.trading_pair)
+        header: str = f"{lvl_prefix} {STRATEGY_CODE} {self.config.connector_name} {base}"
+        self.send_telegram(header, text)
 
     def create_actions_proposal(self) -> List[CreateExecutorAction]:
         self.update_processed_data()
@@ -132,7 +141,7 @@ class ExcaliburStrategy(PkStrategy):
         if processed_data_num_rows == 0:
             return []
 
-        self.check_orders()
+        self.check_orders(1)
         self.stop_actions_proposal_mean_reversion()
 
         return []  # Always return []
@@ -183,19 +192,19 @@ class ExcaliburStrategy(PkStrategy):
     #
 
     def create_actions_proposal_mean_reversion(self):
-        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_REF_MR)
+        active_sell_orders, active_buy_orders = self.get_active_tracked_orders_by_side(ORDER_TAG_MR)
         active_orders = active_sell_orders + active_buy_orders
 
         if self.can_create_mean_reversion_order(TradeType.SELL, active_orders):
             triple_barrier = self.get_triple_barrier(TradeType.SELL)
-            self.create_order(TradeType.SELL, self.get_current_close(), triple_barrier, self.config.amount_quote, ORDER_REF_MR)
+            self.create_order(TradeType.SELL, self.get_current_close(), triple_barrier, self.config.amount_quote, ORDER_TAG_MR)
 
         if self.can_create_mean_reversion_order(TradeType.BUY, active_orders):
             triple_barrier = self.get_triple_barrier(TradeType.BUY)
-            self.create_order(TradeType.BUY, self.get_current_close(), triple_barrier, self.config.amount_quote, ORDER_REF_MR)
+            self.create_order(TradeType.BUY, self.get_current_close(), triple_barrier, self.config.amount_quote, ORDER_TAG_MR)
 
     def can_create_mean_reversion_order(self, side: TradeType, active_tracked_orders: List[TrackedOrder]) -> bool:
-        if not self.can_create_order(side, ORDER_REF_MR, 5):
+        if not self.can_create_order(side, ORDER_TAG_MR, 5):
             return False
 
         if len(active_tracked_orders) > 0:
